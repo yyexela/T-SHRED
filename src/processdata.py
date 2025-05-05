@@ -38,7 +38,6 @@ def load_data(name):
         load_X = np.load('Data/numpy_isotropic.npy').reshape(-1, 350*350)
         return load_X
 
-
 def qr_place(data_matrix, num_sensors):
     '''Takes a (m x N) data matrix consisting of N samples of an m dimensional state and
     number of sensors, returns QR placed sensors and U_r for the SVD X = U S V^T'''
@@ -47,4 +46,3 @@ def qr_place(data_matrix, num_sensors):
     q, r, pivot = scipy.linalg.qr(rankapprox.T, pivoting=True)
     sensor_locs = pivot[:num_sensors]
     return sensor_locs, rankapprox
-

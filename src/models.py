@@ -233,10 +233,10 @@ class UNetDecoder(nn.Module):
     
 # TimeSeries_UTransformer with U-Net decoder
 class TimeSeries_UTransformer(nn.Module):
-    def __init__(self, d_model: int, nhead: int, sequence_length: int = 500, dropout: float = 0.2):
+    def __init__(self, d_model: int, n_heads: int, sequence_length: int = 500, dropout: float = 0.2):
         super().__init__()
         self.pos_encoder = PositionalEncoding(d_model, sequence_length, dropout)
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward=128, dropout=dropout, activation=nn.GELU())
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model, n_heads, dim_feedforward=128, dropout=dropout, activation=nn.GELU())
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=1)
         self.input_embedding = nn.GRU(input_size=3, hidden_size=d_model, num_layers=2)
         self.relu = nn.ReLU()
