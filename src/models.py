@@ -10,8 +10,9 @@ class PositionalEncoding(nn.Module):
     """
     source: https://stackoverflow.com/questions/77444485/using-positional-encoding-in-pytorch
     """
-    def __init__(self, d_model: int, sequence_length: int = 5400, dropout: float = 0.1):
+    def __init__(self, d_model: int, sequence_length: int = 5400, dropout: float = 0.1, device: str = 'cpu'):
         super().__init__()
+        self.device = device
         self.dropout = nn.Dropout(dropout)
         pos_encoding = torch.zeros(sequence_length, 1, d_model)
         position = torch.arange(0, sequence_length, dtype=torch.float).unsqueeze(1)
@@ -22,7 +23,8 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.pe[:x.size(0)]
-        return self.dropout(x)
+        x = self.dropout(x)
+        return x
 
 class MLP(nn.Module):
     """
@@ -33,12 +35,13 @@ class MLP(nn.Module):
     `width`: width of model   
     `device`: which device to use   
     """
-    def __init__(self, in_dim: int, out_dim: int, n_layers: int, device: str = 'cpu'):
+    def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
         super(MLP, self).__init__()
         # Class variables
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.n_layers = n_layers
+        self.dropout = nn.Dropout(dropout)
         self.device = device
 
         # Model layer sizes
@@ -61,16 +64,18 @@ class MLP(nn.Module):
     def forward(self, x):
         x = x["sequence_output"]
         out = self.model(x)
+        out = self.dropout(out)
         out = torch.mean(out, dim=1)
         return out
 
 class UNET(torch.nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, n_layers: int, device: str = 'cpu'):
+    def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
         super().__init__()
         # Class variables
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.n_layers = n_layers
+        self.dropout = nn.Dropout(dropout)
         self.device = device
 
         # Model layer sizes
@@ -92,6 +97,7 @@ class UNET(torch.nn.Module):
         x = x["sequence_output"]
         x = x.permute(0, 2, 1)
         out = self.model(x)
+        out = self.dropout(out)
         out = out.permute(0, 2, 1)
         out = torch.mean(out, dim=1)
         return out
@@ -102,15 +108,18 @@ class TRANSFORMER_SINDY(torch.nn.Module):
                  num_sindy_layers: int = 2, dim_feedforward: int = 128,
                  window_length: int = 500,
                  hidden_size: int = 64,
-                 activation=nn.GELU()): # Added SINDy params
+                 activation=nn.GELU(),
+                 device:str='cpu'): # Added SINDy params
         super().__init__()
         self.d_model = d_model
         self.hidden_size = hidden_size
         self.dropout = dropout
+        self.dropout_layer = nn.Dropout(dropout)
         self.poly_order = poly_order
         self.include_sine = include_sine
         self.num_sindy_layers = num_sindy_layers
         self.window_length = window_length
+        self.device = device
 
         # Store config for layers
         self.layer_config = {
@@ -122,7 +131,6 @@ class TRANSFORMER_SINDY(torch.nn.Module):
             "poly_order": poly_order,
             "include_sine": include_sine
         }
-
 
         self.initialize(self.d_model, self.window_length)
 
@@ -160,6 +168,9 @@ class TRANSFORMER_SINDY(torch.nn.Module):
 
         # apply SINDy encoder/attention layers
         x = self.sindy_encoder(x) # Shape: (batch_size, seq_len, d_model)
+
+        # dropout layer
+        x = self.dropout_layer(x)
 
         # Return dictionary format as before
         return {
@@ -219,7 +230,6 @@ class SINDyLayer(torch.nn.Module):
         ############################## Simplified SINDy update (without mask) #############################
         sindy_update = library_Theta @ self.coefficients
 
-
         # Reshape update back to (batch_size, seq_len, hidden_size)
         sindy_update = sindy_update.reshape(batch_size, seq_len, hidden_size)
         ############################## End SINDy unit #############################
@@ -255,15 +265,17 @@ class TRANSFORMER(torch.nn.Module):
     def __init__(self, d_model: int = 128, nhead: int = 8, # nhead=16 was high for d_model=128, using 8
                  num_encoder_layers: int = 1, dim_feedforward: int = 256, # Often 4*d_model
                  dropout: float = 0.2, activation = nn.GELU(),
-                 window_length: int = 10, hidden_size: int = 10):
+                 window_length: int = 10, hidden_size: int = 10, device:str='cpu'):
         super().__init__()
         self.d_model = d_model
         self.nhead = nhead
         self.num_encoder_layers = num_encoder_layers
         self.dim_feedforward = dim_feedforward
         self.dropout = dropout
+        self.dropout_layer = nn.Dropout(dropout)
         self.window_length = window_length
         self.hidden_size = hidden_size
+        self.device = device
 
         # --- Standard Transformer Components ---
         # Define a single encoder layer
@@ -280,7 +292,7 @@ class TRANSFORMER(torch.nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer=self.encoder_layer,
             num_layers=num_encoder_layers,
-            norm=nn.LayerNorm(d_model) if num_encoder_layers > 1 else None # Optional final norm
+            norm=nn.LayerNorm(hidden_size) if num_encoder_layers > 1 else None # Optional final norm
         )
         # --- End Standard Transformer Components ---
 
@@ -356,6 +368,9 @@ class TRANSFORMER(torch.nn.Module):
             src_key_padding_mask=None # Optional: for masking padded elements
         ) # Shape: (batch_size, seq_len, d_model)
 
+        # 5. Apply dropout
+        transformer_output = self.dropout_layer(transformer_output)
+
         # 5. Prepare Output
         return {
             "sequence_output": transformer_output, # [batch_size, sequence_length, d_model]
@@ -363,13 +378,14 @@ class TRANSFORMER(torch.nn.Module):
         }
 
 class LSTM(torch.nn.Module):
-    def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2):
+    def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.lstm = None # lazy initialization
         self.output_size = hidden_size
+        self.dropout = torch.nn.Dropout(dropout)
 
         self.initialize()
 
@@ -390,6 +406,9 @@ class LSTM(torch.nn.Module):
         h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
         c_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
         out, (h_out, c_out) = self.lstm(x, (h_0, c_0))
+
+        out = self.dropout(out)
+        h_out = self.dropout(h_out)
 
         return {
             "sequence_output": out,
@@ -413,7 +432,8 @@ class MixedModel(torch.nn.Module):
                 dim_feedforward=args.dim_feedforward,
                 window_length=args.window_length,
                 hidden_size=args.hidden_size,
-                activation=nn.GELU()
+                activation=nn.GELU(),
+                device=args.device
             )
         elif args.encoder == "sindy_loss_transformer":
             raise NotImplementedError
@@ -426,12 +446,16 @@ class MixedModel(torch.nn.Module):
                 activation=nn.GELU(),
                 hidden_size=args.hidden_size,
                 window_length=args.window_length,
+                num_encoder_layers=args.encoder_depth,
+                device=args.device
             )
         elif args.encoder == "lstm":
             self.encoder = LSTM(
                 input_size=args.d_model,
                 hidden_size=args.hidden_size,
-                num_layers=args.encoder_depth
+                num_layers=args.encoder_depth,
+                dropout=args.dropout,
+                device=args.device
             )
         else:
             raise NotImplementedError
@@ -441,6 +465,7 @@ class MixedModel(torch.nn.Module):
                 in_dim = args.hidden_size,
                 out_dim = args.output_size,
                 n_layers = args.decoder_depth,
+                dropout=args.dropout,
                 device=args.device
             )
         elif args.decoder == "mlp":
@@ -448,6 +473,7 @@ class MixedModel(torch.nn.Module):
                 in_dim = args.hidden_size,
                 out_dim = args.output_size,
                 n_layers = args.decoder_depth,
+                dropout=args.dropout,
                 device=args.device
             )
         else:
