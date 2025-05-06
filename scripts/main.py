@@ -14,7 +14,7 @@ from sklearn.preprocessing import MinMaxScaler
 from matplotlib.colors import LinearSegmentedColormap
 
 # Local files
-pkg_path = str(Path(__file__).parent.parent / 'src')
+pkg_path = str(Path(__file__).parent.parent)
 sys.path.insert(0, pkg_path)
 
 from src import *
@@ -24,7 +24,7 @@ from src import *
 ###############
 
 # Directories
-top_dir = Path(__file__).parent
+top_dir = Path(__file__).parent.parent
 data_dir = top_dir / 'datasets'
 plasma_dir = data_dir / 'plasma'
 fig_dir = top_dir / 'figures'
@@ -33,29 +33,49 @@ fig_dir = top_dir / 'figures'
 # Main #
 ########
 
+#validation_errors = models.fit(UTransformer, train_dataset, valid_dataset, batch_size=25, num_epochs=8, lr=0.001, verbose=True, patience=5)
+#UTransformer = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
+
 def main(args=None):
-    train_dl ,valid_dl, test_dl = datasets.load_dataset(args.dataset)
-    d_model, h_head = datasets.get_dataset_hyperparameters(args.dataset)
-    model = models.get_model(args.model)
+    # Load dataset
+    train_dl, valid_dl, test_dl = datasets.load_dataset(args)
+    args.n_sensors, args.d_data = (next(iter(train_dl))[0].shape[-2],
+                                   next(iter(train_dl))[0].shape[-1])
+    args.data_rows, args.data_cols = (next(iter(train_dl))[1].shape[-2],
+                                      next(iter(train_dl))[1].shape[-1])
+    args.d_model = args.n_sensors * args.d_data
 
-    # We train the model using the training and validation datasets.
+    # TESTING
+    args.hidden_size = 12
+    args.conv1 = 2*args.hidden_size
+    args.conv2 = 4*args.hidden_size
+    args.output_size = args.data_rows*args.data_cols*args.d_data
+    args.include_sine = False
+    args.num_sindy_layers = 2
+    args.dim_feedforward = 128
+    args.poly_order = 1
 
-    # Finally, we generate reconstructions from the test set and print mean square error compared to the ground truth.
+    # Load model
+    model = models.MixedModel(args)
 
-    UTransformer = models.TimeSeries_UTransformer(d_model=d_model, n_heads=n_heads, sequence_length=args.seq_length, dropout=args.dropout).to(args.device)
-
-    #validation_errors = models.fit(UTransformer, train_dataset, valid_dataset, batch_size=25, num_epochs=8, lr=0.001, verbose=True, patience=5)
-    #UTransformer = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
-    validation_errors = models.fit(UTransformer, train_dl, valid_dl, batch_size=64, num_epochs=3000, lr=1e-3, verbose=True, patience=5)
+    validation_errors = helpers.train_model(model, train_dl, args)
     print(list(validation_errors))
 
 if __name__ == '__main__':
     # To allow CLIs
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (MNIST, FMNIST, or YaleFaces)")
-    parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on (cuda:0, cuda:1, cuda:2)")
+    parser.add_argument('--dataset', type=str, default=None, help="Dataset to run")
+    parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
+    parser.add_argument('--encoder', type=str, default="sindy_transformer", help="Which model to use")
+    parser.add_argument('--decoder', type=str, default="unet", help="Which model to use")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
-    parser.add_argument('--epochs', type=int, default=500, help="Number of epochs for training")
+    parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
+    parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
+    parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")
+    parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
+    parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
+    parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
+    parser.add_argument('--use_normalization', type=int, default=6, help="Use normalization for datasets")
     args = parser.parse_args()
     main(args)       
         

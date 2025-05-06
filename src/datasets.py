@@ -3,15 +3,24 @@
 ###########
 
 import sys
+import gzip
 import torch
+import bisect
 import argparse
 import numpy as np
+from tqdm import tqdm
 import scipy.io as sio
 from pathlib import Path
+from einops import rearrange
 import matplotlib.pyplot as plt
+from torch.utils.data import Dataset, DataLoader
 import matplotlib.animation as animation
 from sklearn.preprocessing import MinMaxScaler
 from matplotlib.colors import LinearSegmentedColormap
+
+from the_well.data import WellDataset
+from the_well.benchmark.metrics import VRMSE
+from the_well.utils.download import well_download
 
 # Local files
 pkg_path = str(Path(__file__).parent.parent / 'src')
@@ -22,7 +31,7 @@ from src.processdata import load_data
 from src.processdata import TimeSeriesDataset
 
 # Directories
-top_dir = Path(__file__).parent
+top_dir = Path(__file__).parent.parent
 data_dir = top_dir / 'datasets'
 plasma_dir = data_dir / 'plasma'
 fig_dir = top_dir / 'figures'
@@ -31,7 +40,162 @@ fig_dir = top_dir / 'figures'
 # Functions #
 #############
 
-def initialize_plasma_data():
+class TimeSeriesDataset(Dataset):
+    def __init__(self, tensors, window_length, sensors):
+        """
+        Args:
+            tensors (list of torch.Tensor): List of tensors where each tensor is
+                a time series of shape (time_steps, features)
+            target (str): Column to target as the output
+            window_length (int): Length of the sliding window
+            sensors (list of [int, int]): List of two-integer lists containing indices of sensors
+        """
+        super().__init__()
+        self.window_length = window_length
+        self.tensors = tensors
+
+        # Convert tensors to torch
+        if isinstance(self.tensors[0], np.ndarray):
+            self.tensors = [torch.from_numpy(tensor) for tensor in self.tensors]
+
+        # Extract sensors per input tensor
+        self.sensors = []
+        for tensor in self.tensors:
+            sensor_list = []
+            for sensor in sensors:
+                sensor_list.append(tensor[:, sensor[0], sensor[1]])
+            sensor = np.stack(sensor_list, axis=1)
+
+            # Shape: (n_timesteps, n_sensors, dim_dataset)
+            sensor = sensor[:,:,np.newaxis]
+            self.sensors.append(sensor)
+
+        # Convert sensors to torch
+        if isinstance(self.sensors[0], np.ndarray):
+            self.sensors = [torch.from_numpy(sensor) for sensor in self.sensors]
+
+        # Float32 for both sensors and tensors
+        self.tensors = [tensor.float() for tensor in self.tensors]
+        self.sensors = [sensor.float() for sensor in self.sensors]
+
+        # Calculate cumulative window counts for index mapping
+        self.cumulative_offsets = [0]
+        current = 0
+        for sensor in self.sensors:
+            L = sensor.size(0)
+            n_windows = (L - window_length - 1) + 1
+            n_windows = max(n_windows, 0)  # Ensure non-negative
+            current += n_windows
+            self.cumulative_offsets.append(current)
+        
+        if self.cumulative_offsets[-1] == 0:
+            raise ValueError("No valid windows created. Check window_length and tensor lengths.")
+
+    def __len__(self):
+        return self.cumulative_offsets[-1]
+
+    def __getitem__(self, idx):
+        # Find which sensor contains this index
+        sensor_idx = bisect.bisect_right(self.cumulative_offsets, idx) - 1
+        
+        # Calculate local index within the sensor
+        start_idx = self.cumulative_offsets[sensor_idx]
+        local_idx = idx - start_idx
+        
+        # Get corresponding sensor and calculate window
+        start = local_idx
+        end = start + self.window_length
+        target = end # because end is exclusive
+
+        sensor = self.sensors[sensor_idx]
+        tensor = self.tensors[sensor_idx]
+
+        window = sensor[start:end]
+        target = tensor[target]
+
+        return window, target
+
+def get_dataset_hyperparameters(args):
+    """
+    This function returns the hyperparameters (d_model) for the specified dataset
+    """
+    if args.dataset == 'sst':
+        return 64, 8
+    elif args.dataset == 'plasma':
+        return 64, 8
+    elif args.dataset == 'well':
+        return 64, 8
+
+def load_dataset(args):
+    if args.dataset == 'sst':
+        return load_sst_data(args)
+    elif args.dataset == 'plasma':
+        return load_plasma_data(args)
+    elif args.dataset == 'well':
+        return load_well_data(args)
+    else:
+        raise ValueError(f'Unknown dataset: {args.dataset}')
+
+def load_well_data(args):
+    train_dl = WellDataset(
+        well_base_path=Path(__file__).parent / 'datasets' / 'the_well' / args.dataset,
+        well_dataset_name=args.dataset,
+        well_split_name="train",
+        n_steps_input=args.window_length,
+        n_steps_output=1,
+        use_normalization=args.use_normalization,
+    )
+
+    valid_dl = WellDataset(
+        well_base_path=Path(__file__).parent / 'datasets' / 'the_well' / args.dataset,
+        well_dataset_name=args.dataset,
+        well_split_name="valid",
+        n_steps_input=args.window_length,
+        n_steps_output=1,
+        use_normalization=args.use_normalization,
+    )
+
+    test_dl = WellDataset(
+        well_base_path=Path(__file__).parent / 'datasets' / 'the_well' / args.dataset,
+        well_dataset_name=args.dataset,
+        well_split_name="test",
+        n_steps_input=args.window_length,
+        n_steps_output=1,
+        use_normalization=args.use_normalization,
+    )
+
+    return train_dl, valid_dl, test_dl
+
+def load_sst_data(args):
+    # Load raw file
+    sst_data_path = data_dir / 'sst' / "demo_sst.npy.gz"
+    with gzip.open(sst_data_path, 'rb') as f:
+        sst_data = np.load(f) # (1000, 180, 360)
+
+    # Create training, testing, and validation split
+    train_size = int(sst_data.shape[0] * 0.8)
+    val_size = int(sst_data.shape[0] * 0.1)
+    train, val, test = np.split(sst_data, [train_size, train_size + val_size])
+
+    dataloaders = []
+    for i, split in enumerate([train, val, test]):
+        # Extract sensors
+        sst_sensors = [(10,10), (20,20), (100, 100)]
+
+        sst_ds = TimeSeriesDataset(tensors=[split], window_length=args.window_length, sensors=sst_sensors)
+
+        # Convert torch dataset to dataloader
+        sst_dl = DataLoader(sst_ds, batch_size=args.batch_size, shuffle=True)
+
+        dataloaders.append(sst_dl)
+
+    train_dl = dataloaders[0]
+    valid_dl = dataloaders[1]
+    test_dl = dataloaders[2]
+
+    return train_dl, valid_dl, test_dl
+
+def load_plasma_data(args):
     # Load data
     v_total = np.load(plasma_dir / 'v_total.npy') #Data for v location
     s_total = np.load(plasma_dir / 's_total.npy') #Data for s location
