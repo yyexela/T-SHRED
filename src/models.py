@@ -360,6 +360,40 @@ class TRANSFORMER(torch.nn.Module):
             "final_hidden_state": transformer_output[:, -1, :] # Last timestep [batch_size, d_model]
         }
 
+class LSTM(torch.nn.Module):
+    def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = None # lazy initialization
+        self.output_size = hidden_size
+
+        self.initialize()
+
+    def initialize(self):
+        self.lstm = nn.LSTM(
+            input_size=self.input_size,
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
+            batch_first=True
+        )
+
+    def forward(self, x):
+        """
+        Forward pass through the LSTM model.
+        """
+        device = next(self.parameters()).device
+        # Initialize hidden and cell
+        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
+        c_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
+        out, (h_out, c_out) = self.lstm(x, (h_0, c_0))
+
+        return {
+            "sequence_output": out,
+            "final_hidden_state": h_out[-1].view(-1, self.hidden_size)
+        }
+
 class MixedModel(torch.nn.Module):
     """
     Main function to generate mixes of models
@@ -384,15 +418,19 @@ class MixedModel(torch.nn.Module):
         elif args.encoder == "transformer":
             self.encoder = TRANSFORMER(
                 d_model=args.d_model,
-                nhead = args.n_heads,
+                nhead=args.n_heads,
                 dim_feedforward=args.dim_feedforward,
                 dropout=args.dropout,
                 activation=nn.GELU(),
                 hidden_size=args.hidden_size,
                 window_length=args.window_length,
             )
-        elif args.encoder == "gru":
-            raise NotImplementedError
+        elif args.encoder == "lstm":
+            self.encoder = LSTM(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                num_layers=args.encoder_depth
+            )
         else:
             raise NotImplementedError
         

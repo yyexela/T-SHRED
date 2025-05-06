@@ -49,8 +49,7 @@ def main(args=None):
     # Load model
     model = models.MixedModel(args)
 
-    validation_errors = helpers.train_model(model, train_dl, args)
-    print(list(validation_errors))
+    helpers.train_model(model, train_dl, args)
 
 if __name__ == '__main__':
     # To allow CLIs
@@ -62,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
     parser.add_argument('--dim_feedforward', type=int, default=128, help="Size of feed forward layers in transformer encoder")
     parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
-    parser.add_argument('--encoder', type=str, default="sindy_attention_transformer", help="Which encoder to use (gru, transformer, sindy_attention_transformer, sindy_loss_transformer)")
+    parser.add_argument('--encoder', type=str, default="lstm", help="Which encoder to use (lstm, transformer, sindy_attention_transformer, sindy_loss_transformer)")
     parser.add_argument('--encoder_depth', type=int, default=2, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
