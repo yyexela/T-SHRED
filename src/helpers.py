@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch
 import torch.nn as nn
 
-def train_model(model, dataloader, args):
+def train_model(model, dataloader, sensors, args):
     """
     Train a PyTorch model.
 
@@ -19,28 +19,44 @@ def train_model(model, dataloader, args):
         lr (float): Learning rate.
         device (torch.device): Device to train on (e.g. CPU, GPU).
     """
+    # Set up model, optimizer, and loss
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = torch.nn.MSELoss()
     model.train()
     model.to(args.device)
 
     for epoch in range(args.epochs):
-        for batch in dataloader:
-            inputs, labels = batch
+        for i, batch in enumerate(dataloader):
+            # Get raw data
+            inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
             inputs, labels = inputs.to(args.device), labels.to(args.device)
 
-            # Reshape inputs from (batch, window_length, n_sensors, d_data) to (batch, window_length, n_sensors*d_data) using eigops
-            inputs = einops.rearrange(inputs, 'b w n d -> b w (n d)')
+            # Extract sensors per input tensor
+            input_sensors = []
+            for sensor in sensors:
+                input_sensors.append(inputs[:,:,sensor[0],sensor[1],:])
+            input_sensors = torch.stack(input_sensors, dim=2)
 
+            # Prepare input for model
+            input_sensors = einops.rearrange(input_sensors, 'b w n d -> b w (n d)')
+
+            # Pass data through model
             optimizer.zero_grad()
+            outputs = model(input_sensors)
 
-            outputs = model(inputs)
-            outputs = einops.rearrange(outputs, 'b (r w) -> b r w', b=inputs.shape[0], r=args.data_rows, w=args.data_cols)
+            # Reshape output
+            outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows, w=args.data_cols, d=args.d_data)
 
+            # Calculate loss
             loss = loss_fn(outputs, labels)
 
+            # Backprop
             loss.backward()
             optimizer.step()
+
+            # TODO: Remove for testing
+            if (i+1) % 5 == 0:
+                break
 
         print(f'Epoch {epoch+1}, Loss: {loss.item()}')
 

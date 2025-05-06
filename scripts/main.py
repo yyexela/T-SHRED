@@ -9,6 +9,7 @@ import numpy as np
 import scipy.io as sio
 from pathlib import Path
 import matplotlib.pyplot as plt
+from torch.utils.data import DataLoader
 import matplotlib.animation as animation
 from sklearn.preprocessing import MinMaxScaler
 from matplotlib.colors import LinearSegmentedColormap
@@ -37,19 +38,24 @@ fig_dir = top_dir / 'figures'
 #UTransformer = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
 
 def main(args=None):
+    # Choose sensors # TODO: Multiple options?
+    sensors = [(10,10), (20,20), (30,30)]
+
     # Load dataset
-    train_dl, valid_dl, test_dl = datasets.load_dataset(args)
-    args.n_sensors, args.d_data = (next(iter(train_dl))[0].shape[-2],
-                                   next(iter(train_dl))[0].shape[-1])
-    args.data_rows, args.data_cols = (next(iter(train_dl))[1].shape[-2],
-                                      next(iter(train_dl))[1].shape[-1])
+    train_ds, valid_ds, test_ds = datasets.load_dataset(args)
+    args.n_sensors, args.d_data = (len(sensors), train_ds[0]['input_fields'].shape[-1])
+    args.data_rows, args.data_cols = (train_ds[0]['input_fields'].shape[-3],
+                                      train_ds[0]['input_fields'].shape[-2])
     args.d_model = args.n_sensors * args.d_data
     args.output_size = args.data_rows*args.data_cols*args.d_data
+
+    # Create dataloader
+    train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
 
     # Load model
     model = models.MixedModel(args)
 
-    helpers.train_model(model, train_dl, args)
+    helpers.train_model(model, train_dl, sensors, args)
 
 if __name__ == '__main__':
     # To allow CLIs
