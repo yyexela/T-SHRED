@@ -8,6 +8,58 @@ import torch.nn as nn
 import torch
 import torch.nn as nn
 
+def normalize_pytorch(tensor, dims, mean=None, std=None, eps=1e-8):
+    """
+    Normalize a tensor across its channel dimension.
+    
+    Args:
+        tensor (torch.Tensor): Input tensor of shape (N, W, H, C)
+        mean (torch.Tensor, optional): Pre-computed mean values for each channel
+        std (torch.Tensor, optional): Pre-computed standard deviation values for each channel
+        eps (float): Small value to avoid division by zero
+    
+    Returns:
+        torch.Tensor: Normalized tensor of same shape as input
+        torch.Tensor: Mean values used for normalization
+        torch.Tensor: Standard deviation values used for normalization
+    """
+    # Ensure input is 4D
+    if tensor.dim() != 4:
+        raise ValueError(f"Expected 4D tensor (N, W, H, C), got {tensor.dim()}D tensor")
+    
+    # Calculate mean and std across all dimensions except channel
+    if mean is None:
+        mean = tensor.mean(dim=(0, 1, 2), keepdim=True)  # Shape: (1, 1, 1, C)
+    if std is None:
+        std = tensor.std(dim=(0, 1, 2), keepdim=True)    # Shape: (1, 1, 1, C)
+    
+    # Normalize
+    normalized = (tensor - mean) / (std + eps)
+    
+    return normalized, mean, std
+
+def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
+    """
+    Denormalize a tensor that was previously normalized using normalize_channels.
+    
+    Args:
+        normalized_tensor (torch.Tensor): Normalized tensor of shape (N, W, H, C)
+        mean (torch.Tensor): Mean values used for normalization, shape (1, 1, 1, C)
+        std (torch.Tensor): Standard deviation values used for normalization, shape (1, 1, 1, C)
+        eps (float): Small value to avoid division by zero
+    
+    Returns:
+        torch.Tensor: Denormalized tensor of same shape as input
+    """
+    # Ensure input is 4D
+    if normalized_tensor.dim() != 4:
+        raise ValueError(f"Expected 4D tensor (N, W, H, C), got {normalized_tensor.dim()}")
+    
+    # Denormalize
+    denormalized = normalized_tensor * (std + eps) + mean
+    
+    return denormalized
+
 def train_model(model, dataloader, sensors, args):
     """
     Train a PyTorch model.

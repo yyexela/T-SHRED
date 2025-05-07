@@ -6,21 +6,15 @@ import sys
 import gzip
 import torch
 import bisect
-import argparse
+import einops
 import numpy as np
-from tqdm import tqdm
 import scipy.io as sio
 from pathlib import Path
-from einops import rearrange
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
-import matplotlib.animation as animation
-from sklearn.preprocessing import MinMaxScaler
-from matplotlib.colors import LinearSegmentedColormap
+from torch.utils.data import Dataset
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from the_well.data import WellDataset
-from the_well.benchmark.metrics import VRMSE
-from the_well.utils.download import well_download
 
 # Local files
 pkg_path = Path(__file__).parent.parent / 'src'
@@ -29,6 +23,7 @@ sys.path.insert(0, str(pkg_path))
 import src.models as models
 from src.processdata import load_data
 from src.processdata import TimeSeriesDataset
+from src.helpers import normalize_pytorch
 
 # Directories
 top_dir = Path(__file__).parent.parent
@@ -91,8 +86,8 @@ class TimeSeriesDataset(Dataset):
 
         tensor = self.tensors[tensor_idx]
 
-        window = tensor[start:end].unsqueeze(-1)
-        target = tensor[target].unsqueeze(0).unsqueeze(-1)
+        window = tensor[start:end]
+        target = tensor[target].unsqueeze(0)
 
         return {"input_fields": window, "output_fields": target}
 
@@ -134,19 +129,31 @@ def load_well_data(args):
         use_normalization=args.use_normalization,
     )
 
-    return train_dl, valid_dl, test_dl
+    return train_dl, valid_dl, test_dl, None
 
 def load_sst_data(args):
     # Load raw file
     sst_data_path = data_dir / 'sst' / "demo_sst.npy.gz"
     with gzip.open(sst_data_path, 'rb') as f:
         sst_data = np.load(f) # (1000, 180, 360)
+    sst_data = sst_data # 1 channel
 
     # Create training, testing, and validation split
     train_size = int(sst_data.shape[0] * 0.8)
     val_size = int(sst_data.shape[0] * 0.1)
     train, val, test = np.split(sst_data, [train_size, train_size + val_size])
 
+    # Convert data to pytorch
+    train = torch.from_numpy(train).float().unsqueeze(-1)
+    val = torch.from_numpy(val).float().unsqueeze(-1)
+    test = torch.from_numpy(test).float().unsqueeze(-1)
+
+    # Normalize data
+    train, mean, std = normalize_pytorch(train, (0, 1, 2))
+    val, _, _ = normalize_pytorch(val, (0, 1, 2), mean, std)
+    test, _, _ = normalize_pytorch(test, (0, 1, 2), mean, std)
+
+    # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
         sst_ds = TimeSeriesDataset(tensors=[split], window_length=args.window_length)
@@ -156,7 +163,7 @@ def load_sst_data(args):
     valid_ds = datasets[1]
     test_ds = datasets[2]
 
-    return train_ds, valid_ds, test_ds
+    return train_ds, valid_ds, test_ds, (mean, std)
 
 def load_plasma_data(args):
     # Load data
@@ -216,9 +223,8 @@ def load_plasma_data(args):
 
     # FORECASTING MODE
 
-    scaler = MinMaxScaler()
-    scaler = scaler.fit(load_X[train_indices])
-    transformed_X = scaler.transform(load_X)
+    scaler = StandardScaler()
+    transformed_X = scaler.fit_transform(load_X[train_indices])
 
     ### Generate input sequences to a SHRED model
     all_data_in = np.zeros((n - lags, lags, num_sensors))

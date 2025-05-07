@@ -42,7 +42,7 @@ def main(args=None):
     sensors = [(10,10), (20,20), (30,30)]
 
     # Load dataset
-    train_ds, valid_ds, test_ds = datasets.load_dataset(args)
+    train_ds, valid_ds, test_ds, (mean, std) = datasets.load_dataset(args)
     args.n_sensors, args.d_data = (len(sensors), train_ds[0]['input_fields'].shape[-1])
     args.data_rows, args.data_cols = (train_ds[0]['input_fields'].shape[-3],
                                       train_ds[0]['input_fields'].shape[-2])
