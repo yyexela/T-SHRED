@@ -39,7 +39,8 @@ fig_dir = top_dir / 'figures'
 
 def main(args=None):
     # Choose sensors # TODO: Multiple options?
-    sensors = [(10,10), (20,20), (30,30)]
+    #sensors = [(10,10), (20,20), (30,30)] # SST and the_well
+    sensors = [(0, 10), (0,20), (0,50)] # plasma
 
     # Load dataset
     train_ds, valid_ds, test_ds, (mean, std) = datasets.load_dataset(args)

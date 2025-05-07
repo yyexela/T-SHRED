@@ -23,15 +23,11 @@ def normalize_pytorch(tensor, dims, mean=None, std=None, eps=1e-8):
         torch.Tensor: Mean values used for normalization
         torch.Tensor: Standard deviation values used for normalization
     """
-    # Ensure input is 4D
-    if tensor.dim() != 4:
-        raise ValueError(f"Expected 4D tensor (N, W, H, C), got {tensor.dim()}D tensor")
-    
     # Calculate mean and std across all dimensions except channel
     if mean is None:
-        mean = tensor.mean(dim=(0, 1, 2), keepdim=True)  # Shape: (1, 1, 1, C)
+        mean = tensor.mean(dim=dims, keepdim=True)
     if std is None:
-        std = tensor.std(dim=(0, 1, 2), keepdim=True)    # Shape: (1, 1, 1, C)
+        std = tensor.std(dim=dims, keepdim=True)
     
     # Normalize
     normalized = (tensor - mean) / (std + eps)
@@ -51,10 +47,6 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     Returns:
         torch.Tensor: Denormalized tensor of same shape as input
     """
-    # Ensure input is 4D
-    if normalized_tensor.dim() != 4:
-        raise ValueError(f"Expected 4D tensor (N, W, H, C), got {normalized_tensor.dim()}")
-    
     # Denormalize
     denormalized = normalized_tensor * (std + eps) + mean
     
