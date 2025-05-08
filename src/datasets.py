@@ -94,6 +94,8 @@ class TimeSeriesDataset(Dataset):
 def load_dataset(args):
     if args.dataset == 'sst':
         return load_sst_data(args)
+    elif args.dataset == 'sst_demo':
+        return load_sst_demo_data(args)
     elif args.dataset == 'plasma':
         return load_plasma_data(args)
     elif args.dataset in ["active_matter", "planetswe"]:
@@ -133,10 +135,42 @@ def load_well_data(args):
 
 def load_sst_data(args):
     # Load raw file
+    sst_data_path = data_dir / 'sst' / "SST_data.mat"
+    sst_data = sio.loadmat(sst_data_path)['Z'] # (64800, 1400)
+    sst_data = einops.rearrange(sst_data, '(r c) t -> t r c', r=180, c=360, t=1400)
+
+    # Create training, testing, and validation split
+    train_size = int(sst_data.shape[0] * 0.8)
+    val_size = int(sst_data.shape[0] * 0.1)
+    train, val, test = np.split(sst_data, [train_size, train_size + val_size])
+
+    # Convert data to pytorch (treat it like a row x col x 1 image)
+    train = torch.from_numpy(train).float().unsqueeze(-1)
+    val = torch.from_numpy(val).float().unsqueeze(-1)
+    test = torch.from_numpy(test).float().unsqueeze(-1)
+
+    # Normalize data
+    train, mean, std = normalize_pytorch(train, (0, 1, 2))
+    val, _, _ = normalize_pytorch(val, (0, 1, 2), mean, std)
+    test, _, _ = normalize_pytorch(test, (0, 1, 2), mean, std)
+
+    # Create torch datasets
+    datasets = []
+    for i, split in enumerate([train, val, test]):
+        sst_ds = TimeSeriesDataset(tensors=[split], window_length=args.window_length)
+        datasets.append(sst_ds)
+
+    train_ds = datasets[0]
+    valid_ds = datasets[1]
+    test_ds = datasets[2]
+
+    return train_ds, valid_ds, test_ds, (mean, std)
+
+def load_sst_demo_data(args):
+    # Load raw file
     sst_data_path = data_dir / 'sst' / "demo_sst.npy.gz"
     with gzip.open(sst_data_path, 'rb') as f:
         sst_data = np.load(f) # (1000, 180, 360)
-    sst_data = sst_data # 1 channel
 
     # Create training, testing, and validation split
     train_size = int(sst_data.shape[0] * 0.8)

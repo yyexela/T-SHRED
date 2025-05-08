@@ -88,7 +88,7 @@ if __name__ == '__main__':
     # To allow CLIs
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
-    parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (active_matter, planetswe, sst, plasma)")
+    parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (active_matter, planetswe, sst, sst_demo plasma)")
     parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (unet, mlp)")
     parser.add_argument('--decoder_depth', type=int, default=2, help="Number of decoder layers")
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
