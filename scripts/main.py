@@ -100,7 +100,6 @@ if __name__ == '__main__':
     parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
     parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
     parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
-    parser.add_argument('--use_normalization', type=int, default=6, help="Use normalization for datasets")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")
     args = parser.parse_args()
