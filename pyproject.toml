@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools >= 64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transformer_sindy_shred"
+dependencies = [
+    "einops>=0.8.1",
+    "matplotlib>=3.10.1",
+    "numpy>=2.25",
+    "scikit_learn>=1.61"
+    "torch>=2.7.0"
+]
+requires-python = ">=3.8"
+description = "Transformer SINDy-SHRED"
+
+[project.urls]
+Homepage = "https://github.com/zorodav/SINDy-Transformer"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]
+exclude = []
+namespaces = true
+
+[project.optional-dependencies]
+all = ["jupyterlab"]
+notebooks = ["jupyterlab"]
+

@@ -15,6 +15,9 @@ import matplotlib.animation as animation
 from sklearn.preprocessing import MinMaxScaler
 from matplotlib.colors import LinearSegmentedColormap
 
+# Bug workaround, see https://github.com/pytorch/pytorch/issues/16831
+torch.backends.cudnn.benchmark = False
+
 # Local files
 pkg_path = str(Path(__file__).parent.parent)
 sys.path.insert(0, pkg_path)
