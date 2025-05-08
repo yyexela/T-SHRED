@@ -8,6 +8,21 @@ import torch.nn as nn
 import torch
 import torch.nn as nn
 
+def print_dictionary(hp_dict: dict[str, str], text: str) -> None:
+    """
+    Print given dictionary
+
+    `hp_dict`: dictionary dictionary to print key and values for
+    `text`: text to print before dictionary
+
+    Returns: `None`
+    """
+    print(text)
+    for key in hp_dict.keys():
+        print(f"{key}: {hp_dict[key]}")
+
+    return None
+
 def normalize_pytorch(tensor, dims, mean=None, std=None, eps=1e-8):
     """
     Normalize a tensor across its channel dimension.
@@ -52,25 +67,67 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def train_model(model, dataloader, sensors, args):
+def evaluate_model(model, test_dl, sensors, args):
+    """
+    Evaluate a PyTorch model.
+    """
+    model.to(args.device)
+    loss_fn = torch.nn.MSELoss()
+    model.eval()
+    test_loss = 0.0
+    with torch.no_grad():
+        for batch in test_dl:
+            # Get raw data
+            inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
+            inputs, labels = inputs.to(args.device), labels.to(args.device)
+
+            # Extract sensors per input tensor
+            input_sensors = []
+            for sensor in sensors:
+                input_sensors.append(inputs[:,:,sensor[0],sensor[1],:])
+            input_sensors = torch.stack(input_sensors, dim=2)
+
+            # Prepare input for model
+            input_sensors = einops.rearrange(input_sensors, 'b w n d -> b w (n d)')
+
+            # Pass data through model
+            outputs = model(input_sensors)
+
+            # Reshape output
+            outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows, w=args.data_cols, d=args.d_data)
+
+            # Calculate loss
+            test_loss += loss_fn(outputs, labels).item()
+
+        # Average loss
+        test_loss /= len(test_dl)
+
+    return test_loss
+
+
+def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimizer, args):
     """
     Train a PyTorch model.
 
     Args:
         model (nn.Module): PyTorch model to train.
-        dataloader (DataLoader): PyTorch DataLoader instance.
-        num_epochs (int): Number of epochs to train for.
-        lr (float): Learning rate.
-        device (torch.device): Device to train on (e.g. CPU, GPU).
+        train_dl (DataLoader): PyTorch DataLoader instance for training data.
+        val_dl (DataLoader): PyTorch DataLoader instance for validation data.
+        sensors (list): List of sensor locations.
+        start_epoch (int): Epoch to start training from.
+        best_val (float): Best validation loss.
+        optimizer (torch.optim.Optimizer): Optimizer to use for training.
+        args (argparse.Namespace): Arguments to use for training.
     """
     # Set up model, optimizer, and loss
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = torch.nn.MSELoss()
-    model.train()
     model.to(args.device)
 
-    for epoch in range(args.epochs):
-        for i, batch in enumerate(dataloader):
+    for epoch in range(start_epoch, args.epochs):
+        model.train()
+        # Calculate training loss
+        train_loss = 0.0
+        for i, batch in enumerate(train_dl):
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
             inputs, labels = inputs.to(args.device), labels.to(args.device)
@@ -98,11 +155,28 @@ def train_model(model, dataloader, sensors, args):
             loss.backward()
             optimizer.step()
 
-            # TODO: Remove for testing
-            if (i+1) % 5 == 0:
-                break
+            train_loss += loss.item()
+        # Average loss
+        train_loss /= len(train_dl)
 
-        print(f'Epoch {epoch+1}, Loss: {loss.item()}')
+        # Calculate validation loss
+        val_loss = evaluate_model(model, val_dl, sensors, args)
+
+        # Save model to checkpoint if validation loss is lower than best validation loss
+        if val_loss < best_val:
+            if args.verbose:
+                print(f'Validation loss improved from {best_val:0.4e} to {val_loss:0.4e}, saving model')
+            best_val = val_loss
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_val': best_val,
+            }, args.checkpoint_path)
+
+        # Print loss
+        if args.verbose:
+            print(f'Epoch {epoch+1}, Training loss: {train_loss:0.4e}, Validation loss: {val_loss:0.4e} (best: {best_val:0.4e})')
 
 def calculate_library_dim(latent_dim, poly_order, include_sine):
     dim = 1 # Constant term

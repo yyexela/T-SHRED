@@ -5,6 +5,7 @@
 import sys
 import torch
 import argparse
+import datetime
 import numpy as np
 import scipy.io as sio
 from pathlib import Path
@@ -29,6 +30,9 @@ top_dir = Path(__file__).parent.parent
 data_dir = top_dir / 'datasets'
 plasma_dir = data_dir / 'plasma'
 fig_dir = top_dir / 'figures'
+checkpoint_dir = top_dir / 'checkpoints'
+
+checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
 ########
 # Main #
@@ -43,7 +47,7 @@ def main(args=None):
     sensors = [(0, 10), (0,20), (0,50)] # plasma
 
     # Load dataset
-    train_ds, valid_ds, test_ds, (mean, std) = datasets.load_dataset(args)
+    train_ds, val_ds, test_ds, (mean, std) = datasets.load_dataset(args)
     args.n_sensors, args.d_data = (len(sensors), train_ds[0]['input_fields'].shape[-1])
     args.data_rows, args.data_cols = (train_ds[0]['input_fields'].shape[-3],
                                       train_ds[0]['input_fields'].shape[-2])
@@ -52,11 +56,25 @@ def main(args=None):
 
     # Create dataloader
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
+    val_dl = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
+    test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
-    # Load model
-    model = models.MixedModel(args)
+    # Save model location
+    #time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_model.pt'
+    args.checkpoint_path = checkpoint_dir / model_name
 
-    helpers.train_model(model, train_dl, sensors, args)
+    # Load model if checkpoint exists
+    model, optimizer, start_epoch, best_val = models.load_model_from_checkpoint(args)
+
+    # Train model
+    helpers.train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimizer, args)
+
+    # Evaluate best validation model
+    model, optimizer, start_epoch, best_val = models.load_model_from_checkpoint(args)
+    test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
+    if args.verbose:
+        print(f'Test loss: {test_loss:0.4e}')
 
 if __name__ == '__main__':
     # To allow CLIs

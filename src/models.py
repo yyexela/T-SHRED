@@ -6,6 +6,30 @@ import torch.nn as nn
 
 from helpers import calculate_library_dim, sindy_library_torch
 
+def load_model_from_checkpoint(args):
+    model = MixedModel(args)
+    if args.checkpoint_path.exists():
+        checkpoint = torch.load(args.checkpoint_path)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.to(args.device)
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch']
+        best_val = checkpoint['best_val']
+        if args.verbose:
+            print(f"Loading model from {args.checkpoint_path}")
+            print(f"> start_epoch: {start_epoch}")
+            print(f"> best_val: {best_val:0.4e}")
+    else:
+        if args.verbose:
+            print(f"Using newly initialized model")
+        checkpoint=None
+        start_epoch = 0
+        best_val = float('inf')
+        model.to(args.device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    return model, optimizer, start_epoch, best_val
+
 class PositionalEncoding(nn.Module):
     """
     source: https://stackoverflow.com/questions/77444485/using-positional-encoding-in-pytorch
