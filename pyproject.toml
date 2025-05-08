@@ -4,12 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "transformer_sindy_shred"
+version = "0.1"
 dependencies = [
     "einops>=0.8.1",
     "matplotlib>=3.10.1",
-    "numpy>=2.25",
-    "scikit_learn>=1.61"
-    "torch>=2.7.0"
+    "numpy>=2.2.5",
+    "scikit_learn>=1.6.1",
+    "torch>=2.7.0",
+    "the_well>=1.1.0"
 ]
 requires-python = ">=3.8"
 description = "Transformer SINDy-SHRED"
