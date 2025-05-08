@@ -108,7 +108,7 @@ def load_well_data(args):
         well_split_name="train",
         n_steps_input=args.window_length,
         n_steps_output=1,
-        use_normalization=args.use_normalization,
+        use_normalization=True,
     )
 
     valid_dl = WellDataset(
@@ -117,7 +117,7 @@ def load_well_data(args):
         well_split_name="valid",
         n_steps_input=args.window_length,
         n_steps_output=1,
-        use_normalization=args.use_normalization,
+        use_normalization=True,
     )
 
     test_dl = WellDataset(
@@ -126,10 +126,10 @@ def load_well_data(args):
         well_split_name="test",
         n_steps_input=args.window_length,
         n_steps_output=1,
-        use_normalization=args.use_normalization,
+        use_normalization=True,
     )
 
-    return train_dl, valid_dl, test_dl, None
+    return train_dl, valid_dl, test_dl, (None, None)
 
 def load_sst_data(args):
     # Load raw file

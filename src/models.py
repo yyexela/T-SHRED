@@ -106,6 +106,8 @@ class UNET(torch.nn.Module):
         # Model layer sizes
         sizes = list()
         sizes.extend(np.logspace(np.log2(in_dim), np.log2(out_dim), base=2, num=n_layers+1, dtype=int).tolist())
+        sizes[0] = self.in_dim
+        sizes[-1] = self.out_dim
 
         # Define model layers
         self.layers = []
