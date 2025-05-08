@@ -18,8 +18,9 @@ def print_dictionary(hp_dict: dict[str, str], text: str) -> None:
     Returns: `None`
     """
     print(text)
-    for key in hp_dict.keys():
-        print(f"{key}: {hp_dict[key]}")
+    for key in sorted(hp_dict.keys()):
+        print(f"> {key}: {hp_dict[key]}")
+    print()
 
     return None
 
@@ -164,19 +165,38 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimiz
 
         # Save model to checkpoint if validation loss is lower than best validation loss
         if val_loss < best_val:
+            print()
             if args.verbose:
-                print(f'Validation loss improved from {best_val:0.4e} to {val_loss:0.4e}, saving model')
+                print(f'Saving model to {args.best_checkpoint_path}, validation loss improved from {best_val:0.4e} to {val_loss:0.4e}, ')
             best_val = val_loss
             torch.save({
-                'epoch': epoch,
+                'epoch': epoch+1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_val': best_val,
-            }, args.checkpoint_path)
+            }, args.best_checkpoint_path)
+            print()
+        
+        # Save model to checkpoint if save_every_n_epochs is reached
+        if (epoch + 1) % args.save_every_n_epochs == 0:
+            print()
+            if args.verbose:
+                print(f'Saving model to {args.latest_checkpoint_path}')
+            torch.save({
+                'epoch': epoch+1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_val': best_val,
+            }, args.latest_checkpoint_path)
+            print()
 
         # Print loss
         if args.verbose:
             print(f'Epoch {epoch+1}, Training loss: {train_loss:0.4e}, Validation loss: {val_loss:0.4e} (best: {best_val:0.4e})')
+
+    if args.verbose:
+        print(f"Training complete, best validation loss: {best_val:0.4e}")
+        print()
 
 def calculate_library_dim(latent_dim, poly_order, include_sine):
     dim = 1 # Constant term

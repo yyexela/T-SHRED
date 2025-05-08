@@ -61,17 +61,22 @@ def main(args=None):
 
     # Save model location
     #time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_model.pt'
-    args.checkpoint_path = checkpoint_dir / model_name
+    latest_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_model_latest.pt'
+    best_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_model_best.pt'
+    args.latest_checkpoint_path = checkpoint_dir / latest_model_name
+    args.best_checkpoint_path = checkpoint_dir / best_model_name
 
     # Load model if checkpoint exists
-    model, optimizer, start_epoch, best_val = models.load_model_from_checkpoint(args)
+    model, optimizer, start_epoch, best_val = models.load_model_from_checkpoint(args.latest_checkpoint_path, args)
+
+    # Print hyperparameters
+    helpers.print_dictionary(vars(args), 'Hyperparameters:')
 
     # Train model
     helpers.train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimizer, args)
 
     # Evaluate best validation model
-    model, optimizer, start_epoch, best_val = models.load_model_from_checkpoint(args)
+    model, optimizer, start_epoch, best_val = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
     test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
@@ -94,6 +99,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
     parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
     parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
+    parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
     parser.add_argument('--use_normalization', type=int, default=6, help="Use normalization for datasets")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")

@@ -6,10 +6,10 @@ import torch.nn as nn
 
 from helpers import calculate_library_dim, sindy_library_torch
 
-def load_model_from_checkpoint(args):
+def load_model_from_checkpoint(checkpoint_path, args):
     model = MixedModel(args)
-    if args.checkpoint_path.exists():
-        checkpoint = torch.load(args.checkpoint_path)
+    if checkpoint_path.exists():
+        checkpoint = torch.load(checkpoint_path)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         model.load_state_dict(checkpoint['model_state_dict'])
         model.to(args.device)
@@ -17,7 +17,7 @@ def load_model_from_checkpoint(args):
         start_epoch = checkpoint['epoch']
         best_val = checkpoint['best_val']
         if args.verbose:
-            print(f"Loading model from {args.checkpoint_path}")
+            print(f"Loading model from {checkpoint_path}")
             print(f"> start_epoch: {start_epoch}")
             print(f"> best_val: {best_val:0.4e}")
     else:
@@ -28,6 +28,7 @@ def load_model_from_checkpoint(args):
         best_val = float('inf')
         model.to(args.device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    print()
     return model, optimizer, start_epoch, best_val
 
 class PositionalEncoding(nn.Module):
