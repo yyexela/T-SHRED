@@ -65,7 +65,7 @@ $ pip install .
 - `README.md`: 
   - This file
 - `scripts`: 
-  - Primary entry-point to training and evaluating a model.
+  - Contains the primary entry-point `main.py` to training and evaluating a model.
 - `slurms`: 
   - Contains hyak slurm files for batch runs.
 - `src`: 

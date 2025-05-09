@@ -22,11 +22,11 @@ datasets="/mmfs1/home/alexeyy/storage/data"
 dataset=sst
 encoder=transformer
 decoder=mlp
-epochs=100
-save_every_n_epochs=10
-batch_size=5
-window_length=10
-dim_feedforward=128
+epochs=200
+save_every_n_epochs=50
+batch_size=50
+window_length=100
+dim_feedforward=1000
 encoder_depth=1
 
 echo "Running Apptainer"
