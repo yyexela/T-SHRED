@@ -11,7 +11,10 @@ dependencies = [
     "numpy>=2.2.5",
     "scikit_learn>=1.6.1",
     "torch>=2.7.0",
-    "the_well>=1.1.0"
+    "the_well>=1.1.0",
+    "plotly>=6.0.1",
+    "nbformat>=5.10.4",
+    "kaleido>=0.2.1"
 ]
 requires-python = ">=3.8"
 description = "Transformer SINDy-SHRED"
