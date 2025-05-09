@@ -4,9 +4,12 @@ import numpy as np
 import math
 import einops
 import torch.nn as nn
+import random
+from src.plots import plot_losses
 
-import torch
-import torch.nn as nn
+def generate_sensor_positions(n_sensors: int, max_rows: int, max_cols: int) -> list[tuple[int, int]]:
+    random.seed(0)
+    return [(random.randint(0, max_rows-1), random.randint(0, max_cols-1)) for _ in range(n_sensors)]
 
 def print_dictionary(hp_dict: dict[str, str], text: str) -> None:
     """
@@ -106,7 +109,7 @@ def evaluate_model(model, test_dl, sensors, args):
     return test_loss
 
 
-def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimizer, args):
+def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, args):
     """
     Train a PyTorch model.
 
@@ -117,6 +120,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimiz
         sensors (list): List of sensor locations.
         start_epoch (int): Epoch to start training from.
         best_val (float): Best validation loss.
+        best_epoch (int): Epoch of best validation loss.
+        train_losses (list): List of training losses.
+        val_losses (list): List of validation losses.
         optimizer (torch.optim.Optimizer): Optimizer to use for training.
         args (argparse.Namespace): Arguments to use for training.
     """
@@ -159,9 +165,11 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimiz
             train_loss += loss.item()
         # Average loss
         train_loss /= len(train_dl)
+        train_losses.append(train_loss)
 
         # Calculate validation loss
         val_loss = evaluate_model(model, val_dl, sensors, args)
+        val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
         if val_loss < best_val:
@@ -169,12 +177,25 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimiz
             if args.verbose:
                 print(f'Saving model to {args.best_checkpoint_path}, validation loss improved from {best_val:0.4e} to {val_loss:0.4e}, ')
             best_val = val_loss
+            best_epoch = epoch+1
             torch.save({
                 'epoch': epoch+1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_val': best_val,
+                'best_epoch': best_epoch,
+                'train_losses': train_losses,
+                'val_losses': val_losses,
             }, args.best_checkpoint_path)
+            torch.save({
+                'epoch': epoch+1,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'best_val': best_val,
+                'best_epoch': best_epoch,
+                'train_losses': train_losses,
+                'val_losses': val_losses,
+            }, args.latest_checkpoint_path)
             print()
         
         # Save model to checkpoint if save_every_n_epochs is reached
@@ -187,12 +208,18 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, optimiz
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_val': best_val,
+                'best_epoch': best_epoch,
+                'train_losses': train_losses,
+                'val_losses': val_losses,
             }, args.latest_checkpoint_path)
             print()
 
         # Print loss
         if args.verbose:
             print(f'Epoch {epoch+1}, Training loss: {train_loss:0.4e}, Validation loss: {val_loss:0.4e} (best: {best_val:0.4e})')
+        
+        # Make plot
+        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_losses")
 
     if args.verbose:
         print(f"Training complete, best validation loss: {best_val:0.4e}")

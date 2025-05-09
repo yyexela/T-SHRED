@@ -22,6 +22,9 @@ def load_model_from_checkpoint(checkpoint_path, args):
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch']
         best_val = checkpoint['best_val']
+        best_epoch = checkpoint['best_epoch']
+        train_losses = checkpoint['train_losses']
+        val_losses = checkpoint['val_losses']
         if args.verbose:
             print(f"Loading model from {checkpoint_path}")
             print(f"> start_epoch: {start_epoch}")
@@ -34,8 +37,11 @@ def load_model_from_checkpoint(checkpoint_path, args):
         best_val = float('inf')
         model.to(args.device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        train_losses = []
+        val_losses = []
+        best_epoch = 0
     print()
-    return model, optimizer, start_epoch, best_val
+    return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses
 
 class MLP(nn.Module):
     """
