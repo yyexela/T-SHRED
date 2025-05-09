@@ -2,22 +2,7 @@ import torch
 import math
 
 import torch.nn as nn
-
-# Standard positional encoder according to Attention is All you Need paper
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, sequence_length: int = 5400, dropout: float = 0.1):
-        super().__init__()
-        self.dropout = nn.Dropout(dropout)
-        pos_encoding = torch.zeros(sequence_length, 1, d_model)
-        position = torch.arange(0, sequence_length, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
-        pos_encoding[:, 0::2] = torch.sin(position * div_term)
-        pos_encoding[:, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pos_encoding)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.pe[:x.size(0)]
-        return self.dropout(x)
+from positional_encoding import PositionalEncoding
 
 # U-Net decoder component
 class UNetDecoder(nn.Module):
