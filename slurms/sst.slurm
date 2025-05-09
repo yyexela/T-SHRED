@@ -27,6 +27,7 @@ save_every_n_epochs=50
 batch_size=50
 window_length=100
 dim_feedforward=1000
+hidden_size=200
 encoder_depth=1
 
 echo "Running Apptainer"

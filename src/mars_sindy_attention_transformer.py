@@ -127,7 +127,7 @@ class SINDyLayer(nn.Module):
 
         ############################# SINDy unit #############################
         # Reshape src for sindy_library: (batch_size * seq_len, hidden_size)
-        src_flat = src.reshape(-1, hidden_size)
+        src_flat = src.reshape(-1, hidden_size) # 2 x 20 x 12 -> 40 x 12
 
         # Calculate SINDy library features
         library_Theta = sindy_library_torch(src_flat, self.hidden_size, self.poly_order, self.include_sine)

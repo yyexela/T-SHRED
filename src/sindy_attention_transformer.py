@@ -1,16 +1,18 @@
 import math
 import copy
 import torch
+import einops
 import numpy as np
 import torch.nn as nn
 from torch import Tensor
 from typing import Optional
 import torch.nn.functional as F
 from positional_encoding import PositionalEncoding
+from helpers import calculate_library_dim, sindy_library_torch
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class MultiHeadAttention(nn.Module):
+class MultiHeadSindyAttention(nn.Module):
     """
     Computes multi-head attention. Supports nested or padded tensors.
 
@@ -34,6 +36,8 @@ class MultiHeadAttention(nn.Module):
         nheads: int,
         dropout: float = 0.0,
         bias=True,
+        poly_order=2,
+        include_sine=False,
         device=None,
         dtype=None,
     ):
@@ -53,6 +57,12 @@ class MultiHeadAttention(nn.Module):
         assert E_total % nheads == 0, "Embedding dim is not divisible by nheads"
         self.E_head = E_total // nheads
         self.bias = bias
+        self.poly_order = poly_order
+        self.include_sine = include_sine
+        self.library_dim = calculate_library_dim(self.E_head, poly_order, include_sine)
+        self.coefficients = nn.ParameterList([torch.Tensor(self.library_dim, self.E_head) for _ in range(nheads)])
+        for i in range(nheads):
+            nn.init.xavier_uniform_(self.coefficients[i])
 
     def forward(
         self,
@@ -118,11 +128,30 @@ class MultiHeadAttention(nn.Module):
         # (N, nheads, L_t, E_head)
         attn_output = F.scaled_dot_product_attention(
             query, key, value, dropout_p=self.dropout, is_causal=is_causal
-        )
+        ) # 2 x 6 x 20 x 2
         # (N, nheads, L_t, E_head) -> (N, L_t, nheads, E_head) -> (N, L_t, E_total)
-        attn_output = attn_output.transpose(1, 2).flatten(-2)
 
-        # Step 4. Apply output projection
+        # Step 4. Per-head pysindy
+        sindy_attn_output = []
+        for i in range(self.nheads):
+            # Extract head
+            head = attn_output[:,i,:,:]
+            # Reshape src for sindy_library (batch_size * seq_len, hidden_size/nheads)
+            head = einops.rearrange(head, 'b s h -> (b s) h', b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
+            # Calculate SINDy library features
+            library_Theta = sindy_library_torch(head, self.E_head, self.poly_order, self.include_sine)
+            # Calculate SINDy update (use masked coefficients)
+            # effective_coefficients = self.coefficients * self.coefficient_mask.to(self.coefficients.device) # Ensure mask is on correct device
+            ############################## Simplified SINDy update (without mask) #############################
+            sindy_update = library_Theta @ self.coefficients[i]
+            # Reshape update back to (batch_size, seq_len, hidden_size)
+            sindy_update = einops.rearrange(sindy_update, '(b s) h -> b s h', b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
+            sindy_attn_output.append(sindy_update)
+        sindy_attn_output = torch.stack(sindy_attn_output, dim=1)
+
+        attn_output = sindy_attn_output.transpose(1, 2).flatten(-2) # 2 x 20 x 12
+
+        # Step 5. Apply output projection (ff network)
         # (N, L_t, E_total) -> (N, L_t, E_out)
         attn_output = self.out_proj(attn_output)
 
@@ -130,7 +159,7 @@ class MultiHeadAttention(nn.Module):
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class TransformerEncoderLayer(nn.Module):
+class TransformerSindyEncoderLayer(nn.Module):
     def __init__(
         self,
         d_model,
@@ -141,12 +170,14 @@ class TransformerEncoderLayer(nn.Module):
         layer_norm_eps=1e-5,
         norm_first=True,
         bias=True,
+        poly_order=2,
+        include_sine=False,
         device=None,
         dtype=None,
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
-        self.self_attn = MultiHeadAttention(
+        self.self_attn = MultiHeadSindyAttention(
             d_model,
             d_model,
             d_model,
@@ -154,6 +185,8 @@ class TransformerEncoderLayer(nn.Module):
             nhead,
             dropout=dropout,
             bias=bias,
+            poly_order=poly_order,
+            include_sine=include_sine,
             **factory_kwargs,
         )
         self.linear1 = nn.Linear(d_model, dim_feedforward, bias=bias, **factory_kwargs)
@@ -195,10 +228,10 @@ class TransformerEncoderLayer(nn.Module):
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class TransformerEncoder(nn.Module):
+class TransformerSindyEncoder(nn.Module):
     def __init__(
         self,
-        encoder_layer: "TransformerEncoderLayer",
+        encoder_layer: "TransformerSindyEncoderLayer",
         num_layers: int,
         norm: Optional[nn.Module] = None,
         device=None,
@@ -220,45 +253,6 @@ class TransformerEncoder(nn.Module):
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class TransformerDecoder(nn.Module):
-    def __init__(
-        self,
-        decoder_layer: "TransformerDecoderLayer",
-        num_layers: int,
-        norm: Optional[nn.Module] = None,
-    ):
-        super().__init__()
-        self.layers = _get_clones(decoder_layer, num_layers)
-        self.num_layers = num_layers
-        self.norm = norm
-    
-    def forward(
-        self,
-        tgt: Tensor,
-        memory: Tensor,
-        tgt_mask: Optional[Tensor] = None,
-        memory_mask: Optional[Tensor] = None,
-        tgt_is_causal=False,
-        memory_is_causal=False
-    ):
-        output = tgt
-        for mod in self.layers:
-            output = mod(
-                output,
-                memory,
-                tgt_mask=tgt_mask,
-                memory_mask=memory_mask,
-                tgt_is_causal=tgt_is_causal,
-                memory_is_causal=memory_is_causal,
-            )
-        
-        if self.norm is not None:
-            output = self.norm(output)
-        
-        return output
-
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class SindyAttentionTransformer(nn.Module):
     def __init__(
         self,
@@ -273,10 +267,12 @@ class SindyAttentionTransformer(nn.Module):
         bias=True,
         window_length=10,
         hidden_size=10,
+        poly_order=2,
+        include_sine=False,
         device='cpu',
     ):
         super().__init__()
-        encoder_layer = TransformerEncoderLayer(
+        encoder_layer = TransformerSindyEncoderLayer(
             hidden_size,
             nhead,
             dim_feedforward,
@@ -286,10 +282,12 @@ class SindyAttentionTransformer(nn.Module):
             norm_first=norm_first,
             bias=bias,
             device=device,
+            poly_order=poly_order,
+            include_sine=include_sine,
         )
 
         encoder_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps, bias=bias, device=device)
-        self.encoder = TransformerEncoder(
+        self.encoder = TransformerSindyEncoder(
             encoder_layer, num_encoder_layers, encoder_norm
         )
 
@@ -328,132 +326,6 @@ class SindyAttentionTransformer(nn.Module):
             "final_hidden_state": transformer_output[:, -1, :] # Last timestep [batch_size, d_model]
         }
         
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class TransformerDecoderLayer(nn.Module):
-    def __init__(
-        self,
-        d_model,
-        nhead,
-        dim_feedforward=2048,
-        dropout=0.1,
-        activation : nn.Module = torch.nn.functional.relu,
-        layer_norm_eps=1e-5,
-        norm_first = False,
-        bias=True,
-        device=None,
-        dtype=None,
-    ):
-        factory_kwargs = {"device": device, "dtype": dtype}
-        super().__init__()
-        self.self_attn = MultiHeadAttention(
-            d_model,
-            d_model,
-            d_model,
-            d_model,
-            nhead,
-            dropout=dropout,
-            bias=bias,
-            **factory_kwargs,
-        )
-        self.multihead_attn = MultiHeadAttention(
-            d_model,
-            d_model,
-            d_model,
-            d_model,
-            nhead,
-            dropout=dropout,
-            bias=bias,
-            **factory_kwargs,
-        )
-
-        self.linear1 = nn.Linear(d_model, dim_feedforward, bias=bias, **factory_kwargs)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model, bias=bias, **factory_kwargs)
-
-        self.norm_first = norm_first
-        self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.norm3 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        self.dropout3 = nn.Dropout(dropout)
-    
-        self.activation = activation
-    
-    # self-attention block
-    def _sa_block(
-        self,
-        x: Tensor,
-        attn_mask: Optional[Tensor],
-        is_causal: bool = False,
-    ) -> Tensor:
-        x = self.self_attn(
-            x,
-            x,
-            x,
-            attn_mask=attn_mask,
-            is_causal=is_causal,
-        )
-        return self.dropout1(x)
-
-    # multihead attention block
-    def _mha_block(
-        self,
-        x: Tensor,
-        mem: Tensor,
-        attn_mask: Optional[Tensor],
-        is_causal: bool = False,
-    ) -> Tensor:
-        x = self.multihead_attn(
-            x,
-            mem,
-            mem,
-            attn_mask=attn_mask,
-            is_causal=is_causal,
-        )
-        return self.dropout2(x)
-
-    # feed forward block
-    def _ff_block(self, x: Tensor) -> Tensor:
-        x = self.linear2(self.dropout(self.activation(self.linear1(x))))
-        return self.dropout3(x)
-
-    def forward(
-        self,
-        tgt: Tensor,
-        memory: Tensor,
-        tgt_mask: Optional[Tensor] = None,
-        memory_mask: Optional[Tensor] = None,
-        tgt_is_causal=False,
-        memory_is_causal=False,
-    ):
-        x = tgt
-        if self.norm_first:
-            x = x + self._sa_block(
-                self.norm1(x), tgt_mask, tgt_is_causal
-            )
-            x = x + self._mha_block(
-                self.norm2(x),
-                memory,
-                memory_mask,
-                memory_is_causal,
-            )
-            x = x + self._ff_block(self.norm3(x))
-        else:
-            x = self.norm1(
-                x + self._sa_block(x, tgt_mask, tgt_is_causal)
-            )
-            x = self.norm2(
-                x
-                + self._mha_block(
-                    x, memory, memory_mask, memory_is_causal
-                )
-            )
-            x = self.norm3(x + self._ff_block(x))
-
-        return x
-
 # We use this for exact parity with the PyTorch implementation, having the same init
 # for every layer might not be necessary.
 def _get_clones(module, N):
