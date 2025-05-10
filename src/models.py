@@ -112,11 +112,11 @@ class UNET(nn.Module):
         self.model = model
 
     def forward(self, x):
-        x = x["final_hidden_state"]
-        x = x.permute(0, 2, 1)
-        out = self.model(x)
+        x = x["final_hidden_state"] # 128 x 8 
+        x = x.unsqueeze(-1)
+        out = self.model(x) 
         out = self.dropout(out)
-        out = out.permute(0, 2, 1)
+        out = out.squeeze(-1)
         return out
 
 class LSTM(nn.Module):
