@@ -173,8 +173,8 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
         # Save model to checkpoint if validation loss is lower than best validation loss
         if val_loss < best_val:
-            print()
             if args.verbose:
+                print()
                 print(f'Saving model to {args.best_checkpoint_path}, validation loss improved from {best_val:0.4e} to {val_loss:0.4e}, ')
             best_val = val_loss
             best_epoch = epoch+1
@@ -196,12 +196,13 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 'train_losses': train_losses,
                 'val_losses': val_losses,
             }, args.latest_checkpoint_path)
-            print()
+            if args.verbose:
+                print()
         
         # Save model to checkpoint if save_every_n_epochs is reached
         if (epoch + 1) % args.save_every_n_epochs == 0:
-            print()
             if args.verbose:
+                print()
                 print(f'Saving model to {args.latest_checkpoint_path}')
             torch.save({
                 'epoch': epoch+1,
@@ -212,7 +213,8 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 'train_losses': train_losses,
                 'val_losses': val_losses,
             }, args.latest_checkpoint_path)
-            print()
+            if args.verbose:
+                print()
 
         # Print loss
         if args.verbose:
