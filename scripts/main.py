@@ -91,7 +91,7 @@ def main(args=None):
     )
 
     # Evaluate best validation model
-    model, optimizer, start_epoch, best_val = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
+    model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
     test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')

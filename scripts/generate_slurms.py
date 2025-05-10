@@ -7,13 +7,13 @@ cmd_template = \
 #!/bin/bash
 
 #SBATCH --account=amath
-#SBATCH --partition=gpu-rtx6k
+#SBATCH --partition=ckpt-g2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
-#SBATCH --mem=32G
+#SBATCH --mem={memory}G
 #SBATCH --cpus-per-task=2
-#SBATCH --time=3-0
+#SBATCH --time=2-0
 #SBATCH --nice=0
 
 #SBATCH --job-name={encoder}_{decoder}_{dataset}_{lr:0.2e}
@@ -66,6 +66,12 @@ for dataset in datasets:
                     n_sensors = 50
                     hidden_size = 8
 
+                if dataset in ['active_matter', 'planetswe']:
+                    memory = 64
+                else:
+                    memory = 32
+
+
                 cmd = cmd_template.format(
                     dataset=dataset,
                     encoder=encoder,
@@ -73,6 +79,7 @@ for dataset in datasets:
                     lr=lr,
                     hidden_size=hidden_size,
                     n_sensors=n_sensors,
+                    memory=memory
                 )
 
                 with open(top_dir / 'slurms' / f'{encoder}_{decoder}_{dataset}_{lr:0.2e}.slurm', "w") as f:

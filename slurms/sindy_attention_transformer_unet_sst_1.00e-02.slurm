@@ -1,13 +1,13 @@
 #!/bin/bash
 
 #SBATCH --account=amath
-#SBATCH --partition=gpu-rtx6k
+#SBATCH --partition=ckpt-g2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=2
-#SBATCH --time=3-0
+#SBATCH --time=2-0
 #SBATCH --nice=0
 
 #SBATCH --job-name=sindy_attention_transformer_unet_sst_1.00e-02
