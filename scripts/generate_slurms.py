@@ -2,7 +2,7 @@ from pathlib import Path
 
 top_dir = Path(__file__).parent.parent
 
-cmd = \
+cmd_template = \
 """\
 #!/bin/bash
 
@@ -13,11 +13,11 @@ cmd = \
 #SBATCH --gpus=1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=2
-#SBATCH --time=7-0
+#SBATCH --time=3-0
 #SBATCH --nice=0
 
-#SBATCH --job-name=sst
-#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer/logs/sst_%j.out
+#SBATCH --job-name={encoder}_{decoder}_{dataset}_{lr:0.2e}
+#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer/logs/{encoder}_{decoder}_{dataset}_{lr:0.2e}_%j.out
 
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=alexeyy@uw.edu
@@ -35,9 +35,8 @@ encoder={encoder}
 encoder_depth=1
 epochs=500
 hidden_size={hidden_size}
-include_sine=False
-lr={lr}
-n_heads=6
+lr={lr:0.2e}
+n_heads=2
 poly_order=2
 save_every_n_epochs=10
 window_length=50
@@ -46,7 +45,7 @@ n_sensors={n_sensors}
 
 echo "Running Apptainer"
 
-apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --include_sine "$include_sine" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --dim_feedforward "$dim_feedforward" --verbose
+apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --verbose
 
 echo "Finished running Apptainer"\
 """
@@ -54,7 +53,7 @@ echo "Finished running Apptainer"\
 datasets = ["sst", "plasma", "active_matter", "planetswe"]
 encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
 decoders = ["mlp", "unet"]
-lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
+lrs = [1e-2, 1e-3, 1e-4, 1e-5]
 
 for dataset in datasets:
     for encoder in encoders:
@@ -62,12 +61,12 @@ for dataset in datasets:
             for lr in lrs:
                 if dataset == 'plasma':
                     n_sensors = 5
-                    hidden_size = 3
+                    hidden_size = 4
                 else:
                     n_sensors = 50
-                    hidden_size = 16
+                    hidden_size = 8
 
-                cmd = cmd.format(
+                cmd = cmd_template.format(
                     dataset=dataset,
                     encoder=encoder,
                     decoder=decoder,
