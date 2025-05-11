@@ -10,9 +10,9 @@ cmd_template = \
 #SBATCH --partition=ckpt-g2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --gpus=4
 #SBATCH --mem={memory}G
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=8
 #SBATCH --time=2-0
 #SBATCH --nice=0
 
@@ -45,7 +45,7 @@ n_sensors={n_sensors}
 
 echo "Running Apptainer"
 
-apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --verbose
+apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer_distributed.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --verbose
 
 echo "Finished running Apptainer"\
 """
@@ -67,9 +67,9 @@ for dataset in datasets:
                     hidden_size = 8
 
                 if dataset in ['active_matter', 'planetswe']:
-                    memory = 64
+                    memory = 300
                 else:
-                    memory = 32
+                    memory = 128
 
 
                 cmd = cmd_template.format(

@@ -76,7 +76,7 @@ $ pip install .
 To run in the command line, make sure you set up the environment as described above. Then, you can execute a command like so:
 
 ```
-$(venv) time python -u scripts/main.py --dataset sst --encoder transformer --decoder mlp --epochs 100 --save_every_n_epochs 10 --batch_size 5 --encoder_depth 1 --window_length 10 --dim_feedforward 128 --verbose 2>&1 | tee logs/active_matter.txt
+$(venv) torchrun --standalone --nproc_per_node=gpu main.py --batch_size 128 --dataset active_matter --decoder unet --decoder_depth 1 --device cuda:0 --dropout 0.1 --encoder sindy_attention_transformer --encoder_depth 1 --epochs 500 --hidden_size 8 --lr 1.00e-04 --n_heads 2 --poly_order 2 --save_every_n_epochs 5 --window_length 50 --n_sensors 50 --verbose 2>&1 | tee ../logs/sindy_attention_transformer_unet_active_matter_0.txt
 ```
 
 ## Running on Hyak

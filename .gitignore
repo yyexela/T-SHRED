@@ -185,4 +185,5 @@ test.py
 checkpoints/
 logs/
 apptainer/apptainer.sif
+apptainer/apptainer_distributed.sif
 datasets
