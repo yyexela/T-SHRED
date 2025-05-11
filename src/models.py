@@ -18,7 +18,7 @@ def load_model_from_checkpoint(checkpoint_path, args):
         checkpoint = torch.load(checkpoint_path)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         model.load_state_dict(checkpoint['model_state_dict'])
-        model.to(args.device)
+        model.to(args.gpu_id)
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch']
         best_val = checkpoint['best_val']
@@ -35,12 +35,13 @@ def load_model_from_checkpoint(checkpoint_path, args):
         checkpoint=None
         start_epoch = 0
         best_val = float('inf')
-        model.to(args.device)
+        model.to(args.gpu_id)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train_losses = []
         val_losses = []
         best_epoch = 0
-    print()
+    if args.verbose:
+        print()
     return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses
 
 class MLP(nn.Module):
@@ -75,7 +76,6 @@ class MLP(nn.Module):
                 self.layers.append(nn.ReLU())
 
         model = nn.Sequential(*self.layers)
-        model = model.to(device)
         self.model = model
 
     def forward(self, x):
@@ -108,7 +108,6 @@ class UNET(nn.Module):
                 self.layers.append(nn.ReLU())
 
         model = nn.Sequential(*self.layers)
-        model = model.to(device)
         self.model = model
 
     def forward(self, x):

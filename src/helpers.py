@@ -1,11 +1,18 @@
-import torch
-from torch.utils.data import DataLoader
-import numpy as np
+import os
 import math
+import torch
 import einops
-import torch.nn as nn
 import random
+import numpy as np
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torch.distributed import init_process_group, destroy_process_group
+
 from src.plots import plot_losses
+
+def ddp_setup():
+    torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+    init_process_group(backend="nccl")
 
 def generate_sensor_positions(n_sensors: int, max_rows: int, max_cols: int) -> list[tuple[int, int]]:
     random.seed(0)
@@ -75,7 +82,7 @@ def evaluate_model(model, test_dl, sensors, args):
     """
     Evaluate a PyTorch model.
     """
-    model.to(args.device)
+    model.to(args.gpu_id)
     loss_fn = torch.nn.MSELoss()
     model.eval()
     test_loss = 0.0
@@ -83,7 +90,7 @@ def evaluate_model(model, test_dl, sensors, args):
         for batch in test_dl:
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
-            inputs, labels = inputs.to(args.device), labels.to(args.device)
+            inputs, labels = inputs.to(args.gpu_id), labels.to(args.gpu_id)
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -128,7 +135,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
     """
     # Set up model, optimizer, and loss
     loss_fn = torch.nn.MSELoss()
-    model.to(args.device)
+    model.to(args.gpu_id)
 
     for epoch in range(start_epoch, args.epochs):
         model.train()
@@ -137,7 +144,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         for i, batch in enumerate(train_dl):
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
-            inputs, labels = inputs.to(args.device), labels.to(args.device)
+            inputs, labels = inputs.to(args.gpu_id), labels.to(args.gpu_id)
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -172,56 +179,43 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
-        if val_loss < best_val:
+        if args.gpu_id == 0 and val_loss < best_val:
+            print()
             if args.verbose:
-                print()
                 print(f'Saving model to {args.best_checkpoint_path}, validation loss improved from {best_val:0.4e} to {val_loss:0.4e}, ')
             best_val = val_loss
-            best_epoch = epoch+1
             torch.save({
                 'epoch': epoch+1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_val': best_val,
-                'best_epoch': best_epoch,
-                'train_losses': train_losses,
-                'val_losses': val_losses,
             }, args.best_checkpoint_path)
-            torch.save({
-                'epoch': epoch+1,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'best_val': best_val,
-                'best_epoch': best_epoch,
-                'train_losses': train_losses,
-                'val_losses': val_losses,
-            }, args.latest_checkpoint_path)
-            if args.verbose:
-                print()
         
         # Save model to checkpoint if save_every_n_epochs is reached
-        if (epoch + 1) % args.save_every_n_epochs == 0:
+        if args.gpu_id == 0 and (epoch + 1) % args.save_every_n_epochs == 0:
+            print()
             if args.verbose:
-                print()
                 print(f'Saving model to {args.latest_checkpoint_path}')
             torch.save({
                 'epoch': epoch+1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_val': best_val,
-                'best_epoch': best_epoch,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
             }, args.latest_checkpoint_path)
-            if args.verbose:
-                print()
+        
+        # Print pretty:)
+        if args.gpu_id == 0 and (val_loss < best_val or (epoch + 1) % args.save_every_n_epochs == 0):
+            print()
 
         # Print loss
         if args.verbose:
             print(f'Epoch {epoch+1}, Training loss: {train_loss:0.4e}, Validation loss: {val_loss:0.4e} (best: {best_val:0.4e})')
         
         # Make plot
-        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_losses")
+        if args.gpu_id == 0:
+            plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_losses")
 
     if args.verbose:
         print(f"Training complete, best validation loss: {best_val:0.4e}")

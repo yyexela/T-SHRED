@@ -2,6 +2,7 @@
 # Imports #
 ###########
 
+import os
 import sys
 import torch
 import argparse
@@ -13,7 +14,9 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 import matplotlib.animation as animation
 from sklearn.preprocessing import MinMaxScaler
+from torch.distributed import destroy_process_group
 from matplotlib.colors import LinearSegmentedColormap
+from torch.utils.data.distributed import DistributedSampler
 
 # Bug workaround, see https://github.com/pytorch/pytorch/issues/16831
 torch.backends.cudnn.benchmark = False
@@ -41,12 +44,13 @@ checkpoint_dir.mkdir(parents=True, exist_ok=True)
 # Main #
 ########
 
-#validation_errors = models.fit(UTransformer, train_dataset, valid_dataset, batch_size=25, num_epochs=8, lr=0.001, verbose=True, patience=5)
-#UTransformer = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
-
 def main(args=None):
+    # Set up DDP
+    helpers.ddp_setup()
+
     # Load dataset
     train_ds, val_ds, test_ds, (mean, std) = datasets.load_dataset(args)
+    args.gpu_id = int(os.environ["LOCAL_RANK"])
     args.d_data = train_ds[0]['input_fields'].shape[-1]
     args.data_rows, args.data_cols = (train_ds[0]['input_fields'].shape[-3],
                                       train_ds[0]['input_fields'].shape[-2])
@@ -54,13 +58,36 @@ def main(args=None):
     args.dim_feedforward = args.hidden_size * 4
     args.output_size = args.data_rows*args.data_cols*args.d_data
 
+    if args.gpu_id == 0:
+        args.verbose = args.verbose
+    else:
+        args.verbose = False
+
     # Generate sensors
     sensors = helpers.generate_sensor_positions(args.n_sensors, args.data_rows, args.data_cols)
 
-    # Create dataloader
-    train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    val_dl = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
-    test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
+    # Create dataloaders
+    train_dl = DataLoader(
+        train_ds,
+        batch_size=args.batch_size,
+        shuffle=False,
+        pin_memory=True,
+        sampler=DistributedSampler(train_ds)
+    )
+    val_dl = DataLoader(
+        val_ds,
+        batch_size=args.batch_size,
+        shuffle=False,
+        pin_memory=True,
+        sampler=DistributedSampler(val_ds)
+    )
+    test_dl = DataLoader(
+        test_ds,
+        batch_size=args.batch_size,
+        shuffle=False,
+        pin_memory=True,
+        sampler=DistributedSampler(test_ds)
+    )
 
     # Save model location
     #time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -73,7 +100,8 @@ def main(args=None):
     model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.latest_checkpoint_path, args)
 
     # Print hyperparameters
-    helpers.print_dictionary(vars(args), 'Hyperparameters:')
+    if args.verbose:
+        helpers.print_dictionary(vars(args), 'Hyperparameters:')
 
     # Train model
     helpers.train_model(
@@ -95,6 +123,9 @@ def main(args=None):
     test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
+
+    # Clean up DDP
+    destroy_process_group()
 
 if __name__ == '__main__':
     # To allow CLIs
