@@ -73,7 +73,7 @@ def main(args=None):
         shuffle=False,
         pin_memory=True,
         sampler=DistributedSampler(train_ds),
-        num_workers=2
+        num_workers=0
     )
     val_dl = DataLoader(
         val_ds,
@@ -81,7 +81,7 @@ def main(args=None):
         shuffle=False,
         pin_memory=True,
         sampler=DistributedSampler(val_ds),
-        num_workers=2
+        num_workers=0
     )
     test_dl = DataLoader(
         test_ds,
@@ -89,7 +89,7 @@ def main(args=None):
         shuffle=False,
         pin_memory=True,
         sampler=DistributedSampler(test_ds),
-        num_workers=2
+        num_workers=0
     )
 
     # Save model location
