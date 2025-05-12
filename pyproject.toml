@@ -32,6 +32,7 @@ exclude = []
 namespaces = true
 
 [project.optional-dependencies]
-all = ["jupyterlab"]
+all = ["jupyterlab","seaborn","cmcrameri","imageio"]
 notebooks = ["jupyterlab"]
+shred_rom = ["seaborn","cmcrameri","imageio"]
 
