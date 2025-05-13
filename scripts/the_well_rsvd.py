@@ -7,13 +7,14 @@
 # ## Imports
 
 import sys
-import pprint as pp
-import matplotlib.pyplot as plt
-import numpy as np
-from pathlib import Path
 import torch
-from einops import rearrange
+import pickle
+import numpy as np
+import pprint as pp
 from tqdm import tqdm
+from pathlib import Path
+from einops import rearrange
+import matplotlib.pyplot as plt
 
 from the_well.benchmark.metrics import VRMSE
 from the_well.data import WellDataset
@@ -34,6 +35,7 @@ n_steps = {'planetswe': 1008, 'active_matter': 81, 'gray_scott_reaction_diffusio
 n_rank = {'active_matter': 50, 'planetswe': 75, 'gray_scott_reaction_diffusion': 75}
 total_tracks = {'planetswe': 120, 'active_matter': 360, 'gray_scott_reaction_diffusion': 1200}
 #total_tracks = {'planetswe': 24, 'active_matter': 72, 'gray_scott_reaction_diffusion': 240}
+#total_tracks = {'planetswe': 2, 'active_matter': 2, 'gray_scott_reaction_diffusion': 2}
 
 save_dir = project_root / 'datasets' / 'the_well_custom' / dataset
 save_dir.mkdir(exist_ok=True, parents=True)
@@ -90,21 +92,6 @@ print("train_num:", train_num)
 print("valid_num:", valid_num)
 print("test_num:", test_num)
 
-train_save = []
-valid_save = []
-test_save = []
-
-for track_num in range(total_tracks[dataset]):
-    track = full_mat[track_num*n_steps[dataset]:(track_num+1)*n_steps[dataset],:]
-
-    train = track[0:train_num]
-    val = track[train_num:train_num+valid_num]
-    test = track[train_num+valid_num:]
-
-    train_save.append(train)
-    valid_save.append(val)
-    test_save.append(test)
-
 # ## Save Results
 
 # Create directories
@@ -112,15 +99,23 @@ for track_num in range(total_tracks[dataset]):
 (save_dir / 'full').mkdir(exist_ok=True)
 (save_dir / 'pod').mkdir(exist_ok=True)
 
-# Save full and pod tracks
-for i in range(total_tracks[dataset]):
-    torch.save(train_save[i], save_dir / 'full' / f'train_{i}.pt')
-    torch.save(valid_save[i], save_dir / 'full' / f'valid_{i}.pt')
-    torch.save(test_save[i], save_dir / 'full' / f'test_{i}.pt')
+for track_num in range(total_tracks[dataset]):
+    track_start_idx = track_num*n_steps[dataset]
+    track_end_idx = (track_num+1)*n_steps[dataset]
+    track = full_mat[track_start_idx:track_end_idx,:] # torch.Size([1008, 393216])
 
-del train_save
-del valid_save
-del test_save
+    train = track[0:train_num] # torch.Size([806, 393216])
+    valid = track[train_num:train_num+valid_num] # torch.Size([100, 393216])
+    test = track[train_num+valid_num:] # torch.Size([102, 393216])
+
+    with open(save_dir / 'full' / f'train_{track_num}.pkl', 'wb') as f:
+        pickle.dump(train.numpy(), f)
+
+    with open(save_dir / 'full' / f'valid_{track_num}.pkl', 'wb') as f:
+        pickle.dump(valid.numpy(), f)
+
+    with open(save_dir / 'full' / f'test_{track_num}.pkl', 'wb') as f:
+        pickle.dump(test.numpy(), f)
 
 # ## POD
 
@@ -136,10 +131,6 @@ full_pod_scaled, full_scaler = scale_pod(full_pod)
 
 # ## Separate into Training, Validation, and Testing Data
 
-train_pods_save = []
-valid_pods_save = []
-test_pods_save = []
-
 for track_num in range(total_tracks[dataset]):
     track_pod_scaled = full_pod_scaled[track_num*n_steps[dataset]:(track_num+1)*n_steps[dataset],:]
 
@@ -147,44 +138,45 @@ for track_num in range(total_tracks[dataset]):
     valid_pod_scaled = track_pod_scaled[train_num:train_num+valid_num]
     test_pod_scaled = track_pod_scaled[train_num+valid_num:]
 
-    train_pods_save.append(train_pod_scaled)
-    valid_pods_save.append(valid_pod_scaled)
-    test_pods_save.append(test_pod_scaled)
+    with open(save_dir / 'pod' / f'train_{track_num}.pkl', 'wb') as f:
+        pickle.dump(train_pod_scaled.numpy(), f)
+
+    with open(save_dir / 'pod' / f'valid_{track_num}.pkl', 'wb') as f:
+        pickle.dump(valid_pod_scaled.numpy(), f)
+
+    with open(save_dir / 'pod' / f'test_{track_num}.pkl', 'wb') as f:
+        pickle.dump(test_pod_scaled.numpy(), f)
 
 # ## Save Results
 
-# Create directories
-(save_dir / 'metadata').mkdir(exist_ok=True)
-(save_dir / 'full').mkdir(exist_ok=True)
-(save_dir / 'pod').mkdir(exist_ok=True)
-
 # Save scaler, V_full, and image metadata
-torch.save(V_full, save_dir / 'metadata' / 'V.pt')
-torch.save(full_scaler, save_dir / 'metadata' / 'scaler.pt')
-torch.save((im_rows, im_cols, im_dim), save_dir / 'metadata' / 'im_dims.pt')
+with open(save_dir / 'metadata' / 'V.pkl', 'wb') as f:
+    pickle.dump(V_full.numpy(), f)
 
-# Save full and pod tracks
-for i in range(total_tracks[dataset]):
-    torch.save(train_pods_save[i], save_dir / 'pod' / f'train_{i}.pt')
-    torch.save(valid_pods_save[i], save_dir / 'pod' / f'valid_{i}.pt')
-    torch.save(test_pods_save[i], save_dir / 'pod' / f'test_{i}.pt')
+with open(save_dir / 'metadata' / 'scaler.pkl', 'wb') as f:
+    pickle.dump(full_scaler, f)
 
-del train_pods_save
-del valid_pods_save
-del test_pods_save
+with open(save_dir / 'metadata' / 'im_dims.pkl', 'wb') as f:
+    pickle.dump((im_rows, im_cols, im_dim), f)
 
 # ## Print Errors
 cumulative_errors_numerator = 0.
 cumulative_errors_denominator = 0.
 
 for i in range(total_tracks[dataset]):
-    train_full = torch.load(save_dir / 'full' / f'train_{i}.pt') 
-    valid_full = torch.load(save_dir / 'full' / f'valid_{i}.pt') 
-    test_full = torch.load(save_dir / 'full' / f'test_{i}.pt') 
+    with open(save_dir / 'full' / f'train_{i}.pkl', 'rb') as f:
+        train_full = torch.from_numpy(pickle.load(f))
+    with open(save_dir / 'full' / f'valid_{i}.pkl', 'rb') as f:
+        valid_full = torch.from_numpy(pickle.load(f))
+    with open(save_dir / 'full' / f'test_{i}.pkl', 'rb') as f:
+        test_full = torch.from_numpy(pickle.load(f))
 
-    train_pod = torch.load(save_dir / 'pod' / f'train_{i}.pt') 
-    valid_pod = torch.load(save_dir / 'pod' / f'valid_{i}.pt') 
-    test_pod = torch.load(save_dir / 'pod' / f'test_{i}.pt') 
+    with open(save_dir / 'pod' / f'train_{i}.pkl', 'rb') as f:
+        train_pod = torch.from_numpy(pickle.load(f))
+    with open(save_dir / 'pod' / f'valid_{i}.pkl', 'rb') as f:
+        valid_pod = torch.from_numpy(pickle.load(f))
+    with open(save_dir / 'pod' / f'test_{i}.pkl', 'rb') as f:
+        test_pod = torch.from_numpy(pickle.load(f))
 
     mat_full = torch.cat([train_full, valid_full, test_full], dim=0)
     del train_full

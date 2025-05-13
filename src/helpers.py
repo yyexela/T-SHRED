@@ -481,7 +481,6 @@ def create_mats_full(train, valid, test, total_tracks, debug=False):
             break
         if debug:
             break
-    del train
     if track_count < total_tracks:
         for i in range(len(valid)):
             data = einops.rearrange(valid[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
@@ -491,7 +490,6 @@ def create_mats_full(train, valid, test, total_tracks, debug=False):
                 break
             if debug:
                 break
-    del valid
     if track_count < total_tracks:
         for i in range(len(test)):
             data = einops.rearrange(test[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
@@ -501,7 +499,6 @@ def create_mats_full(train, valid, test, total_tracks, debug=False):
                 break
             if debug:
                 break
-    del test
     mats = torch.cat(mats, dim=0)
     return mats
 
