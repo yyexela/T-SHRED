@@ -13,7 +13,6 @@ def print_errors(true_l, pred_l, error_f, title):
         print(f"Error for i={i} is {number_to_percentage(error_f(true, pred))}")
     print()
 
-
 def mean_absolute_error(datatrue, datapred):
     """
     Calculate Mean Absolute Error (MAE) between true and predicted data.
@@ -466,6 +465,45 @@ def inverse_min_max_scale(scaled_tensor, original_min_max, feature_range=(0, 1))
     original = normalized * (t_max - t_min) + t_min
     
     return original
+
+def create_mats_full(train, valid, test, total_tracks, debug=False):
+    im_shape = train[0]["input_fields"].shape
+    n_steps, im_rows, im_cols, im_dim = im_shape[0], im_shape[1], im_shape[2], im_shape[3]
+    
+    track_count = 0
+
+    mats = []
+    for i in range(len(train)):
+        data = einops.rearrange(train[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+        mats.append(data)
+        track_count += 1
+        if track_count >= total_tracks:
+            break
+        if debug:
+            break
+    del train
+    if track_count < total_tracks:
+        for i in range(len(valid)):
+            data = einops.rearrange(valid[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+            mats.append(data)
+            track_count += 1
+            if track_count >= total_tracks:
+                break
+            if debug:
+                break
+    del valid
+    if track_count < total_tracks:
+        for i in range(len(test)):
+            data = einops.rearrange(test[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+            mats.append(data)
+            track_count += 1
+            if track_count >= total_tracks:
+                break
+            if debug:
+                break
+    del test
+    mats = torch.cat(mats, dim=0)
+    return mats
 
 def create_mats(the_well_data, combine_all=False, debug=False):
     im_shape = the_well_data[0]["input_fields"].shape
