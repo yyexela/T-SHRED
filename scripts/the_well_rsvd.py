@@ -26,16 +26,20 @@ from torch.utils.data import DataLoader
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root.absolute()))
 
+print("Project root:", project_root)
+
 from src.helpers import *
 
 debug = False
 n_iters = 5
-dataset = 'planetswe'
+dataset = 'gray_scott_reaction_diffusion'
 n_steps = {'planetswe': 1008, 'active_matter': 81, 'gray_scott_reaction_diffusion': 1001}
 n_rank = {'active_matter': 50, 'planetswe': 75, 'gray_scott_reaction_diffusion': 75}
 total_tracks = {'planetswe': 120, 'active_matter': 360, 'gray_scott_reaction_diffusion': 1200}
 #total_tracks = {'planetswe': 24, 'active_matter': 72, 'gray_scott_reaction_diffusion': 240}
 #total_tracks = {'planetswe': 2, 'active_matter': 2, 'gray_scott_reaction_diffusion': 2}
+
+print(f"Generating {dataset} POD")
 
 save_dir = project_root / 'datasets' / 'the_well_custom' / dataset
 save_dir.mkdir(exist_ok=True, parents=True)
@@ -44,7 +48,7 @@ save_dir.mkdir(exist_ok=True, parents=True)
 
 # Load data from online, when using in practice we'll have to download the dataset
 train_data = WellDataset(
-    well_base_path=Path('/data') / 'alexey' / 'the_well',
+    well_base_path=Path('/mmfs1/home/alexeyy/storage/data/the_well'),
     well_dataset_name=dataset,
     well_split_name="train",
     n_steps_input=n_steps[dataset],
@@ -53,7 +57,7 @@ train_data = WellDataset(
 )
 
 valid_data = WellDataset(
-    well_base_path=Path('/data') / 'alexey' / 'the_well',
+    well_base_path=Path('/mmfs1/home/alexeyy/storage/data/the_well'),
     well_dataset_name=dataset,
     well_split_name="valid",
     n_steps_input=n_steps[dataset],
@@ -62,7 +66,7 @@ valid_data = WellDataset(
 )
 
 test_data = WellDataset(
-    well_base_path=Path('/data') / 'alexey' / 'the_well',
+    well_base_path=Path('/mmfs1/home/alexeyy/storage/data/the_well'),
     well_dataset_name=dataset,
     well_split_name="test",
     n_steps_input=n_steps[dataset],
@@ -99,7 +103,7 @@ print("test_num:", test_num)
 (save_dir / 'full').mkdir(exist_ok=True)
 (save_dir / 'pod').mkdir(exist_ok=True)
 
-for track_num in range(total_tracks[dataset]):
+for track_num in tqdm(range(total_tracks[dataset]), desc="Saving full data"):
     track_start_idx = track_num*n_steps[dataset]
     track_end_idx = (track_num+1)*n_steps[dataset]
     track = full_mat[track_start_idx:track_end_idx,:] # torch.Size([1008, 393216])
@@ -131,7 +135,7 @@ full_pod_scaled, full_scaler = scale_pod(full_pod)
 
 # ## Separate into Training, Validation, and Testing Data
 
-for track_num in range(total_tracks[dataset]):
+for track_num in tqdm(range(total_tracks[dataset]), desc="Saving POD data"):
     track_pod_scaled = full_pod_scaled[track_num*n_steps[dataset]:(track_num+1)*n_steps[dataset],:]
 
     train_pod_scaled = track_pod_scaled[0:train_num]
@@ -163,7 +167,7 @@ with open(save_dir / 'metadata' / 'im_dims.pkl', 'wb') as f:
 cumulative_errors_numerator = 0.
 cumulative_errors_denominator = 0.
 
-for i in range(total_tracks[dataset]):
+for i in tqdm(range(total_tracks[dataset]), desc="Calculating errors"):
     with open(save_dir / 'full' / f'train_{i}.pkl', 'rb') as f:
         train_full = torch.from_numpy(pickle.load(f))
     with open(save_dir / 'full' / f'valid_{i}.pkl', 'rb') as f:
