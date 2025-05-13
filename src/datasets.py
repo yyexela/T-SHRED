@@ -100,6 +100,8 @@ def load_dataset(args):
         return load_plasma_data(args)
     elif args.dataset in ["active_matter", "planetswe"]:
         return load_well_data(args)
+    elif args.dataset in ["active_matter_pod", "planetswe_pod"]:
+        return load_well_data_pod(args)
     else:
         raise ValueError(f'Unknown dataset: {args.dataset}')
 
@@ -132,6 +134,47 @@ def load_well_data(args):
     )
 
     return train_dl, valid_dl, test_dl, (None, None)
+
+def load_the_well_pts(load_path, split_name, reshape_to_image=False):
+    tensors = []
+    for pt_file in sorted(load_path.iterdir()):
+        if split_name in pt_file.name:
+            # Convert data to pytorch (treat it like a (1 x dim x 1) image)
+            tensor = torch.load(pt_file)
+            tensor = tensor.float()
+            if reshape_to_image:
+                tensor = tensor.unsqueeze(1).unsqueeze(-1)
+            tensors.append(tensor)
+    return tensors
+
+def load_well_data_pod(args):
+    # Data path
+    data_path = data_dir / 'the_well_custom' / args.dataset[:-4]
+
+    # Load training, validation, and testing data
+    train_pods = load_the_well_pts(data_path / 'pod', 'train', reshape_to_image=True)
+    val_pods = load_the_well_pts(data_path / 'pod', 'valid', reshape_to_image=True)
+    test_pods = load_the_well_pts(data_path / 'pod', 'test', reshape_to_image=True)
+
+    train_fulls = load_the_well_pts(data_path / 'full', 'train')
+    val_fulls = load_the_well_pts(data_path / 'full', 'valid')
+    test_fulls = load_the_well_pts(data_path / 'full', 'test')
+
+    # Load V and scalers
+    V = torch.load(data_path / 'metadata' / 'V.pt')
+    scaler = torch.load(data_path / 'metadata' / 'scaler.pt')
+    im_dims = torch.load(data_path / 'metadata' / 'im_dims.pt')
+
+    # Create torch datasets
+    train_pod_ds = TimeSeriesDataset(tensors=train_pods, window_length=args.window_length)
+    valid_pod_ds = TimeSeriesDataset(tensors=val_pods, window_length=args.window_length)
+    test_pod_ds = TimeSeriesDataset(tensors=test_pods, window_length=args.window_length)
+
+    train_full_ds = TimeSeriesDataset(tensors=train_fulls, window_length=args.window_length)
+    valid_full_ds = TimeSeriesDataset(tensors=val_fulls, window_length=args.window_length)
+    test_full_ds = TimeSeriesDataset(tensors=test_fulls, window_length=args.window_length)
+
+    return train_pod_ds, valid_pod_ds, test_pod_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims)
 
 def load_sst_data(args):
     # Load raw file

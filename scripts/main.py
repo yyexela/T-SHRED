@@ -46,7 +46,12 @@ checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
 def main(args=None):
     # Load dataset
-    train_ds, val_ds, test_ds, (mean, std) = datasets.load_dataset(args)
+    if 'pod' in args.dataset:
+        # POD more complicated due to V and scaler to bring back to original space
+        # first three datasets are POD, last three are not (they are full)
+        train_ds, val_ds, test_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
+    else:
+        train_ds, val_ds, test_ds, (mean, std) = datasets.load_dataset(args)
     args.d_data = train_ds[0]['input_fields'].shape[-1]
     args.data_rows, args.data_cols = (train_ds[0]['input_fields'].shape[-3],
                                       train_ds[0]['input_fields'].shape[-2])
@@ -92,7 +97,12 @@ def main(args=None):
 
     # Evaluate best validation model
     model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
-    test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
+    if 'pod' in args.dataset:
+        # When doing POD, make sure to bring back to original space when calculating error
+        test_full_dl = DataLoader(test_full_ds, batch_size=args.batch_size, shuffle=False)
+        test_loss = helpers.evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args)
+    else:
+        test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
 
@@ -100,7 +110,7 @@ if __name__ == '__main__':
     # To allow CLIs
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
-    parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (active_matter, planetswe, sst, sst_demo, plasma)")
+    parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (active_matter, active_matter_pod, planetswe, planetswe_pod, sst, sst_demo, plasma)")
     parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (unet, mlp)")
     parser.add_argument('--decoder_depth', type=int, default=2, help="Number of decoder layers")
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")

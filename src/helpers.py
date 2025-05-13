@@ -7,6 +7,65 @@ import torch.nn as nn
 import random
 from src.plots import plot_losses
 
+def print_errors(true_l, pred_l, error_f, title):
+    print(title)
+    for i, (true, pred) in enumerate(zip(true_l, pred_l)):
+        print(f"Error for i={i} is {number_to_percentage(error_f(true, pred))}")
+    print()
+
+
+def mean_absolute_error(datatrue, datapred):
+    """
+    Calculate Mean Absolute Error (MAE) between true and predicted data.
+
+    Args:
+        datatrue (torch.Tensor): Ground truth data tensor
+        datapred (torch.Tensor): Predicted data tensor
+
+    Returns:
+        torch.Tensor: Mean absolute error value
+    """
+    return (datatrue - datapred).abs().mean()
+
+def mean_squared_error(datatrue, datapred):
+    """
+    Calculate Mean Squared Error (MSE) between true and predicted data.
+
+    Args:
+        datatrue (torch.Tensor): Ground truth data tensor
+        datapred (torch.Tensor): Predicted data tensor
+
+    Returns:
+        torch.Tensor: Mean squared error value
+    """
+    return (datatrue - datapred).pow(2).sum(axis=-1).mean()
+
+def mean_relative_error(datatrue, datapred):
+    """
+    Calculate Mean Relative Error (MRE) between true and predicted data.
+
+    Args:
+        datatrue (torch.Tensor): Ground truth data tensor
+        datapred (torch.Tensor): Predicted data tensor
+
+    Returns:
+        torch.Tensor: Mean relative error value
+    """
+    return ((datatrue - datapred).pow(2).sum(axis=-1).sqrt() / (datatrue).pow(2).sum(axis=-1).sqrt()).mean()
+
+def number_to_percentage(prob):
+    """
+    Convert a decimal probability to a percentage string with 2 decimal places.
+
+    Args:
+        prob (float): Probability value between 0 and 1
+
+    Returns:
+        str: Formatted percentage string with 2 decimal places and % symbol
+    """
+    return "%.2f%%" % (100 * prob)
+
+
 def generate_sensor_positions(n_sensors: int, max_rows: int, max_cols: int) -> list[tuple[int, int]]:
     random.seed(0)
     return [(random.randint(0, max_rows-1), random.randint(0, max_cols-1)) for _ in range(n_sensors)]
@@ -70,6 +129,67 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     denormalized = normalized_tensor * (std + eps) + mean
     
     return denormalized
+
+def evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args):
+    """
+    Evaluate a PyTorch model.
+    """
+    model.to(args.device)
+    loss_fn = torch.nn.MSELoss()
+    model.eval()
+    test_loss = 0.0
+    with torch.no_grad():
+        # Set up iterators for dual dataset loading
+        full_iterator = iter(test_full_dl)
+        pod_iterator = iter(test_dl)
+        num_iters = len(test_dl)
+        for i in range(num_iters):
+            # Get batch
+            full_batch = next(full_iterator)
+            pod_batch = next(pod_iterator)
+
+            # Get data
+            pod_inputs, pod_labels = pod_batch["input_fields"], pod_batch["output_fields"][:,0,:,:,:]
+            pod_inputs, pod_labels = pod_inputs.to(args.device), pod_labels.to(args.device)
+
+            full_inputs, full_labels = full_batch["input_fields"], full_batch["output_fields"][:,0,:]
+            full_inputs, full_labels = full_inputs.to(args.device), full_labels.to(args.device)
+
+            # Get real batch size
+            batch_size = pod_inputs.shape[0]
+            
+            # Extract sensors per input tensor
+            pod_input_sensors = []
+            for sensor in sensors:
+                pod_input_sensors.append(pod_inputs[:,:,sensor[0],sensor[1],:])
+            pod_input_sensors = torch.stack(pod_input_sensors, dim=2)
+
+            # Prepare input for model
+            pod_input_sensors = einops.rearrange(pod_input_sensors, 'b w n d -> b w (n d)')
+
+            # Pass data through model
+            pod_outputs = model(pod_input_sensors)
+
+            # Reshape output (will be: batch x 1 x dim x 1)
+            pod_outputs = einops.rearrange(pod_outputs, 'b (r w d) -> b r w d', b=batch_size, r=args.data_rows, w=args.data_cols, d=args.d_data)
+            
+            # Remove singular dimensions
+            pod_outputs = pod_outputs[:,0,:,0]
+
+            # Inverse POD to get full scale image
+            full_outputs = inverse_pods_torch(pod_outputs, scaler, V, device=args.device)
+
+            # Convert back to original shape
+            full_outputs_shaped = einops.rearrange(full_outputs, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
+            full_labels_shaped = einops.rearrange(full_labels, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
+
+            # Calculate loss
+            test_loss += loss_fn(full_outputs_shaped, full_labels_shaped).item()
+
+        # Average loss
+        test_loss /= len(test_dl)
+
+    return test_loss
 
 def evaluate_model(model, test_dl, sensors, args):
     """
@@ -289,3 +409,140 @@ def sindy_library_torch(z, latent_dim, poly_order, include_sine=False):
             library.append(torch.sin(z[:,i]))
 
     return torch.stack(library, axis=1)
+
+def min_max_scale(tensor, feature_range=(0, 1)):
+    """
+    Scale a tensor to a given feature range using min-max normalization.
+    
+    Args:
+        tensor (torch.Tensor): Input tensor to be scaled
+        feature_range (tuple): Desired range of transformed data (default: (0, 1))
+        
+    Returns:
+        torch.Tensor: Scaled tensor
+        tuple: (min, max) values used for scaling (for inverse transformation)
+    """
+    # Ensure the input is a tensor
+    if not isinstance(tensor, torch.Tensor):
+        tensor = torch.tensor(tensor, dtype=torch.float32)
+    
+    # Calculate min and max
+    t_min = tensor.min()
+    t_max = tensor.max()
+    
+    # Avoid division by zero
+    t_range = t_max - t_min
+    if t_range == 0:  # all values are the same
+        t_range = 1
+    
+    # Scale to [0, 1] first
+    scaled = (tensor - t_min) / t_range
+    
+    # Then scale to feature_range
+    min_range, max_range = feature_range
+    scaled = scaled * (max_range - min_range) + min_range
+    
+    return scaled, (t_min, t_max)
+
+def inverse_min_max_scale(scaled_tensor, original_min_max, feature_range=(0, 1)):
+    """
+    Inverse transformation of min-max scaling.
+    
+    Args:
+        scaled_tensor (torch.Tensor): Scaled tensor to transform back
+        original_min_max (tuple): (min, max) values from original scaling
+        feature_range (tuple): Range used in original scaling (default: (0, 1))
+        
+    Returns:
+        torch.Tensor: Tensor in original scale
+    """
+    t_min, t_max = original_min_max
+    min_range, max_range = feature_range
+    
+    # First scale back to [0, 1] range
+    normalized = (scaled_tensor - min_range) / (max_range - min_range)
+    
+    # Then scale back to original range
+    original = normalized * (t_max - t_min) + t_min
+    
+    return original
+
+def create_mats(the_well_data, combine_all=False, debug=False):
+    im_shape = the_well_data[0]["input_fields"].shape
+    n_steps, im_rows, im_cols, im_dim = im_shape[0], im_shape[1], im_shape[2], im_shape[3]
+
+    mats = []
+    for i in range(len(the_well_data)):
+        data = einops.rearrange(the_well_data[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+        mats.append(data)
+        if debug:
+            break
+    if combine_all:
+        mats = [torch.cat(mats, dim=0)]
+    return mats
+
+def generate_SVD(mat, n_rank=50, n_iters=2):
+    U, S, V = torch.svd_lowrank(mat, n_rank, n_iters)
+    return U, S, V
+
+def create_pod(mat, V):
+    pod = mat @ V
+    return pod
+
+def scale_pod(pod):
+    pod_scaled, scalers = min_max_scale(pod)
+    return pod_scaled, scalers
+
+def inverse_pods_torch(pods_scaled, scalers, V, device=None):
+    mat_hats = []
+    pods_scaled = pods_scaled.to(device)
+    V = V.to(device)
+    for i in range(pods_scaled.shape[0]):
+        pod_scaled = pods_scaled[i]
+        mat_hat = inverse_min_max_scale(pod_scaled, scalers)
+        mat_hat = mat_hat @ V.T
+        mat_hats.append(mat_hat)
+    mat_hats = torch.stack(mat_hats, dim=0)
+    return mat_hats
+
+def inverse_pods(pods_scaled, scalers, V):
+    mat_hats = []
+    for pod_scaled in pods_scaled:
+        mat_hat = inverse_min_max_scale(pod_scaled, scalers)
+        mat_hat = mat_hat @ V.T
+        mat_hats.append(mat_hat)
+    return mat_hats
+
+def inverse_pod(pod_scaled, scalers, V):
+    mat_hat = inverse_min_max_scale(pod_scaled, scalers)
+    mat_hat = mat_hat @ V.T
+    return mat_hat
+
+def split_mats(data_list):
+    """
+    Given a list of data, each element being an individual track, where
+    each track contains T timesteps and dimension D, extract the first 80% of the timesteps for training,
+    the next 10% for validation, and the last 10% for testing per data. Returns a list of training, validation, and testing data.
+
+    Args:
+        data_list (list): List of data tracks, where each track is a tensor of shape (T, D) containing T timesteps and D dimensions
+
+    Returns:
+        tuple: (train_data, val_data, test_data) where each is a list of tensors containing the respective splits
+    """
+    train_data = []
+    val_data = []
+    test_data = []
+
+    for i, data in enumerate(data_list):
+        # Calculate split indices
+        n_timesteps = data.shape[0]
+        train_end = int(0.8 * n_timesteps)
+        val_end = int(0.9 * n_timesteps)
+
+        # Split the data
+        train_data.append(data[:train_end])
+        val_data.append(data[train_end:val_end])
+        test_data.append(data[val_end:])
+
+    return train_data, val_data, test_data
