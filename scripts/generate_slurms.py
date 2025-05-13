@@ -13,7 +13,7 @@ cmd_template = \
 #SBATCH --gpus=1
 #SBATCH --mem={memory}G
 #SBATCH --cpus-per-task=2
-#SBATCH --time=2-0
+#SBATCH --time=0-4
 #SBATCH --nice=0
 
 #SBATCH --job-name={encoder}_{decoder}_{dataset}_{lr:0.2e}
@@ -28,11 +28,11 @@ datasets="/mmfs1/home/alexeyy/storage/data"
 batch_size=128
 dataset={dataset}
 decoder={decoder}
-decoder_depth=1
+decoder_depth=2
 device=cuda:0
 dropout=0.1
 encoder={encoder}
-encoder_depth=1
+encoder_depth=2
 epochs=500
 hidden_size={hidden_size}
 lr={lr:0.2e}
@@ -50,7 +50,7 @@ apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datase
 echo "Finished running Apptainer"\
 """
 
-datasets = ["sst", "plasma", "active_matter", "planetswe"]
+datasets = ["sst", "plasma", "active_matter", "planetswe", "active_matter_pod", "planetswe_pod"]
 encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
 decoders = ["mlp", "unet"]
 lrs = [1e-2, 1e-3, 1e-4, 1e-5]
@@ -62,6 +62,9 @@ for dataset in datasets:
                 if dataset == 'plasma':
                     n_sensors = 5
                     hidden_size = 4
+                elif dataset in ['active_matter_pod', 'planetswe_pod']:
+                    n_sensors = 15
+                    hidden_size = 8
                 else:
                     n_sensors = 50
                     hidden_size = 8
