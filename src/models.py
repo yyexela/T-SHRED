@@ -14,7 +14,7 @@ from sindy_attention_transformer import SindyAttentionTransformer
 
 def load_model_from_checkpoint(checkpoint_path, args):
     model = MixedModel(args)
-    if checkpoint_path.exists():
+    if (not args.skip_checkpoint) and (checkpoint_path.exists()):
         checkpoint = torch.load(checkpoint_path)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         model.load_state_dict(checkpoint['model_state_dict'])

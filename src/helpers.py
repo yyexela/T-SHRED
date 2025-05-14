@@ -141,20 +141,23 @@ def evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors
     test_loss_full = 0.0
     with torch.no_grad():
         # Set up iterators for dual dataset loading
-        full_iterator = iter(test_full_dl)
+        if args.eval_full:
+            full_iterator = iter(test_full_dl)
         pod_iterator = iter(test_dl)
         num_iters = len(test_dl)
         for i in range(num_iters):
             # Get batch
-            full_batch = next(full_iterator)
+            if args.eval_full:
+                full_batch = next(full_iterator)
             pod_batch = next(pod_iterator)
 
             # Get data
             pod_inputs, pod_labels = pod_batch["input_fields"], pod_batch["output_fields"][:,0,:,:,:]
             pod_inputs, pod_labels = pod_inputs.to(args.device), pod_labels.to(args.device)
 
-            full_inputs, full_labels = full_batch["input_fields"], full_batch["output_fields"][:,0,:]
-            full_inputs, full_labels = full_inputs.to(args.device), full_labels.to(args.device)
+            if args.eval_full:
+                full_inputs, full_labels = full_batch["input_fields"], full_batch["output_fields"][:,0,:]
+                full_inputs, full_labels = full_inputs.to(args.device), full_labels.to(args.device)
 
             # Get real batch size
             batch_size = pod_inputs.shape[0]
@@ -183,26 +186,32 @@ def evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors
             pod_labels_full = inverse_pods_torch(pod_labels_squeezed, scaler, V, device=args.device)
 
             # Convert back to original shape
-            pod_outputs_shaped = einops.rearrange(pod_outputs_full, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
-            pod_labels_shaped = einops.rearrange(pod_labels_full, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
-            full_labels_shaped = einops.rearrange(full_labels, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
+            if args.eval_full:
+                pod_outputs_shaped = einops.rearrange(pod_outputs_full, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
+                pod_labels_shaped = einops.rearrange(pod_labels_full, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
+                full_labels_shaped = einops.rearrange(full_labels, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
 
             # Generate plots
-            if i == 0:
+            if args.eval_full and i == 0:
                 plot_field_comparison(pod_outputs_shaped[0], pod_labels_shaped[0], save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_pod_comparison")
                 plot_field_comparison(pod_outputs_shaped[0], full_labels_shaped[0], save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_full_comparison")
 
             # Calculate loss
             test_loss_pod += loss_fn(pod_outputs, pod_labels).item()
-            test_loss_pod_full += loss_fn(pod_outputs_shaped, pod_labels_shaped).item()
-            test_loss_full += loss_fn(pod_outputs_shaped, full_labels_shaped).item()
+            if args.eval_full:
+                test_loss_pod_full += loss_fn(pod_outputs_shaped, pod_labels_shaped).item()
+                test_loss_full += loss_fn(pod_outputs_shaped, full_labels_shaped).item()
 
         # Average loss
         test_loss_pod /= len(test_dl)
-        test_loss_pod_full /= len(test_dl)
-        test_loss_full /= len(test_dl)
+        if args.eval_full:
+            test_loss_pod_full /= len(test_dl)
+            test_loss_full /= len(test_dl)
 
-    return test_loss_pod, test_loss_pod_full, test_loss_full
+    if args.eval_full:
+        return test_loss_pod, test_loss_pod_full, test_loss_full
+    else:
+        return test_loss_pod
 
 def evaluate_model(model, test_dl, sensors, args):
     """

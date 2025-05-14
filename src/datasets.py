@@ -159,9 +159,10 @@ def load_well_data_pod(args):
     val_pods = load_the_well_pts(data_path / 'pod', 'valid', reshape_to_image=True)
     test_pods = load_the_well_pts(data_path / 'pod', 'test', reshape_to_image=True)
 
-    train_fulls = load_the_well_pts(data_path / 'full', 'train')
-    val_fulls = load_the_well_pts(data_path / 'full', 'valid')
-    test_fulls = load_the_well_pts(data_path / 'full', 'test')
+    if args.eval_full:
+        train_fulls = load_the_well_pts(data_path / 'full', 'train')
+        val_fulls = load_the_well_pts(data_path / 'full', 'valid')
+        test_fulls = load_the_well_pts(data_path / 'full', 'test')
 
     # Load V and scalers
     with open(data_path / 'metadata' / 'V.pkl', 'rb') as f:
@@ -177,11 +178,15 @@ def load_well_data_pod(args):
     valid_pod_ds = TimeSeriesDataset(tensors=val_pods, window_length=args.window_length)
     test_pod_ds = TimeSeriesDataset(tensors=test_pods, window_length=args.window_length)
 
-    train_full_ds = TimeSeriesDataset(tensors=train_fulls, window_length=args.window_length)
-    valid_full_ds = TimeSeriesDataset(tensors=val_fulls, window_length=args.window_length)
-    test_full_ds = TimeSeriesDataset(tensors=test_fulls, window_length=args.window_length)
+    if args.eval_full:
+        train_full_ds = TimeSeriesDataset(tensors=train_fulls, window_length=args.window_length)
+        valid_full_ds = TimeSeriesDataset(tensors=val_fulls, window_length=args.window_length)
+        test_full_ds = TimeSeriesDataset(tensors=test_fulls, window_length=args.window_length)
 
-    return train_pod_ds, valid_pod_ds, test_pod_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims)
+    if args.eval_full:
+        return train_pod_ds, valid_pod_ds, test_pod_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims)
+    else:
+        return train_pod_ds, valid_pod_ds, test_pod_ds, (V, scaler, im_dims)
 
 def load_sst_data(args):
     # Load raw file

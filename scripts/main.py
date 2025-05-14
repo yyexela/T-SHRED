@@ -49,7 +49,10 @@ def main(args=None):
     if 'pod' in args.dataset:
         # POD more complicated due to V and scaler to bring back to original space
         # first three datasets are POD, last three are not (they are full)
-        train_ds, val_ds, test_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
+        if args.eval_full:
+            train_ds, val_ds, test_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
+        else:
+            train_ds, val_ds, test_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
     else:
         train_ds, val_ds, test_ds, (mean, std) = datasets.load_dataset(args)
     args.d_data = train_ds[0]['input_fields'].shape[-1]
@@ -99,12 +102,17 @@ def main(args=None):
     model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
     if 'pod' in args.dataset:
         # When doing POD, make sure to bring back to original space when calculating error
-        test_full_dl = DataLoader(test_full_ds, batch_size=args.batch_size, shuffle=False)
-        test_loss_pod, test_loss_pod_full, test_loss_full = helpers.evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args)
-        if args.verbose:
-            print(f'Test loss pod: {test_loss_pod:0.4e}')
-            print(f'Test loss pod full: {test_loss_pod_full:0.4e}')
-            print(f'Test loss full: {test_loss_full:0.4e}')
+        if args.eval_full:
+            test_full_dl = DataLoader(test_full_ds, batch_size=args.batch_size, shuffle=False)
+            test_loss_pod, test_loss_pod_full, test_loss_full = helpers.evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args)
+            if args.verbose:
+                print(f'Test loss pod: {test_loss_pod:0.4e}')
+                print(f'Test loss pod full: {test_loss_pod_full:0.4e}')
+                print(f'Test loss full: {test_loss_full:0.4e}')
+        else:
+            test_loss_pod = helpers.evaluate_model_pod(model, test_dl, None, V, scaler, im_dims, sensors, args)
+            if args.verbose:
+                print(f'Test loss pod: {test_loss_pod:0.4e}')
     else:
         test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
         if args.verbose:
@@ -122,6 +130,7 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
     parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
     parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, transformer, sindy_attention_transformer, sindy_loss_transformer)")
+    parser.add_argument('--eval_full', action='store_true', help="Evaluate on full dataset (BAD FOR RAM)")
     parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
@@ -131,6 +140,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_sensors', type=int, default=50, help="Number of sensors")
     parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
     parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
+    parser.add_argument('--skip_checkpoint', action='store_true', help="Skip loading model checkpoint")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")
     args = parser.parse_args()
