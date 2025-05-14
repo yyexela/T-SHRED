@@ -7,7 +7,7 @@ cmd_template = \
 #!/bin/bash
 
 #SBATCH --account=amath
-#SBATCH --partition=gpu-rtx6k
+#SBATCH --partition=ckpt-g2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
@@ -33,7 +33,7 @@ device=cuda:0
 dropout=0.1
 encoder={encoder}
 encoder_depth={encoder_depth}
-epochs=500
+epochs=200
 hidden_size={hidden_size}
 lr={lr:0.2e}
 n_heads=2
@@ -42,7 +42,6 @@ save_every_n_epochs=10
 window_length=50
 n_sensors={n_sensors}
 
-
 echo "Running Apptainer"
 
 apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --verbose
@@ -50,50 +49,54 @@ apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datase
 echo "Finished running Apptainer"\
 """
 
-datasets = ["sst", "plasma", "gray_scott_reaction_diffusion", "planetswe", "active_matter_pod", "gray_scott_reaction_diffusion_pod"]
+# Clean up slurm repo
+slurm_dir = top_dir / 'slurms'
+for file in slurm_dir.glob('*.slurm'):
+    file.unlink()
+
+# We will iterate through every combination of these
+datasets = ["sst", "plasma", "active_matter_pod", "gray_scott_reaction_diffusion_pod"]
 encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
 decoders = ["mlp", "unet"]
-lrs = [1e-2, 1e-3, 1e-4, 1e-5]
-encoder_depths = [1, 2, 3, 4]
-decoder_depths = [1, 2, 3, 4]
+lrs = [1e-2, 1e-3]
+
+# These two will be zipped pairwise
+encoder_depths = [1, 2, 3, 3, 4, 4]
+decoder_depths = [1, 2, 1, 2, 1, 2]
 
 for dataset in datasets:
     for encoder in encoders:
         for decoder in decoders:
             for lr in lrs:
-                for encoder_depth in encoder_depths:
-                    for decoder_depth in decoder_depths:
-                        if dataset == 'plasma':
-                            n_sensors = 5
-                            hidden_size = 4
-                        elif dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
-                            n_sensors = 15
-                            hidden_size = 8
-                        else:
-                            n_sensors = 50
-                            hidden_size = 8
+                for encoder_depth, decoder_depth in zip(encoder_depths, decoder_depths):
+                    if dataset == 'plasma':
+                        n_sensors = 5
+                        hidden_size = 4
+                    elif dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
+                        n_sensors = 15
+                        hidden_size = 8
+                    else: # sst
+                        n_sensors = 50
+                        hidden_size = 8
 
-                        if dataset in ['gray_scott_reaction_diffusion', 'planetswe']:
-                            memory = 64
-                        else:
-                            memory = 32
-
-
-                        cmd = cmd_template.format(
-                            dataset=dataset,
-                            encoder=encoder,
-                            decoder=decoder,
-                            lr=lr,
-                            hidden_size=hidden_size,
-                            n_sensors=n_sensors,
-                            memory=memory,
-                            encoder_depth=encoder_depth,
-                            decoder_depth=decoder_depth
-                        )
-
-                        with open(top_dir / 'slurms' / f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}.slurm', "w") as f:
-                            f.write(cmd)
+                    if dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
+                        memory = 64
+                    else:
+                        memory = 32
 
 
+                    cmd = cmd_template.format(
+                        dataset=dataset,
+                        encoder=encoder,
+                        decoder=decoder,
+                        lr=lr,
+                        hidden_size=hidden_size,
+                        n_sensors=n_sensors,
+                        memory=memory,
+                        encoder_depth=encoder_depth,
+                        decoder_depth=decoder_depth
+                    )
 
+                    with open(top_dir / 'slurms' / f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}.slurm', "w") as f:
+                        f.write(cmd)
 
