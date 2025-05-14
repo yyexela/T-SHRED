@@ -6,6 +6,7 @@ import sys
 import gzip
 import torch
 import bisect
+import pickle
 import einops
 import numpy as np
 import scipy.io as sio
@@ -140,7 +141,9 @@ def load_the_well_pts(load_path, split_name, reshape_to_image=False):
     for pt_file in sorted(load_path.iterdir()):
         if split_name in pt_file.name:
             # Convert data to pytorch (treat it like a (1 x dim x 1) image)
-            tensor = torch.load(pt_file)
+            with open(pt_file, 'rb') as f:
+                tensor = pickle.load(f)
+                tensor = torch.from_numpy(tensor)
             tensor = tensor.float()
             if reshape_to_image:
                 tensor = tensor.unsqueeze(1).unsqueeze(-1)
@@ -161,9 +164,13 @@ def load_well_data_pod(args):
     test_fulls = load_the_well_pts(data_path / 'full', 'test')
 
     # Load V and scalers
-    V = torch.load(data_path / 'metadata' / 'V.pt')
-    scaler = torch.load(data_path / 'metadata' / 'scaler.pt')
-    im_dims = torch.load(data_path / 'metadata' / 'im_dims.pt')
+    with open(data_path / 'metadata' / 'V.pkl', 'rb') as f:
+        V = pickle.load(f)
+        V = torch.from_numpy(V)
+    with open(data_path / 'metadata' / 'scaler.pkl', 'rb') as f:
+        scaler = pickle.load(f)
+    with open(data_path / 'metadata' / 'im_dims.pkl', 'rb') as f:
+        im_dims = pickle.load(f)
 
     # Create torch datasets
     train_pod_ds = TimeSeriesDataset(tensors=train_pods, window_length=args.window_length)

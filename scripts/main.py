@@ -100,11 +100,17 @@ def main(args=None):
     if 'pod' in args.dataset:
         # When doing POD, make sure to bring back to original space when calculating error
         test_full_dl = DataLoader(test_full_ds, batch_size=args.batch_size, shuffle=False)
-        test_loss = helpers.evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args)
+        test_loss_pod, test_loss_pod_full, test_loss_full = helpers.evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args)
+        if args.verbose:
+            print(f'Test loss pod: {test_loss_pod:0.4e}')
+            print(f'Test loss pod full: {test_loss_pod_full:0.4e}')
+            print(f'Test loss full: {test_loss_full:0.4e}')
     else:
         test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
-    if args.verbose:
-        print(f'Test loss: {test_loss:0.4e}')
+        if args.verbose:
+            print(f'Test loss: {test_loss:0.4e}')
+
+    pass # Done!
 
 if __name__ == '__main__':
     # To allow CLIs
