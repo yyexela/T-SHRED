@@ -72,8 +72,8 @@ def main(args=None):
 
     # Save model location
     #time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    latest_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_model_latest.pt'
-    best_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_model_best.pt'
+    latest_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_model_latest.pt'
+    best_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_model_best.pt'
     args.latest_checkpoint_path = checkpoint_dir / latest_model_name
     args.best_checkpoint_path = checkpoint_dir / best_model_name
 

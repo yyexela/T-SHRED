@@ -193,8 +193,8 @@ def evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors
 
             # Generate plots
             if args.eval_full and i == 0:
-                plot_field_comparison(pod_outputs_shaped[0], pod_labels_shaped[0], save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_pod_comparison")
-                plot_field_comparison(pod_outputs_shaped[0], full_labels_shaped[0], save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_full_comparison")
+                plot_field_comparison(pod_outputs_shaped[0], pod_labels_shaped[0], save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_pod_comparison")
+                plot_field_comparison(pod_outputs_shaped[0], full_labels_shaped[0], save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison")
 
             # Calculate loss
             test_loss_pod += loss_fn(pod_outputs, pod_labels).item()
@@ -363,7 +363,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             print(f'Epoch {epoch+1}, Training loss: {train_loss:0.4e}, Validation loss: {val_loss:0.4e} (best: {best_val:0.4e})')
         
         # Make plot
-        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_{args.lr:0.2e}_losses")
+        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_losses")
 
     if args.verbose:
         print(f"Training complete, best validation loss: {best_val:0.4e}")

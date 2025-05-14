@@ -7,7 +7,7 @@ cmd_template = \
 #!/bin/bash
 
 #SBATCH --account=amath
-#SBATCH --partition=ckpt-g2
+#SBATCH --partition=gpu-rtx6k
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
@@ -16,8 +16,8 @@ cmd_template = \
 #SBATCH --time=0-4
 #SBATCH --nice=0
 
-#SBATCH --job-name={encoder}_{decoder}_{dataset}_{lr:0.2e}
-#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer/logs/{encoder}_{decoder}_{dataset}_{lr:0.2e}_%j.out
+#SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}
+#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_%j.out
 
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=alexeyy@uw.edu
@@ -28,11 +28,11 @@ datasets="/mmfs1/home/alexeyy/storage/data"
 batch_size=128
 dataset={dataset}
 decoder={decoder}
-decoder_depth=2
+decoder_depth={decoder_depth}
 device=cuda:0
 dropout=0.1
 encoder={encoder}
-encoder_depth=2
+encoder_depth={encoder_depth}
 epochs=500
 hidden_size={hidden_size}
 lr={lr:0.2e}
@@ -50,43 +50,49 @@ apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datase
 echo "Finished running Apptainer"\
 """
 
-datasets = ["sst", "plasma", "active_matter", "planetswe", "active_matter_pod", "planetswe_pod"]
+datasets = ["sst", "plasma", "gray_scott_reaction_diffusion", "planetswe", "active_matter_pod", "gray_scott_reaction_diffusion_pod"]
 encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
 decoders = ["mlp", "unet"]
 lrs = [1e-2, 1e-3, 1e-4, 1e-5]
+encoder_depths = [1, 2, 3, 4]
+decoder_depths = [1, 2, 3, 4]
 
 for dataset in datasets:
     for encoder in encoders:
         for decoder in decoders:
             for lr in lrs:
-                if dataset == 'plasma':
-                    n_sensors = 5
-                    hidden_size = 4
-                elif dataset in ['active_matter_pod', 'planetswe_pod']:
-                    n_sensors = 15
-                    hidden_size = 8
-                else:
-                    n_sensors = 50
-                    hidden_size = 8
+                for encoder_depth in encoder_depths:
+                    for decoder_depth in decoder_depths:
+                        if dataset == 'plasma':
+                            n_sensors = 5
+                            hidden_size = 4
+                        elif dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
+                            n_sensors = 15
+                            hidden_size = 8
+                        else:
+                            n_sensors = 50
+                            hidden_size = 8
 
-                if dataset in ['active_matter', 'planetswe']:
-                    memory = 64
-                else:
-                    memory = 32
+                        if dataset in ['gray_scott_reaction_diffusion', 'planetswe']:
+                            memory = 64
+                        else:
+                            memory = 32
 
 
-                cmd = cmd_template.format(
-                    dataset=dataset,
-                    encoder=encoder,
-                    decoder=decoder,
-                    lr=lr,
-                    hidden_size=hidden_size,
-                    n_sensors=n_sensors,
-                    memory=memory
-                )
+                        cmd = cmd_template.format(
+                            dataset=dataset,
+                            encoder=encoder,
+                            decoder=decoder,
+                            lr=lr,
+                            hidden_size=hidden_size,
+                            n_sensors=n_sensors,
+                            memory=memory,
+                            encoder_depth=encoder_depth,
+                            decoder_depth=decoder_depth
+                        )
 
-                with open(top_dir / 'slurms' / f'{encoder}_{decoder}_{dataset}_{lr:0.2e}.slurm', "w") as f:
-                    f.write(cmd)
+                        with open(top_dir / 'slurms' / f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}.slurm', "w") as f:
+                            f.write(cmd)
 
 
 
