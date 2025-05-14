@@ -30,7 +30,9 @@ fig_dir = top_dir / 'figures'
 checkpoint_dir = top_dir / 'checkpoints'
 pickle_dir = top_dir / 'pickles'
 
+fig_dir.mkdir(parents=True, exist_ok=True)
 checkpoint_dir.mkdir(parents=True, exist_ok=True)
+pickle_dir.mkdir(parents=True, exist_ok=True)
 
 ########
 # Main #
@@ -104,14 +106,19 @@ def main(args=None):
                 print(f'Test loss pod: {test_loss_pod:0.4e}')
                 print(f'Test loss pod full: {test_loss_pod_full:0.4e}')
                 print(f'Test loss full: {test_loss_full:0.4e}')
+            save_dict = {'test_loss_pod': test_loss_pod, 'test_loss_pod_full': test_loss_pod_full, 'test_loss_full': test_loss_full}
         else:
             test_loss_pod = helpers.evaluate_model_pod(model, test_dl, None, V, scaler, im_dims, sensors, args)
             if args.verbose:
                 print(f'Test loss pod: {test_loss_pod:0.4e}')
+            save_dict = {'test_loss_pod': test_loss_pod}
     else:
         test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
         if args.verbose:
             print(f'Test loss: {test_loss:0.4e}')
+        save_dict = {'test_loss': test_loss}
+    with open(pickle_dir / f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_test_loss.pkl', 'wb') as f:
+        pickle.dump(save_dict, f)
 
     pass # Done!
 

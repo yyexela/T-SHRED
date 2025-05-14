@@ -7,7 +7,6 @@ from matplotlib.gridspec import GridSpec
 
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / 'figures'
-figure_dir.mkdir(parents=True, exist_ok=True)
 
 def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, save: bool = False, fname: str = None) -> None:
     """

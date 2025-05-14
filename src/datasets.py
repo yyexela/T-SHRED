@@ -186,7 +186,7 @@ def load_well_data_pod(args):
     if args.eval_full:
         return train_pod_ds, valid_pod_ds, test_pod_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims)
     else:
-        return train_pod_ds, valid_pod_ds, test_pod_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims)
+        return train_pod_ds, valid_pod_ds, test_pod_ds, (V, scaler, im_dims)
 
 def load_sst_data(args):
     # Load raw file
