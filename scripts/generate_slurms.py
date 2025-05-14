@@ -55,7 +55,7 @@ for file in slurm_dir.glob('*.slurm'):
     file.unlink()
 
 # We will iterate through every combination of these
-datasets = ["sst", "plasma", "active_matter_pod", "gray_scott_reaction_diffusion_pod"]
+datasets = ["sst", "plasma", "planetswe_pod", "gray_scott_reaction_diffusion_pod"]
 encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
 decoders = ["mlp", "unet"]
 lrs = [1e-2, 1e-3]
