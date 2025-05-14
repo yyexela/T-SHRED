@@ -432,25 +432,29 @@ def sindy_library_torch(z, latent_dim, poly_order, include_sine=False):
 
     return torch.stack(library, axis=1)
 
-def min_max_scale(tensor, feature_range=(0, 1)):
+def min_max_scale(tensor, feature_range=(0, 1), scaler=None):
     """
     Scale a tensor to a given feature range using min-max normalization.
     
     Args:
         tensor (torch.Tensor): Input tensor to be scaled
         feature_range (tuple): Desired range of transformed data (default: (0, 1))
+        scaler (tuple): Tuple of (min, max) values used for scaling (for inverse transformation)
         
     Returns:
         torch.Tensor: Scaled tensor
-        tuple: (min, max) values used for scaling (for inverse transformation)
+        tuple: (min, max) values used for scaling (for inverse transformation) or scaler if provided
     """
     # Ensure the input is a tensor
     if not isinstance(tensor, torch.Tensor):
         tensor = torch.tensor(tensor, dtype=torch.float32)
     
-    # Calculate min and max
-    t_min = tensor.min()
-    t_max = tensor.max()
+    if scaler is None:
+        # Calculate min and max
+        t_min = tensor.min()
+        t_max = tensor.max()
+    else:
+        t_min, t_max = scaler
     
     # Avoid division by zero
     t_range = t_max - t_min

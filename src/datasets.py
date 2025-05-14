@@ -24,7 +24,7 @@ sys.path.insert(0, str(pkg_path))
 import src.models as models
 from src.processdata import load_data
 from src.processdata import TimeSeriesDataset
-from src.helpers import normalize_pytorch
+from src.helpers import min_max_scale
 
 # Directories
 top_dir = Path(__file__).parent.parent
@@ -186,7 +186,7 @@ def load_well_data_pod(args):
     if args.eval_full:
         return train_pod_ds, valid_pod_ds, test_pod_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims)
     else:
-        return train_pod_ds, valid_pod_ds, test_pod_ds, (V, scaler, im_dims)
+        return train_pod_ds, valid_pod_ds, test_pod_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims)
 
 def load_sst_data(args):
     # Load raw file
@@ -204,10 +204,10 @@ def load_sst_data(args):
     val = torch.from_numpy(val).float().unsqueeze(-1)
     test = torch.from_numpy(test).float().unsqueeze(-1)
 
-    # Normalize data
-    train, mean, std = normalize_pytorch(train, (0, 1, 2))
-    val, _, _ = normalize_pytorch(val, (0, 1, 2), mean, std)
-    test, _, _ = normalize_pytorch(test, (0, 1, 2), mean, std)
+    # Min Max Scale data
+    train, scaler = min_max_scale(train)
+    val, _ = min_max_scale(val, scaler)
+    test, _ = min_max_scale(test, scaler)
 
     # Create torch datasets
     datasets = []
@@ -219,7 +219,7 @@ def load_sst_data(args):
     valid_ds = datasets[1]
     test_ds = datasets[2]
 
-    return train_ds, valid_ds, test_ds, (mean, std)
+    return train_ds, valid_ds, test_ds, scaler
 
 def load_sst_demo_data(args):
     # Load raw file
@@ -237,10 +237,10 @@ def load_sst_demo_data(args):
     val = torch.from_numpy(val).float().unsqueeze(-1)
     test = torch.from_numpy(test).float().unsqueeze(-1)
 
-    # Normalize data
-    train, mean, std = normalize_pytorch(train, (0, 1, 2))
-    val, _, _ = normalize_pytorch(val, (0, 1, 2), mean, std)
-    test, _, _ = normalize_pytorch(test, (0, 1, 2), mean, std)
+    # Min Max Scale data
+    train, scaler = min_max_scale(train)
+    val, _ = min_max_scale(val, scaler)
+    test, _ = min_max_scale(test, scaler)
 
     # Create torch datasets
     datasets = []
@@ -252,7 +252,7 @@ def load_sst_demo_data(args):
     valid_ds = datasets[1]
     test_ds = datasets[2]
 
-    return train_ds, valid_ds, test_ds, (mean, std)
+    return train_ds, valid_ds, test_ds, scaler
 
 def load_plasma_data(args):
     # Load data
@@ -269,10 +269,10 @@ def load_plasma_data(args):
     val = torch.from_numpy(val).float().unsqueeze(-1).unsqueeze(1)
     test = torch.from_numpy(test).float().unsqueeze(-1).unsqueeze(1)
 
-    # Normalize data
-    train, mean, std = normalize_pytorch(train, (0, 1, 2))
-    val, _, _ = normalize_pytorch(val, (0, 1, 2), mean, std)
-    test, _, _ = normalize_pytorch(test, (0, 1, 2), mean, std)
+    # Min Max Scale data
+    train, scaler = min_max_scale(train)
+    val, _ = min_max_scale(val, scaler)
+    test, _ = min_max_scale(test, scaler)
 
     # Create torch datasets
     datasets = []
@@ -284,4 +284,4 @@ def load_plasma_data(args):
     valid_ds = datasets[1]
     test_ds = datasets[2]
 
-    return train_ds, valid_ds, test_ds, (mean, std)
+    return train_ds, valid_ds, test_ds, scaler
