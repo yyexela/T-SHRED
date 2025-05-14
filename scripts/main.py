@@ -4,16 +4,10 @@
 
 import sys
 import torch
+import pickle
 import argparse
-import datetime
-import numpy as np
-import scipy.io as sio
 from pathlib import Path
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-import matplotlib.animation as animation
-from sklearn.preprocessing import MinMaxScaler
-from matplotlib.colors import LinearSegmentedColormap
 
 # Bug workaround, see https://github.com/pytorch/pytorch/issues/16831
 torch.backends.cudnn.benchmark = False
@@ -34,6 +28,7 @@ data_dir = top_dir / 'datasets'
 plasma_dir = data_dir / 'plasma'
 fig_dir = top_dir / 'figures'
 checkpoint_dir = top_dir / 'checkpoints'
+pickle_dir = top_dir / 'pickles'
 
 checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -140,7 +135,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_sensors', type=int, default=50, help="Number of sensors")
     parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
     parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
-    parser.add_argument('--skip_checkpoint', action='store_true', help="Skip loading model checkpoint")
+    parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading model checkpoint")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")
     args = parser.parse_args()
