@@ -99,9 +99,9 @@ def load_dataset(args):
         return load_sst_demo_data(args)
     elif args.dataset == 'plasma':
         return load_plasma_data(args)
-    elif args.dataset in ["active_matter", "planetswe"]:
+    elif args.dataset in ["gray_scott_reaction_diffusion", "planetswe"]:
         return load_well_data(args)
-    elif args.dataset in ["active_matter_pod", "planetswe_pod"]:
+    elif args.dataset in ["gray_scott_reaction_diffusion_pod", "planetswe_pod"]:
         return load_well_data_pod(args)
     else:
         raise ValueError(f'Unknown dataset: {args.dataset}')
