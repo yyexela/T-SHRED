@@ -114,6 +114,7 @@ def main(args=None):
             print(f'Test loss: {test_loss:0.4e}')
         save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'sensors': sensors}
     with open(pickle_dir / f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_test_loss.pkl', 'wb') as f:
+        save_dict['hyperparameters'] = vars(args)
         pickle.dump(save_dict, f)
 
     pass # Done!

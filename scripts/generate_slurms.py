@@ -13,7 +13,7 @@ cmd_template = \
 #SBATCH --gpus=1
 #SBATCH --mem={memory}G
 #SBATCH --cpus-per-task=2
-#SBATCH --time=0-4
+#SBATCH --time=1-0
 #SBATCH --nice=0
 
 #SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}
@@ -58,7 +58,7 @@ for file in slurm_dir.glob('*.slurm'):
 datasets = ["sst", "plasma", "planetswe_pod", "gray_scott_reaction_diffusion_pod"]
 encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
 decoders = ["mlp", "unet"]
-lrs = [1e-2, 1e-3]
+lrs = [1e-2, 1e-3, 1e-4, 1e-5]
 
 # These two will be zipped pairwise
 encoder_depths = [1, 2, 3, 3, 4, 4]
