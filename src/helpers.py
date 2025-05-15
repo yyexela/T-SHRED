@@ -1,6 +1,8 @@
+import os
 import torch
 import einops
 import random
+import pickle
 import numpy as np
 import torch.nn as nn
 from pathlib import Path
@@ -608,3 +610,30 @@ def split_mats(data_list):
         test_data.append(data[val_end:])
 
     return train_data, val_data, test_data
+
+def get_top_N_models_by_loss(dataset_name, pickle_dir, N=5):
+    """
+    Returns the top 5 models (filenames) with the lowest test loss for a given dataset.
+    
+    Args:
+        dataset_name (str): The dataset name to filter by (e.g., 'sst').
+        pickles_dir (str): Path to the pickles directory.
+        N (int): Number of results to return.
+        
+    Returns:
+        List of tuples: [(filename, loss), ...] sorted by lowest loss.
+    """
+    results = []
+    for fname in os.listdir(pickle_dir):
+        if dataset_name in fname and fname.endswith('.pkl'):
+            fpath = os.path.join(pickle_dir, fname)
+            with open(fpath, 'rb') as f:
+                data = pickle.load(f)
+                # Try both 'test_loss' and 'test_loss_pod' keys for robustness
+                loss = data.get('test_loss', data.get('test_loss_pod', None))
+                if loss is not None:
+                    results.append((fname, loss))
+    # Sort by loss (ascending) and return top 5
+    results.sort(key=lambda x: x[1], reverse=False)
+    return results[:N]
+
