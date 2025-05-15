@@ -205,9 +205,10 @@ def load_sst_data(args):
     test = torch.from_numpy(test).float().unsqueeze(-1)
 
     # Min Max Scale data
-    train, scaler = min_max_scale(train)
-    val, _ = min_max_scale(val, scaler)
-    test, _ = min_max_scale(test, scaler)
+    _, scaler = min_max_scale(sst_data)
+    train, _ = min_max_scale(train, scaler=scaler)
+    val, _ = min_max_scale(val, scaler=scaler)
+    test, _ = min_max_scale(test, scaler=scaler)
 
     # Create torch datasets
     datasets = []
@@ -238,9 +239,10 @@ def load_sst_demo_data(args):
     test = torch.from_numpy(test).float().unsqueeze(-1)
 
     # Min Max Scale data
-    train, scaler = min_max_scale(train)
-    val, _ = min_max_scale(val, scaler)
-    test, _ = min_max_scale(test, scaler)
+    _, scaler = min_max_scale(sst_data)
+    train, _ = min_max_scale(train, scaler=scaler)
+    val, _ = min_max_scale(val, scaler=scaler)
+    test, _ = min_max_scale(test, scaler=scaler)
 
     # Create torch datasets
     datasets = []
@@ -270,9 +272,10 @@ def load_plasma_data(args):
     test = torch.from_numpy(test).float().unsqueeze(-1).unsqueeze(1)
 
     # Min Max Scale data
-    train, scaler = min_max_scale(train)
-    val, _ = min_max_scale(val, scaler)
-    test, _ = min_max_scale(test, scaler)
+    _, scaler = min_max_scale(plasma_data)
+    train, _ = min_max_scale(train, scaler=scaler)
+    val, _ = min_max_scale(val, scaler=scaler)
+    test, _ = min_max_scale(test, scaler=scaler)
 
     # Create torch datasets
     datasets = []
