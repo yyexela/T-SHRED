@@ -1,0 +1,51 @@
+import os
+import time
+from pathlib import Path
+
+top_dir = Path(__file__).parent.parent
+slurm_dir = top_dir / 'slurms'
+pickle_dir = top_dir / 'pickles'
+
+def get_identifier(filename):
+    """Extract identifier from filename by removing extension and _test_loss suffix."""
+    name = Path(filename).stem  # Remove extension
+    if name.endswith('_test_loss'):
+        name = name[:-10]  # Remove _test_loss suffix
+    return name
+
+def main(args=None):
+    """
+    Given slurm_dir and pickle_dir, compare all the filenames between the two directories and print the names of the files that are not present in both directories.
+    """
+    # Get all files from both directories and extract identifiers
+    slurm_files = {f.name for f in slurm_dir.glob('*.slurm') if f.is_file()}
+    pickle_files = {f.name for f in pickle_dir.glob('*_test_loss.pkl') if f.is_file()}
+    
+    # Get sets of identifiers
+    slurm_ids = {get_identifier(f) for f in slurm_files}
+    pickle_ids = {get_identifier(f) for f in pickle_files}
+    
+    # Find identifiers that are not present in both directories
+    only_in_slurm = slurm_ids - pickle_ids
+    only_in_pickle = pickle_ids - slurm_ids
+    
+    # Print results
+    if only_in_slurm:
+        print("\nIdentifiers only in slurm directory:")
+        for identifier in sorted(only_in_slurm):
+            print(f"  {identifier}")
+            #os.system(f"sbatch {slurm_dir / f'{identifier}.slurm'}")
+        print()
+            
+    if only_in_pickle:
+        print("\nIdentifiers only in pickle directory:")
+        for identifier in sorted(only_in_pickle):
+            print(f"  {identifier}")
+        print()
+            
+    if not only_in_slurm and not only_in_pickle:
+        print("All identifiers are present in both directories.")
+    
+if __name__ == '__main__':
+    main()       
+        
