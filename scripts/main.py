@@ -22,7 +22,6 @@ from src import *
 # Directories #
 ###############
 
-# Directories
 top_dir = Path(__file__).parent.parent
 data_dir = top_dir / 'datasets'
 plasma_dir = data_dir / 'plasma'
@@ -37,9 +36,6 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 ########
 # Main #
 ########
-
-#validation_errors = models.fit(UTransformer, train_dataset, valid_dataset, batch_size=25, num_epochs=8, lr=0.001, verbose=True, patience=5)
-#UTransformer = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
 
 def main(args=None):
     # Load dataset
@@ -118,6 +114,7 @@ def main(args=None):
             print(f'Test loss: {test_loss:0.4e}')
         save_dict = {'test_loss': test_loss}
     with open(pickle_dir / f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_test_loss.pkl', 'wb') as f:
+        save_dict['hyperparameters'] = vars(args)
         pickle.dump(save_dict, f)
 
     pass # Done!
