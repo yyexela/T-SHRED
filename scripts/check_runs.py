@@ -1,5 +1,6 @@
 import os
 import time
+import argparse
 from pathlib import Path
 
 top_dir = Path(__file__).parent.parent
@@ -34,7 +35,6 @@ def main(args=None):
         print("\nIdentifiers only in slurm directory:")
         for identifier in sorted(only_in_slurm):
             print(f"  {identifier}")
-            #os.system(f"sbatch {slurm_dir / f'{identifier}.slurm'}")
         print()
             
     if only_in_pickle:
@@ -42,10 +42,17 @@ def main(args=None):
         for identifier in sorted(only_in_pickle):
             print(f"  {identifier}")
         print()
+
+    if args.rerun:
+        for identifier in only_in_slurm:
+            os.system(f"sbatch {slurm_dir / f'{identifier}.slurm'}")
             
     if not only_in_slurm and not only_in_pickle:
         print("All identifiers are present in both directories.")
     
 if __name__ == '__main__':
-    main()       
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--rerun', action='store_true', help="Re-run the slurms that are not present in the pickle directory")
+    args = parser.parse_args()
+    main(args)       
         

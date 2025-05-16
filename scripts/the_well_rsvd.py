@@ -32,9 +32,9 @@ from src.helpers import *
 
 debug = False
 n_iters = 5
-dataset = 'gray_scott_reaction_diffusion'
+dataset = 'planetswe'
 n_steps = {'planetswe': 1008, 'active_matter': 81, 'gray_scott_reaction_diffusion': 1001}
-n_rank = {'active_matter': 50, 'planetswe': 75, 'gray_scott_reaction_diffusion': 75}
+n_rank = {'active_matter': 50, 'planetswe': 75, 'gray_scott_reaction_diffusion': 100}
 total_tracks = {'planetswe': 120, 'active_matter': 360, 'gray_scott_reaction_diffusion': 1200}
 #total_tracks = {'planetswe': 24, 'active_matter': 72, 'gray_scott_reaction_diffusion': 240}
 #total_tracks = {'planetswe': 2, 'active_matter': 2, 'gray_scott_reaction_diffusion': 2}
@@ -48,7 +48,7 @@ save_dir.mkdir(exist_ok=True, parents=True)
 
 # Load data from online, when using in practice we'll have to download the dataset
 train_data = WellDataset(
-    well_base_path=Path('/mmfs1/home/alexeyy/storage/data/the_well'),
+    well_base_path=Path(project_root / 'datasets' / 'the_well'),
     well_dataset_name=dataset,
     well_split_name="train",
     n_steps_input=n_steps[dataset],
@@ -57,7 +57,7 @@ train_data = WellDataset(
 )
 
 valid_data = WellDataset(
-    well_base_path=Path('/mmfs1/home/alexeyy/storage/data/the_well'),
+    well_base_path=Path(project_root / 'datasets' / 'the_well'),
     well_dataset_name=dataset,
     well_split_name="valid",
     n_steps_input=n_steps[dataset],
@@ -66,7 +66,7 @@ valid_data = WellDataset(
 )
 
 test_data = WellDataset(
-    well_base_path=Path('/mmfs1/home/alexeyy/storage/data/the_well'),
+    well_base_path=Path(project_root / 'datasets' / 'the_well'),
     well_dataset_name=dataset,
     well_split_name="test",
     n_steps_input=n_steps[dataset],
@@ -113,6 +113,7 @@ for track_num in tqdm(range(total_tracks[dataset]), desc="Saving full data"):
     test = track[train_num+valid_num:] # torch.Size([102, 393216])
 
     with open(save_dir / 'full' / f'train_{track_num}.pkl', 'wb') as f:
+        print("full shape:", train.shape)
         pickle.dump(train.numpy(), f)
 
     with open(save_dir / 'full' / f'valid_{track_num}.pkl', 'wb') as f:
@@ -143,6 +144,7 @@ for track_num in tqdm(range(total_tracks[dataset]), desc="Saving POD data"):
     test_pod_scaled = track_pod_scaled[train_num+valid_num:]
 
     with open(save_dir / 'pod' / f'train_{track_num}.pkl', 'wb') as f:
+        print("pod shape:", train.shape)
         pickle.dump(train_pod_scaled.numpy(), f)
 
     with open(save_dir / 'pod' / f'valid_{track_num}.pkl', 'wb') as f:
