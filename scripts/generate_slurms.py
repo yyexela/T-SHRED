@@ -19,7 +19,7 @@ cmd_template = \
 #SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}
 #SBATCH --output=/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_%j.out
 
-#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --mail-type=NONE
 #SBATCH --mail-user=alexeyy@uw.edu
 
 repo="/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer"
@@ -44,7 +44,7 @@ n_sensors={n_sensors}
 
 echo "Running Apptainer"
 
-apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --verbose
+apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --skip_load_checkpoint --verbose
 
 echo "Finished running Apptainer"\
 """
