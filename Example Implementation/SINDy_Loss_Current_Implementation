@@ -1,0 +1,37 @@
+import torch.nn as nn
+import torch
+def sparse_identification_of_nonlinear_dynamics(y_pred, y_truth, coefficients, lambda1=0.1, lambda2=0.1, lambda3=0):
+    """
+    SINDy loss function with added sparsity regularization.
+    
+    Args:
+        y_pred (torch.Tensor): Predicted trajectories, shape (batch_size, seq_len, n_features).
+        y_truth (torch.Tensor): True trajectories, shape (batch_size, seq_len, n_features).
+        coefficients (torch.Tensor): Coefficients of the governing equations, shape (n_library_terms, n_features).
+        lambda1 (float): Weight for derivative loss.
+        lambda2 (float): Weight for trajectory loss.
+        lambda3 (float): Weight for sparsity regularization.
+
+    Returns:
+        torch.Tensor: Combined loss value.
+    """
+    # Compute gradients along the sequence dimension
+    y_derivatives_pred = torch.diff(y_pred, dim=1)
+    y_derivatives_true = torch.diff(y_truth, dim=1)
+
+    # Ensure the tensors have the same shape before computing the loss
+    min_seq_len = min(y_derivatives_pred.shape[1], y_derivatives_true.shape[1])
+    y_derivatives_pred = y_derivatives_pred[:, :min_seq_len, :]
+    y_derivatives_true = y_derivatives_true[:, :min_seq_len, :]
+
+    # Compute SINDy loss terms
+    SINDy_loss_y_deriv = ((y_derivatives_true - y_derivatives_pred) ** 2).mean()
+    SINDy_loss_y = ((y_truth[:, :min_seq_len, :] - y_pred[:, :min_seq_len, :]) ** 2).mean()
+
+    # Add sparsity regularization (L1 norm of coefficients)
+    sparsity_loss = torch.norm(coefficients, p=1)
+
+    # Combine losses
+    SINDy_loss = lambda1 * SINDy_loss_y_deriv + lambda2 * SINDy_loss_y + lambda3 * sparsity_loss
+
+    return SINDy_loss
