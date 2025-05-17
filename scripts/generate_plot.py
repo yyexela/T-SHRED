@@ -156,8 +156,6 @@ def main(args=None):
         output_trajectory = torch.cat(output_trajectory, dim=0)
         output_trajectory = einops.rearrange(output_trajectory, "n d -> n d 1")
 
-        print(expected_trajectory.shape, output_trajectory.shape)
-
         # Make plot
         plots.plot_field_comparison(output_trajectory, expected_trajectory, hp.dataset, save=True, fname=f"{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_comparison")
     
