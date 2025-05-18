@@ -131,51 +131,6 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args):
-    """
-    Evaluate a PyTorch model.
-    """
-    model.to(args.device)
-    loss_fn = torch.nn.MSELoss()
-    model.eval()
-    test_loss_pod = 0.0
-    with torch.no_grad():
-        pod_iterator = iter(test_dl)
-        num_iters = len(test_dl)
-        for i in range(num_iters):
-            # Get batch
-            pod_batch = next(pod_iterator)
-
-            # Get data
-            pod_inputs, pod_labels = pod_batch["input_fields"], pod_batch["output_fields"][:,0,:,:,:]
-            pod_inputs, pod_labels = pod_inputs.to(args.device), pod_labels.to(args.device)
-
-            # Get real batch size
-            batch_size = pod_inputs.shape[0]
-            
-            # Extract sensors per input tensor
-            pod_input_sensors = []
-            for sensor in sensors:
-                pod_input_sensors.append(pod_inputs[:,:,sensor[0],sensor[1],:])
-            pod_input_sensors = torch.stack(pod_input_sensors, dim=2)
-
-            # Prepare input for model
-            pod_input_sensors = einops.rearrange(pod_input_sensors, 'b w n d -> b w (n d)')
-
-            # Pass data through model
-            pod_outputs = model(pod_input_sensors)
-
-            # Reshape output (will be: batch x 1 x dim x 1)
-            pod_outputs = einops.rearrange(pod_outputs, 'b (r w d) -> b r w d', b=batch_size, r=args.data_rows, w=args.data_cols, d=args.d_data)
-
-            # Calculate loss
-            test_loss_pod += loss_fn(pod_outputs, pod_labels).item()
-
-        # Average loss
-        test_loss_pod /= len(test_dl)
-
-    return test_loss_pod
-
 def evaluate_model(model, test_dl, sensors, args):
     """
     Evaluate a PyTorch model.
@@ -277,7 +232,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
-        if args.early_stop > epoch and val_loss < best_val:
+        if epoch > args.early_stop and val_loss < best_val:
             if args.verbose:
                 print()
                 print(f'Saving model to {args.best_checkpoint_path}, validation loss improved from {best_val:0.4e} to {val_loss:0.4e}, ')
