@@ -31,6 +31,7 @@ decoder={decoder}
 decoder_depth={decoder_depth}
 device=cuda:0
 dropout=0.1
+early_stop=20
 encoder={encoder}
 encoder_depth={encoder_depth}
 epochs=100
@@ -44,7 +45,7 @@ n_sensors={n_sensors}
 
 echo "Running Apptainer"
 
-apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --skip_load_checkpoint --verbose
+apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --early_stop "$early_stop" --skip_load_checkpoint --verbose
 
 echo "Finished running Apptainer"\
 """
@@ -74,10 +75,10 @@ for dataset in datasets:
                         hidden_size = 4
                     elif dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
                         n_sensors = 50
-                        hidden_size = 8
+                        hidden_size = 100
                     else: # sst
                         n_sensors = 50
-                        hidden_size = 8
+                        hidden_size = 100
 
                     if dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
                         memory = 64
