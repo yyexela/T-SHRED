@@ -13,16 +13,16 @@ cmd_template = \
 #SBATCH --gpus=1
 #SBATCH --mem={memory}G
 #SBATCH --cpus-per-task=2
-#SBATCH --time=6-0
+#SBATCH --time=1-0
 #SBATCH --nice=0
 
 #SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}
-#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_%j.out
+#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/T-SHRED/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_%j.out
 
 #SBATCH --mail-type=NONE
 #SBATCH --mail-user=alexeyy@uw.edu
 
-repo="/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer"
+repo="/mmfs1/home/alexeyy/storage/r4/T-SHRED"
 datasets="/mmfs1/home/alexeyy/storage/data"
 
 batch_size=128

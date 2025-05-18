@@ -3,7 +3,6 @@ import einops
 import palettable
 import numpy as np
 import matplotlib as mpl
-from cmcrameri import cm
 from pathlib import Path
 from argparse import Namespace
 import matplotlib.pyplot as plt

@@ -149,7 +149,7 @@ class GRU(nn.Module):
         out, h_out = self.gru(x, h_0)
 
         out = self.dropout(out)
-        hout = self.dropout(hout)
+        h_out = self.dropout(h_out)
 
         return {
             "sequence_output": out,
@@ -209,7 +209,7 @@ class MixedModel(nn.Module):
                 dropout=args.dropout,
                 device=args.device
             )
-        if args.encoder == "lstm":
+        elif args.encoder == "lstm":
             self.encoder = LSTM(
                 input_size=args.d_model,
                 hidden_size=args.hidden_size,

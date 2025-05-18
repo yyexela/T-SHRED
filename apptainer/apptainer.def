@@ -10,9 +10,10 @@ From: pytorch/pytorch:2.7.0-cuda11.8-cudnn9-runtime
 	# Install OmniAnomaly requirements 
     cd /app
 	pip3 install .
+	pip3 install --upgrade pip
 
 %files
-	/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer/pyproject.toml /app/pyproject.toml
+	/mmfs1/home/alexeyy/storage/r4/T-SHRED/pyproject.toml /app/pyproject.toml
 
 %runscript
 	#!/bin/bash
