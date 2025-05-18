@@ -11,6 +11,7 @@ from vanilla_transformer import Transformer
 from david_ye_vanilla_transformer import TRANSFORMER
 from mars_sindy_attention_transformer import TRANSFORMER_SINDY
 from sindy_attention_transformer import SindyAttentionTransformer
+from sindy_loss_transformer import SINDyLossTransformer
 
 def load_model_from_checkpoint(checkpoint_path, args):
     model = MixedModel(args)
@@ -228,7 +229,24 @@ class MixedModel(nn.Module):
                 device=args.device
             )
         elif args.encoder == "sindy_loss_transformer":
-            raise NotImplementedError
+            self.encoder = SINDyLossTransformer(
+                d_model=args.d_model,
+                nhead=args.n_heads,
+                dim_feedforward=args.dim_feedforward,
+                dropout=args.dropout,
+                activation=nn.GELU(),
+                hidden_size=args.hidden_size,
+                window_length=args.window_length,
+                num_encoder_layers=args.encoder_depth,
+                layer_norm_eps=1e-5,
+                bias=True,
+                poly_order=args.poly_order,
+                include_sine=args.include_sine,
+                device=args.device,
+                sindy_regularization=args.sindy_weight,  # Use CLI argument
+                sindy_threshold=args.sindy_threshold,    # Use CLI argument
+                dt=args.dt                             # Time step for Euler integration
+            )
         else:
             raise NotImplementedError
         

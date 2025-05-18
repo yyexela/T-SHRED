@@ -294,13 +294,35 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
             # Pass data through model
             optimizer.zero_grad()
-            outputs = model(input_sensors)
+            output = model(input_sensors)
+            
+            # Handle different output formats based on the encoder type
+            if isinstance(output, dict) and "sindy_loss" in output:
+                # Handle SINDy loss transformer case - this is the dictionary case with encoded output
+                encoded_output = output["final_hidden_state"]
+                sindy_loss = output["sindy_loss"]
+                # Pass encoded output through decoder
+                outputs = model.decoder({"final_hidden_state": encoded_output})
+            else:
+                # Regular case - output is already the final decoded output
+                outputs = output
+                sindy_loss = None
 
             # Reshape output
             outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows, w=args.data_cols, d=args.d_data)
 
             # Calculate loss
-            loss = loss_fn(outputs, labels)
+            reconstruction_loss = loss_fn(outputs, labels)
+            
+            # Add SINDy loss if available
+            if sindy_loss is not None and args.encoder == "sindy_loss_transformer":
+                # Apply SINDy regularization
+                loss = reconstruction_loss + args.sindy_weight * sindy_loss
+                
+                if args.verbose and i % 10 == 0:
+                    print(f"Reconstruction Loss: {reconstruction_loss.item():.6f}, SINDy Loss: {sindy_loss.item():.6f}")
+            else:
+                loss = reconstruction_loss
 
             # Backprop
             loss.backward()
