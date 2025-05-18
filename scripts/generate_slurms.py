@@ -33,7 +33,7 @@ device=cuda:0
 dropout=0.1
 encoder={encoder}
 encoder_depth={encoder_depth}
-epochs=200
+epochs=100
 hidden_size={hidden_size}
 lr={lr:0.2e}
 n_heads=2
@@ -56,7 +56,7 @@ for file in slurm_dir.glob('*.slurm'):
 
 # We will iterate through every combination of these
 datasets = ["sst", "plasma", "planetswe_pod", "gray_scott_reaction_diffusion_pod"]
-encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
+encoders = ["lstm", "gru", "vanilla_transformer", "sindy_attention_transformer"]
 decoders = ["mlp", "unet"]
 lrs = [1e-2, 1e-3, 1e-4, 1e-5]
 
@@ -73,7 +73,7 @@ for dataset in datasets:
                         n_sensors = 5
                         hidden_size = 4
                     elif dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
-                        n_sensors = 15
+                        n_sensors = 50
                         hidden_size = 8
                     else: # sst
                         n_sensors = 50

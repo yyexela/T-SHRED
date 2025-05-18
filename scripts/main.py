@@ -106,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
     parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
     parser.add_argument('--early_stop', type=int, default=0, help="Train the model for at least this many epochs before saving best validation score")
-    parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, transformer, sindy_attention_transformer, sindy_loss_transformer)")
+    parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, gru, transformer, sindy_attention_transformer, sindy_loss_transformer)")
     parser.add_argument('--eval_full', action='store_true', help="Evaluate on full dataset (BAD FOR RAM)")
     parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
