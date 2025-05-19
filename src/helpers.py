@@ -131,91 +131,7 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args):
-    """
-    Evaluate a PyTorch model.
-    """
-    model.to(args.device)
-    loss_fn = torch.nn.MSELoss()
-    model.eval()
-    test_loss_pod = 0.0
-    test_loss_pod_full = 0.0
-    test_loss_full = 0.0
-    with torch.no_grad():
-        # Set up iterators for dual dataset loading
-        if args.eval_full:
-            full_iterator = iter(test_full_dl)
-        pod_iterator = iter(test_dl)
-        num_iters = len(test_dl)
-        for i in range(num_iters):
-            # Get batch
-            if args.eval_full:
-                full_batch = next(full_iterator)
-            pod_batch = next(pod_iterator)
-
-            # Get data
-            pod_inputs, pod_labels = pod_batch["input_fields"], pod_batch["output_fields"][:,0,:,:,:]
-            pod_inputs, pod_labels = pod_inputs.to(args.device), pod_labels.to(args.device)
-
-            if args.eval_full:
-                full_inputs, full_labels = full_batch["input_fields"], full_batch["output_fields"][:,0,:]
-                full_inputs, full_labels = full_inputs.to(args.device), full_labels.to(args.device)
-
-            # Get real batch size
-            batch_size = pod_inputs.shape[0]
-            
-            # Extract sensors per input tensor
-            pod_input_sensors = []
-            for sensor in sensors:
-                pod_input_sensors.append(pod_inputs[:,:,sensor[0],sensor[1],:])
-            pod_input_sensors = torch.stack(pod_input_sensors, dim=2)
-
-            # Prepare input for model
-            pod_input_sensors = einops.rearrange(pod_input_sensors, 'b w n d -> b w (n d)')
-
-            # Pass data through model
-            pod_outputs = model(pod_input_sensors)
-
-            # Reshape output (will be: batch x 1 x dim x 1)
-            pod_outputs = einops.rearrange(pod_outputs, 'b (r w d) -> b r w d', b=batch_size, r=args.data_rows, w=args.data_cols, d=args.d_data)
-            
-            # Remove singular dimensions
-            pod_outputs_squeezed = pod_outputs[:,0,:,0]
-            pod_labels_squeezed = pod_labels[:,0,:,0]
-
-            # Inverse POD to get full scale image
-            pod_outputs_full = inverse_pods_torch(pod_outputs_squeezed, scaler, V, device=args.device)
-            pod_labels_full = inverse_pods_torch(pod_labels_squeezed, scaler, V, device=args.device)
-
-            # Convert back to original shape
-            if args.eval_full:
-                pod_outputs_shaped = einops.rearrange(pod_outputs_full, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
-                pod_labels_shaped = einops.rearrange(pod_labels_full, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
-                full_labels_shaped = einops.rearrange(full_labels, "b (r c d) -> b r c d", b=batch_size, r=im_dims[0], c=im_dims[1], d=im_dims[2])
-
-            # Generate plots
-            if args.eval_full and i == 0:
-                plot_field_comparison(pod_outputs_shaped[0], pod_labels_shaped[0], save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_pod_comparison")
-                plot_field_comparison(pod_outputs_shaped[0], full_labels_shaped[0], save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison")
-
-            # Calculate loss
-            test_loss_pod += loss_fn(pod_outputs, pod_labels).item()
-            if args.eval_full:
-                test_loss_pod_full += loss_fn(pod_outputs_shaped, pod_labels_shaped).item()
-                test_loss_full += loss_fn(pod_outputs_shaped, full_labels_shaped).item()
-
-        # Average loss
-        test_loss_pod /= len(test_dl)
-        if args.eval_full:
-            test_loss_pod_full /= len(test_dl)
-            test_loss_full /= len(test_dl)
-
-    if args.eval_full:
-        return test_loss_pod, test_loss_pod_full, test_loss_full
-    else:
-        return test_loss_pod
-
-def evaluate_model(model, dl, sensors, args=None, use_sindy_loss=False):
+def evaluate_model(model, test_dl, sensors, args):
     """
     Evaluate a PyTorch model.
     """
@@ -349,7 +265,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
-        if val_loss < best_val:
+        if epoch > args.early_stop and val_loss < best_val:
             if args.verbose:
                 print()
                 print(f'Saving model to {args.best_checkpoint_path}, validation loss improved from {best_val:0.4e} to {val_loss:0.4e}, ')
@@ -646,12 +562,42 @@ def split_mats(data_list):
 
     return train_data, val_data, test_data
 
-def get_top_N_models_by_loss(dataset_name, pickle_dir, N=5):
+
+
+def get_dictionaries_from_pickles(pickle_dir, early_stop=None):
+    """
+    Returns a list of dictionaries from all the pickles in the given directory.
+    
+    Args:
+        pickle_dir (str): Path to the pickles directory.
+        early_stop (int): If not None, ensure best validation epoch is at least this value.
+
+    Returns:
+        List of dictionaries.
+    """
+    results = []
+    for fname in os.listdir(pickle_dir):
+        fpath = os.path.join(pickle_dir, fname)
+        with open(fpath, 'rb') as f:
+            data = pickle.load(f)
+            if early_stop is not None:
+                print(data)
+                if data['best_epoch'] >= early_stop:
+                    results.append(data)
+            else:
+                results.append(data)
+    return results
+
+def get_result_loss(result):
+    return result.get('test_loss', result.get('test_loss_pod', None))
+
+def get_top_N_models_by_loss(dataset_name, pickle_dir, loss_only=False, N=5):
     """
     Returns the top 5 models (filenames) with the lowest test loss for a given dataset.
     
     Args:
         dataset_name (str): The dataset name to filter by (e.g., 'sst').
+        loss_only (bool): If True, only return the loss value.
         pickles_dir (str): Path to the pickles directory.
         N (int): Number of results to return.
         
@@ -665,10 +611,16 @@ def get_top_N_models_by_loss(dataset_name, pickle_dir, N=5):
             with open(fpath, 'rb') as f:
                 data = pickle.load(f)
                 # Try both 'test_loss' and 'test_loss_pod' keys for robustness
-                loss = data.get('test_loss', data.get('test_loss_pod', None))
-                if loss is not None:
-                    results.append((fname, loss))
+                results.append((fname, data))
     # Sort by loss (ascending) and return top 5
-    results.sort(key=lambda x: x[1], reverse=False)
+    results.sort(key=lambda x: get_result_loss(x[1]), reverse=False)
+    if loss_only:
+        results = [(x[0], get_result_loss(x[1])) for x in results]
     return results[:N]
 
+def get_identifier(filename):
+    """Extract identifier from filename by removing extension and _test_loss suffix."""
+    name = Path(filename).stem  # Remove extension
+    if name.endswith('_test_loss'):
+        name = name[:-10]  # Remove _test_loss suffix
+    return name

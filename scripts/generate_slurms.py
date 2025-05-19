@@ -13,16 +13,16 @@ cmd_template = \
 #SBATCH --gpus=1
 #SBATCH --mem={memory}G
 #SBATCH --cpus-per-task=2
-#SBATCH --time=6-0
+#SBATCH --time=1-0
 #SBATCH --nice=0
 
 #SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}
-#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_%j.out
+#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/T-SHRED/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_%j.out
 
 #SBATCH --mail-type=NONE
 #SBATCH --mail-user=alexeyy@uw.edu
 
-repo="/mmfs1/home/alexeyy/storage/r4/SINDy-Transformer"
+repo="/mmfs1/home/alexeyy/storage/r4/T-SHRED"
 datasets="/mmfs1/home/alexeyy/storage/data"
 
 batch_size=128
@@ -31,9 +31,10 @@ decoder={decoder}
 decoder_depth={decoder_depth}
 device=cuda:0
 dropout=0.1
+early_stop=20
 encoder={encoder}
 encoder_depth={encoder_depth}
-epochs=200
+epochs=100
 hidden_size={hidden_size}
 lr={lr:0.2e}
 n_heads=2
@@ -44,7 +45,7 @@ n_sensors={n_sensors}
 
 echo "Running Apptainer"
 
-apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --skip_load_checkpoint --verbose
+apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --early_stop "$early_stop" --skip_load_checkpoint --verbose
 
 echo "Finished running Apptainer"\
 """
@@ -56,7 +57,7 @@ for file in slurm_dir.glob('*.slurm'):
 
 # We will iterate through every combination of these
 datasets = ["sst", "plasma", "planetswe_pod", "gray_scott_reaction_diffusion_pod"]
-encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
+encoders = ["lstm", "gru", "vanilla_transformer", "sindy_attention_transformer"]
 decoders = ["mlp", "unet"]
 lrs = [1e-2, 1e-3, 1e-4, 1e-5]
 
@@ -73,11 +74,11 @@ for dataset in datasets:
                         n_sensors = 5
                         hidden_size = 4
                     elif dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
-                        n_sensors = 15
-                        hidden_size = 8
+                        n_sensors = 50
+                        hidden_size = 100
                     else: # sst
                         n_sensors = 50
-                        hidden_size = 8
+                        hidden_size = 100
 
                     if dataset in ['gray_scott_reaction_diffusion_pod', 'planetswe_pod']:
                         memory = 64

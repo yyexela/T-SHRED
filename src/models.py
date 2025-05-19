@@ -128,6 +128,43 @@ class UNET(nn.Module):
             "sindy_loss": sindy_loss
         }
 
+class GRU(nn.Module):
+    def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.gru = None # lazy initialization
+        self.output_size = hidden_size
+        self.dropout = nn.Dropout(dropout)
+
+        self.initialize()
+
+    def initialize(self):
+        self.gru = nn.GRU(
+            input_size=self.input_size,
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
+            batch_first=True
+        )
+
+    def forward(self, x):
+        """
+        Forward pass through the GRU model.
+        """
+        device = next(self.parameters()).device
+        # Initialize hidden and cell
+        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
+        out, h_out = self.gru(x, h_0)
+
+        out = self.dropout(out)
+        h_out = self.dropout(h_out)
+
+        return {
+            "sequence_output": out,
+            "final_hidden_state": h_out[-1].view(-1, self.hidden_size)
+        }
+
 class LSTM(nn.Module):
     def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
         super().__init__()
@@ -174,7 +211,15 @@ class MixedModel(nn.Module):
     def __init__(self, args): # Added SINDy params
         super().__init__()
 
-        if args.encoder == "lstm":
+        if args.encoder == "gru":
+            self.encoder = GRU(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                num_layers=args.encoder_depth,
+                dropout=args.dropout,
+                device=args.device
+            )
+        elif args.encoder == "lstm":
             self.encoder = LSTM(
                 input_size=args.d_model,
                 hidden_size=args.hidden_size,

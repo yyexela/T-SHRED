@@ -1,20 +1,26 @@
 import torch
+import einops
+import palettable
 import numpy as np
+import matplotlib as mpl
 from pathlib import Path
+from argparse import Namespace
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from matplotlib.gridspec import GridSpec
+from torch.utils.data import DataLoader
 
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / 'figures'
 
-def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, save: bool = False, fname: str = None) -> None:
+def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, save: bool = False, fname: str = None) -> None:
     """
     Plot comparison between predicted and target fields using matplotlib, with one row per dimension. Ensure that each row has a single colorbar that is scaled to the minimum and maximum of the target field. Each row has a separate colorbar with a separate scale.
     
     Args:
         prediction (torch.Tensor): Predicted field of shape (rows, cols, dim)
         target (torch.Tensor): Target field of shape (rows, cols, dim)
+        dataset (str): Name of the dataset to use for figure size
         save (bool, optional): Whether to save the figure to a file. Defaults to False.
         fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
     """
@@ -26,8 +32,20 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, save: 
     n_dims = prediction.shape[2]
     
     # Create figure with GridSpec for better control over subplot spacing
-    fig = plt.figure(figsize=(24, 4*n_dims), constrained_layout=True)
-    gs = GridSpec(n_dims, 5, figure=fig, width_ratios=[1, 1, 0.05, 1, 0.05], wspace=0.3)
+    if dataset in ['planetswe', 'planetswe_pod']:
+        figsize = (30, 4*n_dims)
+        width_ratios = [1, 1, 0.05, 1, 0.05]
+    elif dataset in ['sst']:
+        figsize = (30, 4*n_dims)
+        width_ratios = [1, 1, 0.05, 1, 0.05]
+    elif dataset in ['gray_scott_reaction_diffusion', 'gray_scott_reaction_diffusion_pod' ]:
+        figsize = (14, 4*n_dims)
+        width_ratios = [1, 1, 0.05, 1, 0.05]
+    elif dataset in ['plasma']:
+        figsize = (8, 4*n_dims)
+        width_ratios = [1, 1, 0.1, 1, 0.1]
+    fig = plt.figure(figsize=figsize, constrained_layout=True)
+    gs = GridSpec(n_dims, 5, figure=fig, width_ratios=width_ratios, wspace=0.3)
     
     # Plot each dimension
     for i in range(n_dims):
@@ -128,6 +146,144 @@ def plot_losses(training_loss: list[float], validation_loss: list[float], saved_
         yaxis_title='Loss',
         showlegend=True,
         template='plotly_white'
+    )
+    
+    # Show or save the plot
+    if save:
+        if fname is None:
+            raise Exception(f"Filename fname ({fname}) must not be None.")
+        fig.write_image(figure_dir / f'{fname}.pdf', format='pdf')
+    else:
+        fig.show()
+
+def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None) -> None:
+    """
+    Create a scatter plot of model results using plotly, where:
+    - y-axis shows the results (test loss) on a log scale
+    - x-axis is ordered by performance on a log scale
+    - colors are based on encoder and decoder combinations
+    - only shows results for the specified dataset
+    - optionally shows only the top N performing models
+    
+    Args:
+        results (list[dict]): List of dictionaries containing model results and hyperparameters
+        dataset (str): Name of the dataset to filter results for
+        top_n (int, optional): If provided, only show the top N performing models. Defaults to None.
+    """
+    # Filter results for the specified dataset
+    filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset]
+    
+    # Sort results by test loss (ascending)
+    filtered_results.sort(key=lambda x: x.get('test_loss', x.get('test_loss_pod', None)))
+
+    # Assert to make sure filtered_results does not contain None
+    assert None not in filtered_results, "filtered_results contains None"
+
+    # If top_n is specified, only keep the top N models
+    if top_n is not None:
+        filtered_results = filtered_results[:top_n]
+    
+    # Get unique encoders and decoders
+    unique_encoders = sorted(set(r['hyperparameters']['encoder'] for r in filtered_results))
+    unique_decoders = sorted(set(r['hyperparameters']['decoder'] for r in filtered_results))
+    
+    # Create color mappings
+    encoder_colors = palettable.cartocolors.qualitative.Prism_3.hex_colors
+    encoder_color_map = {encoder: encoder_colors[i % len(encoder_colors)] for i, encoder in enumerate(unique_encoders)}
+    decoder_colors = palettable.cartocolors.qualitative.Pastel_3.hex_colors
+    decoder_color_map = {decoder: decoder_colors[i % len(decoder_colors)] for i, decoder in enumerate(unique_decoders)}
+    
+    # Create the figure
+    fig = go.Figure()
+    
+    # First add dummy traces for encoders to create legend entries
+    for encoder in unique_encoders:
+        fig.add_trace(go.Scatter(
+            x=[None],
+            y=[None],
+            mode='markers',
+            name=f'Encoder: {encoder}',
+            marker=dict(
+                color="white",
+                line=dict(
+                    color=encoder_color_map[encoder],
+                    width=4
+                ),
+                size=12,
+            ),
+            showlegend=True
+        ))
+    
+    # Then add dummy traces for decoders to create legend entries
+    for decoder in unique_decoders:
+        fig.add_trace(go.Scatter(
+            x=[None],
+            y=[None],
+            mode='markers',
+            name=f'Decoder: {decoder}',
+            marker=dict(
+                color=decoder_color_map[decoder],
+                line=dict(
+                    color="white",
+                    width=4
+                ),
+                size=12,
+            ),
+            showlegend=True
+        ))
+    
+    # Add actual data points
+    for r in filtered_results:
+        encoder = r['hyperparameters']['encoder']
+        encoder_depth = r['hyperparameters']['encoder_depth']
+        decoder = r['hyperparameters']['decoder']
+        decoder_depth = r['hyperparameters']['decoder_depth']
+        test_loss = r.get('test_loss', r.get('test_loss_pod', None))
+        
+        if test_loss is not None:
+            fig.add_trace(go.Scatter(
+                x=[filtered_results.index(r) + 1],  # Add 1 to avoid log(0)
+                y=[test_loss],
+                mode='markers',
+                name=f'{encoder}-{decoder}',
+                marker=dict(
+                    color=decoder_color_map[decoder],
+                    line=dict(
+                        color=encoder_color_map[encoder],
+                        width=4
+                    ),
+                    size=12
+                ),
+                hovertemplate=(
+                    f"Encoder: {encoder} (x{encoder_depth})<br>"
+                    f"Decoder: {decoder} (x{decoder_depth})<br>"
+                    f"LR: {r['hyperparameters']['lr']:.2e}<br>"
+                    f"Test Loss: {test_loss:.2e}<br>"
+                    f"<extra></extra>"
+                ),
+                showlegend=False  # Don't show these in legend
+            ))
+    
+    # Update layout with log scales
+    fig.update_layout(
+        title=f'Model Results for {dataset} Dataset' + (f' (Top {top_n})' if top_n is not None else ''),
+        xaxis_title='Model Index (sorted by performance)',
+        yaxis_title='Test Loss',
+        showlegend=True,
+        template='plotly_white',
+        hovermode='closest',
+        xaxis=dict(
+            title='Model Index (sorted by performance)'
+        ),
+        yaxis=dict(
+            type='log',
+            title='Test Loss',
+            exponentformat = 'E'
+        ),
+        legend=dict(
+            title='Legend'
+        ),
+        height=500,
     )
     
     # Show or save the plot

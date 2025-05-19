@@ -92,6 +92,15 @@ class TimeSeriesDataset(Dataset):
 
         return {"input_fields": window, "output_fields": target}
 
+def load_dataset_track_pod(args, track = None, split = None):
+    """
+    Load a specific track from a POD dataset of the corresponding split
+    """
+    if args.dataset in ["gray_scott_reaction_diffusion_pod", "planetswe_pod"]:
+        return load_well_data_track_pod(args, track, split)
+    else:
+        raise ValueError(f'Unknown dataset: {args.dataset}')
+
 def load_dataset(args):
     if args.dataset == 'sst':
         return load_sst_data(args)
@@ -136,9 +145,13 @@ def load_well_data(args):
 
     return train_dl, valid_dl, test_dl, (None, None)
 
-def load_the_well_pts(load_path, split_name, reshape_to_image=False):
+def load_the_well_pts(load_path, split_name, track_id=None, reshape_to_image=False):
     tensors = []
-    for pt_file in sorted(load_path.iterdir()):
+    if track_id is not None:
+        iter_l = [Path(load_path) / f"{split_name}_{track_id}.pkl"]
+    else:
+        iter_l = sorted(load_path.iterdir())
+    for pt_file in iter_l:
         if split_name in pt_file.name:
             # Convert data to pytorch (treat it like a (1 x dim x 1) image)
             with open(pt_file, 'rb') as f:
@@ -150,6 +163,29 @@ def load_the_well_pts(load_path, split_name, reshape_to_image=False):
             tensors.append(tensor)
     return tensors
 
+def load_well_data_track_pod(args, track = None, split = None):
+    # Data path
+    data_path = data_dir / 'the_well_custom' / args.dataset[:-4]
+
+    # Load training, validation, and testing data
+    pods = load_the_well_pts(data_path / 'pod', split, track, reshape_to_image=True)
+    fulls = load_the_well_pts(data_path / 'full', split, track, reshape_to_image=True)
+
+    # Load V and scalers
+    with open(data_path / 'metadata' / 'V.pkl', 'rb') as f:
+        V = pickle.load(f)
+        V = torch.from_numpy(V)
+    with open(data_path / 'metadata' / 'scaler.pkl', 'rb') as f:
+        scaler = pickle.load(f)
+    with open(data_path / 'metadata' / 'im_dims.pkl', 'rb') as f:
+        im_dims = pickle.load(f)
+
+    # Create torch datasets
+    pod_ds = TimeSeriesDataset(tensors=pods, window_length=args.window_length)
+    full_ds = TimeSeriesDataset(tensors=fulls, window_length=args.window_length)
+
+    return pod_ds, full_ds, (V, scaler, im_dims)
+
 def load_well_data_pod(args):
     # Data path
     data_path = data_dir / 'the_well_custom' / args.dataset[:-4]
@@ -160,9 +196,9 @@ def load_well_data_pod(args):
     test_pods = load_the_well_pts(data_path / 'pod', 'test', reshape_to_image=True)
 
     if args.eval_full:
-        train_fulls = load_the_well_pts(data_path / 'full', 'train')
-        val_fulls = load_the_well_pts(data_path / 'full', 'valid')
-        test_fulls = load_the_well_pts(data_path / 'full', 'test')
+        train_fulls = load_the_well_pts(data_path / 'full', 'train', reshape_to_image=True)
+        val_fulls = load_the_well_pts(data_path / 'full', 'valid', reshape_to_image=True)
+        test_fulls = load_the_well_pts(data_path / 'full', 'test', reshape_to_image=True)
 
     # Load V and scalers
     with open(data_path / 'metadata' / 'V.pkl', 'rb') as f:
