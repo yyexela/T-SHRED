@@ -7,6 +7,9 @@ from david_ye_vanilla_transformer import TRANSFORMER
 from mars_sindy_attention_transformer import TRANSFORMER_SINDY
 from sindy_attention_transformer import SindyAttentionTransformer
 from sindy_loss_transformer import SINDyLossTransformer
+from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
+from rnns import GRU, LSTM
+from decoders import MLP, UNET
 
 def load_model_from_checkpoint(checkpoint_path, args):
     model = MixedModel(args)
@@ -39,166 +42,6 @@ def load_model_from_checkpoint(checkpoint_path, args):
     print()
     return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses
 
-class MLP(nn.Module):
-    """
-    Creates a simple linear MLP AutoEncoder.
-
-    `in_dim`: input and output dimension   
-    `bottleneck_dim`: dimension at bottleneck  
-    `width`: width of model   
-    `device`: which device to use   
-    """
-    def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
-        super(MLP, self).__init__()
-        # Class variables
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.n_layers = n_layers
-        self.dropout = nn.Dropout(dropout)
-        self.device = device
-
-        # Model layer sizes
-        sizes = list()
-        sizes.extend(np.logspace(np.log2(in_dim), np.log2(out_dim), base=2, num=n_layers+1, dtype=int).tolist())
-        sizes[0] = self.in_dim
-        sizes[-1] = self.out_dim
-
-        # Define model layers
-        self.layers = []
-        for idx in range(len(sizes)-1):
-            self.layers.append(nn.Linear(sizes[idx], sizes[idx+1]))
-            if idx != (len(sizes)-2):
-                self.layers.append(nn.ReLU())
-
-        model = nn.Sequential(*self.layers)
-        model = model.to(device)
-        self.model = model
-
-    def forward(self, x):
-        sindy_loss = x.get("sindy_loss", None)
-        x = x["final_hidden_state"]
-        out = self.model(x)
-        out = self.dropout(out)
-        return {
-            "output": out,
-            "sindy_loss": sindy_loss
-        }
-
-class UNET(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
-        super().__init__()
-        # Class variables
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.n_layers = n_layers
-        self.dropout = nn.Dropout(dropout)
-        self.device = device
-
-        # Model layer sizes
-        sizes = list()
-        sizes.extend(np.logspace(np.log2(in_dim), np.log2(out_dim), base=2, num=n_layers+1, dtype=int).tolist())
-        sizes[0] = self.in_dim
-        sizes[-1] = self.out_dim
-
-        # Define model layers
-        self.layers = []
-        for idx in range(len(sizes)-1):
-            self.layers.append(nn.Conv1d(sizes[idx], sizes[idx+1], kernel_size=3, padding=1))
-            if idx != (len(sizes)-2):
-                self.layers.append(nn.ReLU())
-
-        model = nn.Sequential(*self.layers)
-        model = model.to(device)
-        self.model = model
-
-    def forward(self, x):
-        sindy_loss = x.get("sindy_loss", None)
-        x = x["final_hidden_state"] # 128 x 8 
-        x = x.unsqueeze(-1)
-        out = self.model(x) 
-        out = self.dropout(out)
-        out = out.squeeze(-1)
-        return {
-            "output": out,
-            "sindy_loss": sindy_loss
-        }
-
-class GRU(nn.Module):
-    def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
-        super().__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.gru = None # lazy initialization
-        self.output_size = hidden_size
-        self.dropout = nn.Dropout(dropout)
-
-        self.initialize()
-
-    def initialize(self):
-        self.gru = nn.GRU(
-            input_size=self.input_size,
-            hidden_size=self.hidden_size,
-            num_layers=self.num_layers,
-            batch_first=True
-        )
-
-    def forward(self, x):
-        """
-        Forward pass through the GRU model.
-        """
-        device = next(self.parameters()).device
-        # Initialize hidden and cell
-        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
-        out, h_out = self.gru(x, h_0)
-
-        out = self.dropout(out)
-        h_out = self.dropout(h_out)
-
-        return {
-            "sequence_output": out,
-            "final_hidden_state": h_out[-1].view(-1, self.hidden_size)
-        }
-
-class LSTM(nn.Module):
-    def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
-        super().__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.lstm = None # lazy initialization
-        self.output_size = hidden_size
-        self.dropout = nn.Dropout(dropout)
-
-        self.initialize()
-
-    def initialize(self):
-        self.lstm = nn.LSTM(
-            input_size=self.input_size,
-            hidden_size=self.hidden_size,
-            num_layers=self.num_layers,
-            batch_first=True
-        )
-
-    def forward(self, x):
-        """
-        Forward pass through the LSTM model.
-        """
-        device = next(self.parameters()).device
-        # Initialize hidden and cell
-        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
-        c_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
-        out, (h_out, c_out) = self.lstm(x, (h_0, c_0))
-
-        out = self.dropout(out)
-        h_out = self.dropout(h_out)
-
-        return {
-            "sequence_output": out,
-            "final_hidden_state": h_out[-1].view(-1, self.hidden_size),
-            "sindy_loss": None
-        }
-
 class MixedModel(nn.Module):
     """
     Main function to generate mixes of models
@@ -214,8 +57,24 @@ class MixedModel(nn.Module):
                 dropout=args.dropout,
                 device=args.device
             )
+        elif args.encoder == "sindy_loss_gru":
+            self.encoder = SINDyLossGRU(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                num_layers=args.encoder_depth,
+                dropout=args.dropout,
+                device=args.device
+            )
         elif args.encoder == "lstm":
             self.encoder = LSTM(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                num_layers=args.encoder_depth,
+                dropout=args.dropout,
+                device=args.device
+            )
+        elif args.encoder == "sindy_loss_lstm":
+            self.encoder = SINDyLossLSTM(
                 input_size=args.d_model,
                 hidden_size=args.hidden_size,
                 num_layers=args.encoder_depth,
@@ -236,18 +95,6 @@ class MixedModel(nn.Module):
                 bias=True,
                 device=args.device
             )
-        elif args.encoder == "david_ye_transformer":
-            self.encoder = TRANSFORMER(
-                d_model=args.d_model,
-                nhead=args.n_heads,
-                dim_feedforward=args.dim_feedforward,
-                dropout=args.dropout,
-                activation=nn.GELU(),
-                hidden_size=args.hidden_size,
-                window_length=args.window_length,
-                num_encoder_layers=args.encoder_depth,
-                device=args.device
-            )
         elif args.encoder == "sindy_attention_transformer":
             self.encoder = SindyAttentionTransformer(
                 d_model=args.d_model,
@@ -262,19 +109,6 @@ class MixedModel(nn.Module):
                 bias=True,
                 poly_order=args.poly_order,
                 include_sine=args.include_sine,
-                device=args.device
-            )
-        elif args.encoder == "mars_sindy_attention_transformer":
-            self.encoder = TRANSFORMER_SINDY(
-                d_model=args.d_model,
-                dropout=args.dropout,
-                poly_order=args.poly_order,
-                include_sine=args.include_sine,
-                num_sindy_layers=args.encoder_depth,
-                dim_feedforward=args.dim_feedforward,
-                window_length=args.window_length,
-                hidden_size=args.hidden_size,
-                activation=nn.GELU(),
                 device=args.device
             )
         elif args.encoder == "sindy_loss_transformer":
@@ -296,8 +130,33 @@ class MixedModel(nn.Module):
                 sindy_threshold=args.sindy_threshold,    # Use CLI argument
                 dt=args.dt                             # Time step for Euler integration
             )
+        elif args.encoder == "david_ye_transformer":
+            self.encoder = TRANSFORMER(
+                d_model=args.d_model,
+                nhead=args.n_heads,
+                dim_feedforward=args.dim_feedforward,
+                dropout=args.dropout,
+                activation=nn.GELU(),
+                hidden_size=args.hidden_size,
+                window_length=args.window_length,
+                num_encoder_layers=args.encoder_depth,
+                device=args.device
+            )
+        elif args.encoder == "mars_sindy_attention_transformer":
+            self.encoder = TRANSFORMER_SINDY(
+                d_model=args.d_model,
+                dropout=args.dropout,
+                poly_order=args.poly_order,
+                include_sine=args.include_sine,
+                num_sindy_layers=args.encoder_depth,
+                dim_feedforward=args.dim_feedforward,
+                window_length=args.window_length,
+                hidden_size=args.hidden_size,
+                activation=nn.GELU(),
+                device=args.device
+            )
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"Encoder {args.encoder} not implemented")
         
         if args.decoder == "unet":
             self.decoder = UNET(
@@ -316,7 +175,7 @@ class MixedModel(nn.Module):
                 device=args.device
             )
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"Decoder {args.decoder} not implemented")
 
         self.add_module("encoder", self.encoder)
         self.add_module("decoder", self.decoder)
