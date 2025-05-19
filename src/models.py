@@ -1,11 +1,6 @@
-import math
-import copy
 import torch
 import numpy as np
 import torch.nn as nn
-from torch import Tensor
-from typing import Optional
-import torch.nn.functional as F
 
 from vanilla_transformer import Transformer
 from david_ye_vanilla_transformer import TRANSFORMER

@@ -1,11 +1,5 @@
-import math
-import copy
 import torch
-import numpy as np
 import torch.nn as nn
-from torch import Tensor
-from typing import Optional
-import torch.nn.functional as F
 from positional_encoding import PositionalEncoding
 from helpers import calculate_library_dim, sindy_library_torch
 

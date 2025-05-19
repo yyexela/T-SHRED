@@ -3,11 +3,8 @@ import torch
 import einops
 import random
 import pickle
-import numpy as np
-import torch.nn as nn
 from pathlib import Path
-from torch.utils.data import DataLoader
-from src.plots import plot_losses, plot_field_comparison
+from src.plots import plot_losses
 
 def print_errors(true_l, pred_l, error_f, title):
     print(title)

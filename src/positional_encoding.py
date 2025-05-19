@@ -1,11 +1,6 @@
 import math
-import copy
 import torch
-import numpy as np
 import torch.nn as nn
-from torch import Tensor
-from typing import Optional
-import torch.nn.functional as F
 
 class PositionalEncoding(nn.Module):
     """

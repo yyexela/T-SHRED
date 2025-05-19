@@ -1,5 +1,4 @@
 import torch
-import math
 
 import torch.nn as nn
 from positional_encoding import PositionalEncoding
