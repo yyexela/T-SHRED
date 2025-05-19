@@ -82,7 +82,8 @@ class TRANSFORMER_SINDY(nn.Module):
         # Return dictionary format as before
         return {
             "sequence_output": x, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": x[:,-1,:] # last timestep hidden state [batch_size, d_model]
+            "final_hidden_state": x[:,-1,:], # last timestep hidden state [batch_size, d_model]
+            "sindy_loss": None
         }
 
 class SINDyLayer(nn.Module):

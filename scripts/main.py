@@ -39,15 +39,7 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 
 def main(args=None):
     # Load dataset
-    if 'pod' in args.dataset:
-        # POD more complicated due to V and scaler to bring back to original space
-        # first three datasets are POD, last three are not (they are full)
-        if args.eval_full:
-            train_ds, val_ds, test_ds, train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
-        else:
-            train_ds, val_ds, test_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
-    else:
-        train_ds, val_ds, test_ds, (mean, std) = datasets.load_dataset(args)
+    train_ds, val_ds, test_ds, _ = datasets.load_dataset(args)
     args.d_data = train_ds[0]['input_fields'].shape[-1]
     args.data_rows, args.data_cols = (train_ds[0]['input_fields'].shape[-3],
                                       train_ds[0]['input_fields'].shape[-2])
@@ -64,7 +56,6 @@ def main(args=None):
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
     # Save model location
-    #time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     latest_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_model_latest.pt'
     best_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_model_best.pt'
     args.latest_checkpoint_path = checkpoint_dir / latest_model_name
@@ -93,31 +84,17 @@ def main(args=None):
 
     # Evaluate best validation model
     model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
-    if 'pod' in args.dataset:
-        # When doing POD, make sure to bring back to original space when calculating error
-        if args.eval_full:
-            test_full_dl = DataLoader(test_full_ds, batch_size=args.batch_size, shuffle=False)
-            test_loss_pod, test_loss_pod_full, test_loss_full = helpers.evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors, args)
-            if args.verbose:
-                print(f'Test loss pod: {test_loss_pod:0.4e}')
-                print(f'Test loss pod full: {test_loss_pod_full:0.4e}')
-                print(f'Test loss full: {test_loss_full:0.4e}')
-            save_dict = {'test_loss_pod': test_loss_pod, 'test_loss_pod_full': test_loss_pod_full, 'test_loss_full': test_loss_full}
-        else:
-            test_loss_pod = helpers.evaluate_model_pod(model, test_dl, None, V, scaler, im_dims, sensors, args)
-            if args.verbose:
-                print(f'Test loss pod: {test_loss_pod:0.4e}')
-            save_dict = {'test_loss_pod': test_loss_pod}
-    else:
-        test_loss = helpers.evaluate_model(model, test_dl, sensors, args)
-        if args.verbose:
-            print(f'Test loss: {test_loss:0.4e}')
-        save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'sensors': sensors}
-    with open(pickle_dir / f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_test_loss.pkl', 'wb') as f:
+
+    # Calculate loss
+    test_loss, _ = helpers.evaluate_model(model, test_dl, sensors, args=args, use_sindy_loss=False)
+    if args.verbose:
+        print(f'Test loss: {test_loss:0.4e}')
+    save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'sensors': sensors}
+
+    # Save pickle
+    with open(pickle_dir / f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}.pkl', 'wb') as f:
         save_dict['hyperparameters'] = vars(args)
         pickle.dump(save_dict, f)
-
-    pass # Done!
 
 if __name__ == '__main__':
     # To allow CLIs
@@ -127,9 +104,10 @@ if __name__ == '__main__':
     parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (unet, mlp)")
     parser.add_argument('--decoder_depth', type=int, default=2, help="Number of decoder layers")
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
-    parser.add_argument('--dt', type=float, default=1.0, help="Time step for SINDy derivatives (Euler integration)")
     parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
-    parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, transformer, sindy_attention_transformer, sindy_loss_transformer)")
+    parser.add_argument('--dt', type=float, default=1.0, help="Time step for SINDy derivatives (Euler integration)")
+    parser.add_argument('--early_stop', type=int, default=0, help="Train the model for at least this many epochs before saving best validation score")
+    parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, gru, transformer, sindy_attention_transformer, sindy_loss_transformer)")
     parser.add_argument('--eval_full', action='store_true', help="Evaluate on full dataset (BAD FOR RAM)")
     parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")

@@ -80,10 +80,14 @@ class MLP(nn.Module):
         self.model = model
 
     def forward(self, x):
+        sindy_loss = x.get("sindy_loss", None)
         x = x["final_hidden_state"]
         out = self.model(x)
         out = self.dropout(out)
-        return out
+        return {
+            "output": out,
+            "sindy_loss": sindy_loss
+        }
 
 class UNET(nn.Module):
     def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
@@ -113,12 +117,16 @@ class UNET(nn.Module):
         self.model = model
 
     def forward(self, x):
+        sindy_loss = x.get("sindy_loss", None)
         x = x["final_hidden_state"] # 128 x 8 
         x = x.unsqueeze(-1)
         out = self.model(x) 
         out = self.dropout(out)
         out = out.squeeze(-1)
-        return out
+        return {
+            "output": out,
+            "sindy_loss": sindy_loss
+        }
 
 class LSTM(nn.Module):
     def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
@@ -155,7 +163,8 @@ class LSTM(nn.Module):
 
         return {
             "sequence_output": out,
-            "final_hidden_state": h_out[-1].view(-1, self.hidden_size)
+            "final_hidden_state": h_out[-1].view(-1, self.hidden_size),
+            "sindy_loss": None
         }
 
 class MixedModel(nn.Module):

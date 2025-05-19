@@ -9,7 +9,6 @@ import torch.nn.functional as F
 from positional_encoding import PositionalEncoding
 from helpers import calculate_library_dim, sindy_library_torch
 
-
 class SINDyLossTransformer(nn.Module):
     """
     Transformer model with additional SINDy loss for learning sparse dynamics.
@@ -117,8 +116,7 @@ class SINDyLossTransformer(nn.Module):
         
         # Calculate SINDy loss if in training mode
         sindy_loss = None
-        if self.training:
-            sindy_loss = self.compute_sindy_loss(x_transformed)
+        sindy_loss = self.compute_sindy_loss(x_transformed)
         
         return {
             "sequence_output": x_transformed,  # [batch_size, sequence_length, hidden_size]

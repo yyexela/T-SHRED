@@ -123,5 +123,6 @@ class TRANSFORMER(nn.Module):
         # 5. Prepare Output
         return {
             "sequence_output": transformer_output, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, -1, :] # Last timestep [batch_size, d_model]
+            "final_hidden_state": transformer_output[:, -1, :], # Last timestep [batch_size, d_model]
+            "sindy_loss": None
         }

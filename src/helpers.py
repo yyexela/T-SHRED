@@ -215,16 +215,17 @@ def evaluate_model_pod(model, test_dl, test_full_dl, V, scaler, im_dims, sensors
     else:
         return test_loss_pod
 
-def evaluate_model(model, test_dl, sensors, args):
+def evaluate_model(model, dl, sensors, args=None, use_sindy_loss=False):
     """
     Evaluate a PyTorch model.
     """
     model.to(args.device)
     loss_fn = torch.nn.MSELoss()
     model.eval()
-    test_loss = 0.0
+    dl_loss = 0.0
+    sindy_loss = 0.0
     with torch.no_grad():
-        for batch in test_dl:
+        for batch in dl:
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
             inputs, labels = inputs.to(args.device), labels.to(args.device)
@@ -239,19 +240,35 @@ def evaluate_model(model, test_dl, sensors, args):
             input_sensors = einops.rearrange(input_sensors, 'b w n d -> b w (n d)')
 
             # Pass data through model
-            outputs = model(input_sensors)
+            output = model(input_sensors)
+
+            outputs = output["output"]
+            sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
             outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows, w=args.data_cols, d=args.d_data)
 
             # Calculate loss
-            test_loss += loss_fn(outputs, labels).item()
+            reconstruction_loss = loss_fn(outputs, labels)
+
+            if use_sindy_loss and sindy_loss_batch is not None:
+                sindy_loss_batch = args.sindy_weight * sindy_loss_batch
+                loss_batch = reconstruction_loss + sindy_loss_batch
+
+            else:
+                loss_batch = reconstruction_loss
+
+            dl_loss += loss_batch.item()
+
+            if use_sindy_loss and sindy_loss_batch is not None:
+                sindy_loss += sindy_loss_batch.item()
 
         # Average loss
-        test_loss /= len(test_dl)
+        dl_loss /= len(dl)
+        if use_sindy_loss and sindy_loss_batch is not None:
+            sindy_loss /= len(dl)
 
-    return test_loss
-
+    return dl_loss, sindy_loss
 
 def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, args):
     """
@@ -278,6 +295,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         model.train()
         # Calculate training loss
         train_loss = 0.0
+        sindy_loss = 0.0
         for i, batch in enumerate(train_dl):
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
@@ -295,18 +313,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             # Pass data through model
             optimizer.zero_grad()
             output = model(input_sensors)
-            
-            # Handle different output formats based on the encoder type
-            if isinstance(output, dict) and "sindy_loss" in output:
-                # Handle SINDy loss transformer case - this is the dictionary case with encoded output
-                encoded_output = output["final_hidden_state"]
-                sindy_loss = output["sindy_loss"]
-                # Pass encoded output through decoder
-                outputs = model.decoder({"final_hidden_state": encoded_output})
-            else:
-                # Regular case - output is already the final decoded output
-                outputs = output
-                sindy_loss = None
+
+            outputs = output["output"]
+            sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
             outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows, w=args.data_cols, d=args.d_data)
@@ -315,12 +324,10 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             reconstruction_loss = loss_fn(outputs, labels)
             
             # Add SINDy loss if available
-            if sindy_loss is not None and args.encoder == "sindy_loss_transformer":
-                # Apply SINDy regularization
-                loss = reconstruction_loss + args.sindy_weight * sindy_loss
-                
-                if args.verbose and i % 10 == 0:
-                    print(f"Reconstruction Loss: {reconstruction_loss.item():.6f}, SINDy Loss: {sindy_loss.item():.6f}")
+            if sindy_loss_batch is not None:
+                sindy_loss_batch = args.sindy_weight * sindy_loss_batch
+                loss = reconstruction_loss + sindy_loss_batch
+
             else:
                 loss = reconstruction_loss
 
@@ -329,12 +336,16 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             optimizer.step()
 
             train_loss += loss.item()
+            if sindy_loss_batch is not None:
+                sindy_loss += sindy_loss_batch.item()
         # Average loss
         train_loss /= len(train_dl)
+        if sindy_loss_batch is not None:
+            sindy_loss /= len(train_dl)
         train_losses.append(train_loss)
 
         # Calculate validation loss
-        val_loss = evaluate_model(model, val_dl, sensors, args)
+        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, args=args, use_sindy_loss=True)
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
@@ -385,7 +396,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         # Print loss
         if args.verbose:
             print(f'Epoch {epoch+1}, Training loss: {train_loss:0.4e}, Validation loss: {val_loss:0.4e} (best: {best_val:0.4e})')
-        
+            if sindy_loss_batch is not None:
+                print(f'Epoch {epoch+1}, SINDy training loss: {sindy_loss:0.4e}, SINDy validation loss: {sindy_val_loss:0.4e}')
+
         # Make plot
         plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_losses")
 
