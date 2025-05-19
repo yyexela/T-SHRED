@@ -1,14 +1,10 @@
 import torch
-import einops
 import palettable
 import numpy as np
-import matplotlib as mpl
 from pathlib import Path
-from argparse import Namespace
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from matplotlib.gridspec import GridSpec
-from torch.utils.data import DataLoader
 
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / 'figures'

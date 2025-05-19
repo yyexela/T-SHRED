@@ -11,9 +11,7 @@ import einops
 import numpy as np
 import scipy.io as sio
 from pathlib import Path
-import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from the_well.data import WellDataset
 
@@ -21,8 +19,6 @@ from the_well.data import WellDataset
 pkg_path = Path(__file__).parent.parent / 'src'
 sys.path.insert(0, str(pkg_path))
 
-import src.models as models
-from src.processdata import load_data
 from src.processdata import TimeSeriesDataset
 from src.helpers import min_max_scale
 

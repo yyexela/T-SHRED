@@ -1,16 +1,12 @@
-import math
-import copy
 import torch
 import numpy as np
 import torch.nn as nn
-from torch import Tensor
-from typing import Optional
-import torch.nn.functional as F
 
 from vanilla_transformer import Transformer
 from david_ye_vanilla_transformer import TRANSFORMER
 from mars_sindy_attention_transformer import TRANSFORMER_SINDY
 from sindy_attention_transformer import SindyAttentionTransformer
+from sindy_loss_transformer import SINDyLossTransformer
 
 def load_model_from_checkpoint(checkpoint_path, args):
     model = MixedModel(args)
@@ -79,10 +75,14 @@ class MLP(nn.Module):
         self.model = model
 
     def forward(self, x):
+        sindy_loss = x.get("sindy_loss", None)
         x = x["final_hidden_state"]
         out = self.model(x)
         out = self.dropout(out)
-        return out
+        return {
+            "output": out,
+            "sindy_loss": sindy_loss
+        }
 
 class UNET(nn.Module):
     def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
@@ -112,12 +112,16 @@ class UNET(nn.Module):
         self.model = model
 
     def forward(self, x):
+        sindy_loss = x.get("sindy_loss", None)
         x = x["final_hidden_state"] # 128 x 8 
         x = x.unsqueeze(-1)
         out = self.model(x) 
         out = self.dropout(out)
         out = out.squeeze(-1)
-        return out
+        return {
+            "output": out,
+            "sindy_loss": sindy_loss
+        }
 
 class GRU(nn.Module):
     def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
@@ -191,7 +195,8 @@ class LSTM(nn.Module):
 
         return {
             "sequence_output": out,
-            "final_hidden_state": h_out[-1].view(-1, self.hidden_size)
+            "final_hidden_state": h_out[-1].view(-1, self.hidden_size),
+            "sindy_loss": None
         }
 
 class MixedModel(nn.Module):
@@ -273,7 +278,24 @@ class MixedModel(nn.Module):
                 device=args.device
             )
         elif args.encoder == "sindy_loss_transformer":
-            raise NotImplementedError
+            self.encoder = SINDyLossTransformer(
+                d_model=args.d_model,
+                nhead=args.n_heads,
+                dim_feedforward=args.dim_feedforward,
+                dropout=args.dropout,
+                activation=nn.GELU(),
+                hidden_size=args.hidden_size,
+                window_length=args.window_length,
+                num_encoder_layers=args.encoder_depth,
+                layer_norm_eps=1e-5,
+                bias=True,
+                poly_order=args.poly_order,
+                include_sine=args.include_sine,
+                device=args.device,
+                sindy_regularization=args.sindy_weight,  # Use CLI argument
+                sindy_threshold=args.sindy_threshold,    # Use CLI argument
+                dt=args.dt                             # Time step for Euler integration
+            )
         else:
             raise NotImplementedError
         

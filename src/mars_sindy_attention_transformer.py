@@ -1,11 +1,5 @@
-import math
-import copy
 import torch
-import numpy as np
 import torch.nn as nn
-from torch import Tensor
-from typing import Optional
-import torch.nn.functional as F
 from positional_encoding import PositionalEncoding
 from helpers import calculate_library_dim, sindy_library_torch
 
@@ -82,7 +76,8 @@ class TRANSFORMER_SINDY(nn.Module):
         # Return dictionary format as before
         return {
             "sequence_output": x, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": x[:,-1,:] # last timestep hidden state [batch_size, d_model]
+            "final_hidden_state": x[:,-1,:], # last timestep hidden state [batch_size, d_model]
+            "sindy_loss": None
         }
 
 class SINDyLayer(nn.Module):
