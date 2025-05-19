@@ -106,15 +106,13 @@ class SINDyLossTransformer(nn.Module):
         # Apply transformer encoder
         x_transformed = self.transformer_encoder(x_pos)  # Shape: (batch_size, seq_len, hidden_size)
 
-        # print(x_transformed.shape)
-        
-        # Calculate SINDy loss if in training mode
+        # Calculate SINDy loss
         sindy_loss = self.compute_sindy_loss(x_transformed)
         
         return {
             "sequence_output": x_transformed,  # [batch_size, sequence_length, hidden_size]
             "final_hidden_state": x_transformed[:, -1, :],  # last timestep [batch_size, hidden_size]
-            "sindy_loss": sindy_loss  # SINDy regularization loss (or None if not training)
+            "sindy_loss": sindy_loss  # SINDy regularization loss
         }
     
     def compute_sindy_loss(self, x: torch.Tensor) -> torch.Tensor:

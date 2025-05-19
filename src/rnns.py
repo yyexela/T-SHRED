@@ -10,6 +10,7 @@ class GRU(nn.Module):
         self.gru = None # lazy initialization
         self.output_size = hidden_size
         self.dropout = nn.Dropout(dropout)
+        self.device = device
 
         self.initialize()
 
@@ -25,9 +26,8 @@ class GRU(nn.Module):
         """
         Forward pass through the GRU model.
         """
-        device = next(self.parameters()).device
         # Initialize hidden and cell
-        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
+        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=self.device)
         out, h_out = self.gru(x, h_0)
 
         out = self.dropout(out)
@@ -47,10 +47,8 @@ class LSTM(nn.Module):
         self.lstm = None # lazy initialization
         self.output_size = hidden_size
         self.dropout = nn.Dropout(dropout)
+        self.device = device
 
-        self.initialize()
-
-    def initialize(self):
         self.lstm = nn.LSTM(
             input_size=self.input_size,
             hidden_size=self.hidden_size,
@@ -62,10 +60,9 @@ class LSTM(nn.Module):
         """
         Forward pass through the LSTM model.
         """
-        device = next(self.parameters()).device
         # Initialize hidden and cell
-        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
-        c_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=device)
+        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=self.device)
+        c_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=self.device)
         out, (h_out, c_out) = self.lstm(x, (h_0, c_0))
 
         out = self.dropout(out)
