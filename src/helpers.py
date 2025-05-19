@@ -131,7 +131,7 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model(model, test_dl, sensors, args):
+def evaluate_model(model, dl, sensors, args=None, use_sindy_loss=False):
     """
     Evaluate a PyTorch model.
     """

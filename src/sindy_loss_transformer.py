@@ -115,7 +115,6 @@ class SINDyLossTransformer(nn.Module):
         # print(x_transformed.shape)
         
         # Calculate SINDy loss if in training mode
-        sindy_loss = None
         sindy_loss = self.compute_sindy_loss(x_transformed)
         
         return {
