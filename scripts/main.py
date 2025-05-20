@@ -67,6 +67,12 @@ def main(args=None):
     # Print hyperparameters
     helpers.print_dictionary(vars(args), 'Hyperparameters:')
 
+    # Print model size
+    helpers.print_model_size(model, "Full")
+    helpers.print_model_size(model.encoder, "Encoder")
+    helpers.print_model_size(model.decoder, "Decoder")
+    print()
+
     # Train model
     helpers.train_model(
         model=model,
@@ -116,6 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
     parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
     parser.add_argument('--n_sensors', type=int, default=50, help="Number of sensors")
+    parser.add_argument('--n_well_tracks', type=int, default=10, help="Maximum number of tracks to load from the well dataset")
     parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
     parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
     parser.add_argument('--sindy_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification")
@@ -124,5 +131,6 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")
     args = parser.parse_args()
-    main(args)       
+
+    main(args)
         

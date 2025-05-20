@@ -16,8 +16,8 @@ cmd_template = \
 #SBATCH --time=4-0
 #SBATCH --nice=0
 
-#SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}
-#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/T-SHRED/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_%j.out
+#SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}
+#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/T-SHRED/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}_%j.out
 
 #SBATCH --mail-type=NONE
 #SBATCH --mail-user=alexeyy@uw.edu
@@ -38,7 +38,7 @@ epochs=100
 hidden_size={hidden_size}
 lr={lr:0.2e}
 n_heads=2
-poly_order=2
+poly_order={poly_order}
 save_every_n_epochs=10
 window_length=50
 n_sensors={n_sensors}
@@ -60,6 +60,7 @@ datasets = ["sst", "plasma", "planetswe_pod"]
 encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer"]
 decoders = ["mlp", "unet"]
 lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
+poly_order = 1
 
 # These two will be zipped pairwise
 encoder_depths = [1, 2, 2, 3, 3, 4, 4]
@@ -97,10 +98,11 @@ for dataset in datasets:
                         n_sensors=n_sensors,
                         memory=memory,
                         encoder_depth=encoder_depth,
-                        decoder_depth=decoder_depth
+                        decoder_depth=decoder_depth,
+                        poly_order=poly_order
                     )
 
-                    identifier = f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}'
+                    identifier = f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}'
 
                     # Skip creating slurms that are completed
                     pickle_file = top_dir / 'pickles' / f'{identifier}.pkl'

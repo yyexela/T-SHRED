@@ -37,8 +37,6 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 # Main #
 ########
 
-#UTransformer = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
-
 def main(args=None):
     results = helpers.get_top_N_models_by_loss(args.dataset, pickle_dir)
     pp.pprint(results)

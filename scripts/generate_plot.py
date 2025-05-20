@@ -93,12 +93,12 @@ def main(args=None):
             # Get data
             if "pod" in hp.dataset:
                 inputs, pod_labels = pod_ds[0]["input_fields"], pod_ds[0]["output_fields"]
-                inputs, pod_labels = inputs.to(hp.device), pod_labels.to(hp.device)
 
                 full_inputs, full_labels = pod_full_ds[0]["input_fields"], pod_full_ds[0]["output_fields"]
-                full_inputs, full_labels = full_inputs.to(hp.device), full_labels.to(hp.device)
             else:
                 inputs, labels = ds[i]["input_fields"], ds[i]["output_fields"][0,:,:,:]
+
+            if hp.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
                 inputs, labels = inputs.to(hp.device), labels.to(hp.device)
             
             # Extract sensors per input tensor

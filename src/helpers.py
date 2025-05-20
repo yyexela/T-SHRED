@@ -6,6 +6,19 @@ import pickle
 from pathlib import Path
 from src.plots import plot_losses
 
+def print_model_size(model, name):
+    param_size = 0
+    for param in model.parameters():
+        param_size += param.nelement() * param.element_size()
+    buffer_size = 0
+    for buffer in model.buffers():
+        buffer_size += buffer.nelement() * buffer.element_size()
+
+    size_all_mb = (param_size + buffer_size) / 1024**2
+    size_all_mb_before = int(size_all_mb)
+    size_all_mb_after = int((size_all_mb - size_all_mb_before) * 100)
+    print(f'{name} size: {size_all_mb_before}.{size_all_mb_after:02d}MB')
+
 def print_errors(true_l, pred_l, error_f, title):
     print(title)
     for i, (true, pred) in enumerate(zip(true_l, pred_l)):
@@ -141,7 +154,8 @@ def evaluate_model(model, dl, sensors, args=None, use_sindy_loss=False):
         for batch in dl:
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
-            inputs, labels = inputs.to(args.device), labels.to(args.device)
+            if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
+                inputs, labels = inputs.to(args.device), labels.to(args.device)
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -212,7 +226,8 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         for i, batch in enumerate(train_dl):
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
-            inputs, labels = inputs.to(args.device), labels.to(args.device)
+            if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
+                inputs, labels = inputs.to(args.device), labels.to(args.device)
 
             # Extract sensors per input tensor
             input_sensors = []
