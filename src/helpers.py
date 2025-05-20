@@ -328,7 +328,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 print(f'Epoch {epoch+1}, SINDy training loss: {sindy_loss:0.4e}, SINDy validation loss: {sindy_val_loss:0.4e}')
 
         # Make plot
-        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_losses")
+        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_p{args.poly_order}_losses")
 
     if args.verbose:
         print(f"Training complete, best validation loss: {best_val:0.4e}")

@@ -17,8 +17,8 @@ def main(args=None):
     # Rename pickle files
     for file in pickle_dir.glob('*.pkl'):
         new_name = file.with_name(f"{file.stem}_p2{file.suffix}")
-        file.rename(new_name)
         #print(f"Renamed pickle: {file.name} -> {new_name.name}")
+        file.rename(new_name)
 
     # Rename checkpoint files
     for file in checkpoint_dir.glob('*'):
@@ -32,14 +32,14 @@ def main(args=None):
                 continue
             
             new_path = file.parent / new_name
-            file.rename(new_path)
             #print(f"Renamed checkpoint: {file.name} -> {new_name}")
+            file.rename(new_path)
 
     # Rename log files
     for file in log_dir.glob('*'):
         if file.is_file():
             name = file.stem
-            print(name)
+            #print(name)
 
             identifier = name[-8:]
             name = name[:-8]
@@ -47,8 +47,8 @@ def main(args=None):
             new_name = f'{name}p2_{identifier}{file.suffix}'
 
             new_path = file.parent / new_name
+            #print(f"Renamed checkpoint: {file.name} -> {new_name}")
             file.rename(new_path)
-            print(f"Renamed checkpoint: {file.name} -> {new_name}")
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
