@@ -15,15 +15,15 @@ dependencies = [
     "plotly>=6.0.1",
     "nbformat>=5.10.4",
     "kaleido>=0.2.1",
-    "scipy",
-    "tqdm",
-    "palettable"
+    "scipy>=1.15.3",
+    "tqdm>=4.67.1",
+    "palettable>=3.3.3"
 ]
 requires-python = ">=3.8"
 description = "Transformer SINDy-SHRED"
 
 [project.urls]
-Homepage = "https://github.com/zorodav/SINDy-Transformer"
+Homepage = "https://github.com/yyexela/T-SHRED"
 
 [tool.setuptools]
 include-package-data = true
@@ -35,7 +35,5 @@ exclude = []
 namespaces = true
 
 [project.optional-dependencies]
-all = ["jupyterlab","seaborn","cmcrameri","imageio"]
-notebooks = ["jupyterlab"]
-shred_rom = ["seaborn","cmcrameri","imageio"]
+all = ["jupyterlab","imageio"]
 

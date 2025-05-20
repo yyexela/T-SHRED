@@ -12,8 +12,8 @@ cmd_template = \
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
 #SBATCH --mem={memory}G
-#SBATCH --cpus-per-task=2
-#SBATCH --time=1-0
+#SBATCH --cpus-per-task=16
+#SBATCH --time=4-0
 #SBATCH --nice=0
 
 #SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}
@@ -56,15 +56,17 @@ for file in slurm_dir.glob('*.slurm'):
     file.unlink()
 
 # We will iterate through every combination of these
-datasets = ["sst", "plasma", "planetswe_pod", "gray_scott_reaction_diffusion_pod"]
-encoders = ["lstm", "gru", "vanilla_transformer", "sindy_attention_transformer"]
+datasets = ["sst", "plasma", "planetswe_pod"]
+encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer"]
 decoders = ["mlp", "unet"]
-lrs = [1e-2, 1e-3, 1e-4, 1e-5]
+lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
 
 # These two will be zipped pairwise
-encoder_depths = [1, 2, 3, 3, 4, 4]
-decoder_depths = [1, 2, 1, 2, 1, 2]
+encoder_depths = [1, 2, 2, 3, 3, 4, 4]
+decoder_depths = [1, 1, 2, 1, 2, 1, 2]
 
+skip_count = 0
+write_count = 0
 for dataset in datasets:
     for encoder in encoders:
         for decoder in decoders:
@@ -98,6 +100,18 @@ for dataset in datasets:
                         decoder_depth=decoder_depth
                     )
 
-                    with open(top_dir / 'slurms' / f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}.slurm', "w") as f:
+                    identifier = f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}'
+
+                    # Skip creating slurms that are completed
+                    pickle_file = top_dir / 'pickles' / f'{identifier}.pkl'
+                    if pickle_file.exists():
+                        #print(f'Skipping {identifier}')
+                        skip_count += 1
+                        continue
+
+                    with open(top_dir / 'slurms' / f'{identifier}.slurm', "w") as f:
                         f.write(cmd)
+                        write_count += 1
+print(f"Skipped {skip_count} jobs")
+print(f"Created {write_count} jobs")
 
