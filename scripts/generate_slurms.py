@@ -7,7 +7,7 @@ cmd_template = \
 #!/bin/bash
 
 #SBATCH --account=amath
-#SBATCH --partition=ckpt-g2
+#SBATCH --partition=gpu-rtx6k
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
@@ -46,7 +46,7 @@ n_well_tracks=10
 
 echo "Running Apptainer"
 
-apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --early_stop "$early_stop" --n_well_tracks "$n_well_tracks" --skip_load_checkpoint --verbose
+apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --early_stop "$early_stop" --n_well_tracks "$n_well_tracks" --verbose
 
 echo "Finished running Apptainer"\
 """
@@ -57,11 +57,11 @@ for file in slurm_dir.glob('*.slurm'):
     file.unlink()
 
 # We will iterate through every combination of these
-datasets = ["sst", "plasma"]
+datasets = ["planetswe_full", "sst", "plasma"]
 encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
 decoders = ["mlp", "unet"]
 lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
-poly_orders = [1, 2]
+poly_orders = [1]
 
 # These two will be zipped pairwise
 encoder_depths = [1, 2, 3, 4]
@@ -94,7 +94,6 @@ for dataset in datasets:
                             memory = 64
                         else:
                             memory = 32
-
 
                         cmd = cmd_template.format(
                             dataset=dataset,

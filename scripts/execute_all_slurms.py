@@ -9,7 +9,7 @@ def main(args=None):
     for slurm_file in slurm_dir.glob('*.slurm'):
         print(f"Submitting {slurm_file}")
         os.system(f'sbatch {slurm_file}')
-        time.sleep(0.25)
+        time.sleep(0.1)
     
 if __name__ == '__main__':
     main()       

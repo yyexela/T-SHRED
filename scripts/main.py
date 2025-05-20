@@ -3,6 +3,7 @@
 ###########
 
 import sys
+import time
 import torch
 import pickle
 import argparse
@@ -88,11 +89,16 @@ def main(args=None):
         args=args
     )
 
+    # Clean up variables after training
+    del train_ds, val_ds, train_dl, val_dl, model, optimizer
+    torch.cuda.empty_cache()
+    time.sleep(1.0)
+
     # Evaluate best validation model
-    model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
+    best_model, best_optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
 
     # Calculate loss
-    test_loss, _ = helpers.evaluate_model(model, test_dl, sensors, args=args, use_sindy_loss=False)
+    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, args=args, use_sindy_loss=False)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
     save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'sensors': sensors}
