@@ -6,6 +6,7 @@ import sys
 import time
 import torch
 import pickle
+import random
 import argparse
 from pathlib import Path
 from torch.utils.data import DataLoader
@@ -39,6 +40,10 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 ########
 
 def main(args=None):
+    # Set Seed
+    torch.manual_seed(0)
+    random.seed(0)
+
     # Load dataset
     train_ds, val_ds, test_ds, _ = datasets.load_dataset(args)
     args.d_data = train_ds[0]['input_fields'].shape[-1]

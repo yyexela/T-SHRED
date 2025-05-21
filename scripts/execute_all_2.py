@@ -6,7 +6,7 @@ top_dir = Path(__file__).parent.parent
 
 cmd_template = \
 """\
-time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --device {device} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --skip_load_checkpoint --verbose 2>&1 | tee {log_path}
+time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --device {device} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --verbose --skip_load_checkpoint 2>&1 | tee {log_path}
 """
 
 # File paths
@@ -17,11 +17,11 @@ log_dir = Path(repo) / 'logs'
 
 # We will iterate through every combination of these
 datasets = ["planetswe_full", "sst", "plasma"]
-encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
-decoders = ["mlp"]
-lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
+encoders = ["lstm", "sindy_loss_lstm", "sindy_loss_transformer"]
+decoders = ["mlp", "unet"]
+lrs = [1e-2, 1e-3]
 poly_orders = [1]
-device = "cuda:2"
+device = "cuda:1"
 batch_size = 128
 dropout = 0.1
 early_stop = 20

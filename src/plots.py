@@ -1,4 +1,5 @@
 import torch
+import kaleido
 import palettable
 import numpy as np
 from pathlib import Path
@@ -170,21 +171,21 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset]
     
     # Sort results by test loss (ascending)
-    filtered_results.sort(key=lambda x: x.get('test_loss', x.get('test_loss_pod', None)))
+    filtered_results.sort(key=lambda x: x.get('test_loss', x.get('test_loss_pod', None)), reverse=True)
 
     # Assert to make sure filtered_results does not contain None
     assert None not in filtered_results, "filtered_results contains None"
 
     # If top_n is specified, only keep the top N models
     if top_n is not None:
-        filtered_results = filtered_results[:top_n]
+        filtered_results = filtered_results[-top_n:]
     
     # Get unique encoders and decoders
-    unique_encoders = sorted(set(r['hyperparameters']['encoder'] for r in filtered_results))
-    unique_decoders = sorted(set(r['hyperparameters']['decoder'] for r in filtered_results))
+    unique_encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
+    unique_decoders = ["mlp", "unet"]
     
     # Create color mappings
-    encoder_colors = palettable.cartocolors.qualitative.Prism_3.hex_colors
+    encoder_colors = palettable.cartocolors.qualitative.Prism_8.hex_colors
     encoder_color_map = {encoder: encoder_colors[i % len(encoder_colors)] for i, encoder in enumerate(unique_encoders)}
     decoder_colors = palettable.cartocolors.qualitative.Pastel_3.hex_colors
     decoder_color_map = {decoder: decoder_colors[i % len(decoder_colors)] for i, decoder in enumerate(unique_decoders)}
@@ -286,6 +287,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     if save:
         if fname is None:
             raise Exception(f"Filename fname ({fname}) must not be None.")
-        fig.write_image(figure_dir / f'{fname}.pdf', format='pdf')
+        fig.write_image(figure_dir / f'{fname}.pdf', engine='kaleido')
+        print(f"Saved {figure_dir/fname}.pdf")
+        fig.show()
     else:
         fig.show()
