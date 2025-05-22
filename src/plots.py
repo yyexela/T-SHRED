@@ -81,10 +81,11 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
             ax_error.set_title(f'Absolute Error')
 
         # Add sensor markers to error subplot
-        if sensors:
-            for sensor in sensors:
-                x, y = sensor
-                ax_error.plot(y, x, 'ro', markersize=2)
+        if dataset in ["sst", "planetswe_full"]:
+            if sensors:
+                for sensor in sensors:
+                    x, y = sensor
+                    ax_error.plot(y, x, 'ro', markersize=2)
         
         # Add colorbar for this row
         cbar_ax = fig.add_subplot(gs[i, 4])
