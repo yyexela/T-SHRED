@@ -10,7 +10,7 @@ from matplotlib.gridspec import GridSpec
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / 'figures'
 
-def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, save: bool = False, fname: str = None) -> None:
+def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, sensors: list[tuple[int, int]], save: bool = False, fname: str = None) -> None:
     """
     Plot comparison between predicted and target fields using matplotlib, with one row per dimension. Ensure that each row has a single colorbar that is scaled to the minimum and maximum of the target field. Each row has a separate colorbar with a separate scale.
     
@@ -18,6 +18,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         prediction (torch.Tensor): Predicted field of shape (rows, cols, dim)
         target (torch.Tensor): Target field of shape (rows, cols, dim)
         dataset (str): Name of the dataset to use for figure size
+        sensors (list[tuple[int, int]]): List of sensor positions to plot
         save (bool, optional): Whether to save the figure to a file. Defaults to False.
         fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
     """
@@ -30,10 +31,10 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
     
     # Create figure with GridSpec for better control over subplot spacing
     if dataset in ['planetswe', 'planetswe_pod', 'planetswe_full']:
-        figsize = (30, 4*n_dims)
+        figsize = (15, 2*n_dims)
         width_ratios = [1, 1, 0.05, 1, 0.05]
     elif dataset in ['sst']:
-        figsize = (30, 4*n_dims)
+        figsize = (15, 2*n_dims)
         width_ratios = [1, 1, 0.05, 1, 0.05]
     elif dataset in ['gray_scott_reaction_diffusion', 'gray_scott_reaction_diffusion_pod']:
         figsize = (14, 4*n_dims)
@@ -53,12 +54,18 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         # Prediction subplot
         ax_pred = fig.add_subplot(gs[i, 0])
         im_pred = ax_pred.imshow(prediction[:,:,i], vmin=vmin, vmax=vmax)
-        ax_pred.set_title(f'Prediction (dim {i})')
+        if n_dims >= 2:
+            ax_pred.set_title(f'Prediction (dim {i})')
+        else:
+            ax_pred.set_title(f'Prediction')
         
         # Target subplot
         ax_target = fig.add_subplot(gs[i, 1])
         im_target = ax_target.imshow(target[:,:,i], vmin=vmin, vmax=vmax)
-        ax_target.set_title(f'Target (dim {i})')
+        if n_dims >= 2:
+            ax_target.set_title(f'Target (dim {i})')
+        else:
+            ax_target.set_title(f'Target')
 
         # Add colorbar for first two images
         cbar_ax = fig.add_subplot(gs[i, 2])
@@ -68,7 +75,10 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         ax_error = fig.add_subplot(gs[i, 3])
         error = np.abs(prediction[:,:,i] - target[:,:,i])
         im_error = ax_error.imshow(error)
-        ax_error.set_title(f'Absolute Error (dim {i})')
+        if n_dims >= 2:
+            ax_error.set_title(f'Absolute Error (dim {i})')
+        else:
+            ax_error.set_title(f'Absolute Error')
         
         # Add colorbar for this row
         cbar_ax = fig.add_subplot(gs[i, 4])
@@ -78,7 +88,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
     if save:
         if fname is None:
             raise ValueError("Filename must be provided when save=True")
-        plt.savefig(figure_dir / f"{fname}.pdf", bbox_inches='tight', dpi=300)
+        plt.savefig(figure_dir.parent / f"{fname}.pdf", bbox_inches='tight', dpi=300)
     else:
         plt.show()
     
@@ -264,13 +274,14 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     # Update layout with log scales
     fig.update_layout(
         title=f'Model Results for {dataset} Dataset' + (f' (Top {top_n})' if top_n is not None else ''),
-        xaxis_title='Model Index (sorted by performance)',
+        xaxis_title='Model',
         yaxis_title='Test Loss',
         showlegend=True,
         template='plotly_white',
         hovermode='closest',
         xaxis=dict(
-            title='Model Index (sorted by performance)'
+            title='Model',
+            showticklabels=False
         ),
         yaxis=dict(
             type='log',
@@ -280,7 +291,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         legend=dict(
             title='Legend'
         ),
-        height=500,
+        height=400,
+        width=800
     )
     
     # Show or save the plot

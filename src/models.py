@@ -1,7 +1,9 @@
+import sys
 import torch
+import pickle
 import numpy as np
 import torch.nn as nn
-
+from pathlib import Path
 from vanilla_transformer import Transformer
 from david_ye_vanilla_transformer import TRANSFORMER
 from mars_sindy_attention_transformer import TRANSFORMER_SINDY
@@ -11,10 +13,23 @@ from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
 from rnns import GRU, LSTM
 from decoders import MLP, UNET
 
-def load_model_from_checkpoint(checkpoint_path, args):
+from src import helpers
+
+
+# Local files
+pkg_path = Path(__file__).parent.parent / 'src'
+sys.path.insert(0, str(pkg_path))
+
+# Directories
+top_dir = Path(__file__).parent.parent
+data_dir = top_dir / 'datasets'
+plasma_dir = data_dir / 'plasma'
+fig_dir = top_dir / 'figures'
+
+def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
     model = MixedModel(args)
     print("Checking if checkpoint exists")
-    if checkpoint_path.exists():
+    if (not args.skip_load_checkpoint or force_load) and checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -25,6 +40,7 @@ def load_model_from_checkpoint(checkpoint_path, args):
         best_epoch = checkpoint['best_epoch']
         train_losses = checkpoint['train_losses']
         val_losses = checkpoint['val_losses']
+        sensors = checkpoint['sensors']
         if args.verbose:
             print(f"Loading model from {checkpoint_path}")
             print(f"> start_epoch: {start_epoch}")
@@ -40,8 +56,18 @@ def load_model_from_checkpoint(checkpoint_path, args):
         train_losses = []
         val_losses = []
         best_epoch = 0
+        # Generate sensors
+        # Handle SST differently (don't place sensors on land)
+        if args.dataset == "sst":
+            sensors = helpers.generate_sensor_positions(args.n_sensors*4, args.data_rows, args.data_cols)
+            with open(data_dir / 'sst' / 'SST_zeros.pkl', 'rb') as f:
+                zeros = pickle.load(f)
+            sensors = [pos for pos in sensors if (zeros[pos[0], pos[1]] == False)]
+            sensors = sensors[0:args.n_sensors]
+        else:
+            sensors = helpers.generate_sensor_positions(args.n_sensors, args.data_rows, args.data_cols)
     print()
-    return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses
+    return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, sensors
 
 class MixedModel(nn.Module):
     """

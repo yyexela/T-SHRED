@@ -203,11 +203,6 @@ def evaluate_model(model, dl, sensors, scaler, epoch=0, args=None, use_sindy_los
                 outputs = outputs.detach()[0]
                 labels = labels[0]
 
-                if args.dataset == "planetswe_full":
-                    im_dims = get_dataset_dims(args.dataset)
-                    outputs = einops.rearrange(outputs, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
-                    labels = einops.rearrange(labels, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
-
                 outputs = inverse_min_max_scale(outputs, scaler)
                 labels = inverse_min_max_scale(labels, scaler)
 
@@ -216,7 +211,7 @@ def evaluate_model(model, dl, sensors, scaler, epoch=0, args=None, use_sindy_los
                 else:
                     ident = "test"
 
-                plot_field_comparison(outputs, labels, dataset=args.dataset, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}_{ident}")
+                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}_{ident}")
 
         # Average loss
         dl_loss /= len(dl)
@@ -237,8 +232,10 @@ def create_plots(model, ds, sensors, scaler, args=None):
     # Which timesteps to evaluate
     if args.dataset == "plasma":
         ds_iter = range(len(ds))
-    else:
-        ds_iter = [0, len(ds)-1]
+    elif args.dataset == "planetswe_full":
+        ds_iter = [0, 49]
+    elif args.dataset == "sst":
+        ds_iter = [0, 89]
 
     with torch.no_grad():
         for i in ds_iter:
@@ -275,11 +272,7 @@ def create_plots(model, ds, sensors, scaler, args=None):
 
                 im_dims = get_dataset_dims(args.dataset)
 
-                if args.dataset == "planetswe_full":
-                    outputs = einops.rearrange(outputs, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
-                    labels = einops.rearrange(labels, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
-
-                plot_field_comparison(outputs, labels, dataset=args.dataset, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_{i}")
+                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_{i}")
 
     if args.dataset == "plasma":
         # Only plasma here
@@ -287,7 +280,7 @@ def create_plots(model, ds, sensors, scaler, args=None):
         output_trajectory = torch.cat(output_trajectory, dim=0)
 
         # Make plot
-        plot_field_comparison(output_trajectory, expected_trajectory, args.dataset, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_comparison")
+        plot_field_comparison(output_trajectory, expected_trajectory, args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_comparison")
 
 def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, scaler, args):
     """
@@ -365,15 +358,10 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 outputs = outputs.detach()[0]
                 labels = labels[0]
 
-                if args.dataset == "planetswe_full":
-                    im_dims = get_dataset_dims(args.dataset)
-                    outputs = einops.rearrange(outputs, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
-                    labels = einops.rearrange(labels, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
-
                 outputs = inverse_min_max_scale(outputs, scaler)
                 labels = inverse_min_max_scale(labels, scaler)
 
-                plot_field_comparison(outputs, labels, dataset=args.dataset, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}")
+                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}")
 
         # Average loss
         train_loss /= len(train_dl)
@@ -400,6 +388,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 'best_epoch': best_epoch,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
+                'sensors': sensors,
             }, args.best_checkpoint_path)
             torch.save({
                 'epoch': epoch+1,
@@ -409,6 +398,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 'best_epoch': best_epoch,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
+                'sensors': sensors,
             }, args.latest_checkpoint_path)
             if args.verbose:
                 print()
@@ -426,6 +416,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 'best_epoch': best_epoch,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
+                'sensors': sensors
             }, args.latest_checkpoint_path)
             if args.verbose:
                 print()

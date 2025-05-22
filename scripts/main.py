@@ -56,9 +56,6 @@ def main(args=None):
     args.dim_feedforward = args.hidden_size * 4
     args.output_size = args.data_rows*args.data_cols*args.d_data
 
-    # Generate sensors
-    sensors = helpers.generate_sensor_positions(args.n_sensors, args.data_rows, args.data_cols)
-
     # Create dataloader
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     val_dl = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
@@ -71,7 +68,7 @@ def main(args=None):
     args.best_checkpoint_path = checkpoint_dir / best_model_name
 
     # Load model if checkpoint exists
-    model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.latest_checkpoint_path, args)
+    model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, sensors = models.load_model_from_checkpoint(args.latest_checkpoint_path, args=args)
 
     # Print hyperparameters
     helpers.print_dictionary(vars(args), 'Hyperparameters:')
@@ -104,7 +101,7 @@ def main(args=None):
     time.sleep(1.0)
 
     # Evaluate best validation model
-    best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
+    best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses, sensors = models.load_model_from_checkpoint(args.best_checkpoint_path, force_load=True, args=args)
 
     # Calculate loss
     test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, scaler, args=args, use_sindy_loss=False)
@@ -148,6 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
     parser.add_argument('--sindy_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification")
     parser.add_argument('--sindy_weight', type=float, default=100, help="Weight for SINDy loss term")
+    parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading checkpoint")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")
     args = parser.parse_args()

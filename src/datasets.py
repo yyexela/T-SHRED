@@ -19,7 +19,7 @@ from the_well.data import WellDataset
 pkg_path = Path(__file__).parent.parent / 'src'
 sys.path.insert(0, str(pkg_path))
 
-from src.helpers import min_max_scale
+from src.helpers import min_max_scale, get_dataset_dims
 
 # Directories
 top_dir = Path(__file__).parent.parent
@@ -145,7 +145,7 @@ def load_well_data(args):
 
     return train_dl, valid_dl, test_dl, (None, None)
 
-def load_the_well_pts(load_path, split_name, track_id=None, reshape_to_image=False, n_tracks=None):
+def load_the_well_pts(load_path, split_name, dataset, track_id=None, reshape_to_image=False, n_tracks=None):
     tensors = []
     if track_id is not None:
         iter_l = [Path(load_path) / f"{split_name}_{track_id}.pkl"]
@@ -159,7 +159,8 @@ def load_the_well_pts(load_path, split_name, track_id=None, reshape_to_image=Fal
                 tensor = torch.from_numpy(tensor)
             tensor = tensor.float()
             if reshape_to_image:
-                tensor = tensor.unsqueeze(1).unsqueeze(-1)
+                im_dims = get_dataset_dims(dataset)
+                tensor = einops.rearrange(tensor, "t (r w d) -> t r w d", t=tensor.shape[0], r=im_dims[0], w=im_dims[1], d=im_dims[2])
             tensors.append(tensor)
             if len(tensors) >= n_tracks:
                 break
@@ -170,8 +171,8 @@ def load_well_data_track_full(args, track = None, split = None):
     data_path = data_dir / 'the_well_custom' / args.dataset[:-5]
 
     # Load training, validation, and testing data
-    pods = load_the_well_pts(data_path / 'pod', split, track, reshape_to_image=True, n_tracks=args.n_well_tracks)
-    fulls = load_the_well_pts(data_path / 'full', split, track, reshape_to_image=True, n_tracks=args.n_well_tracks)
+    pods = load_the_well_pts(data_path / 'pod', split, args.dataset, track, reshape_to_image=True, n_tracks=args.n_well_tracks)
+    fulls = load_the_well_pts(data_path / 'full', split, args.dataset, track, reshape_to_image=True, n_tracks=args.n_well_tracks)
 
     # Load V and scalers
     with open(data_path / 'metadata' / 'V.pkl', 'rb') as f:
@@ -193,9 +194,9 @@ def load_well_data_full(args):
     data_path = data_dir / 'the_well_custom' / args.dataset[:-5]
 
     # Load training, validation, and testing data
-    train_fulls = load_the_well_pts(data_path / 'full', 'train', reshape_to_image=True, n_tracks=args.n_well_tracks)
-    val_fulls = load_the_well_pts(data_path / 'full', 'valid', reshape_to_image=True, n_tracks=args.n_well_tracks)
-    test_fulls = load_the_well_pts(data_path / 'full', 'test', reshape_to_image=True, n_tracks=args.n_well_tracks)
+    train_fulls = load_the_well_pts(data_path / 'full', 'train', args.dataset, reshape_to_image=True, n_tracks=args.n_well_tracks)
+    val_fulls = load_the_well_pts(data_path / 'full', 'valid', args.dataset, reshape_to_image=True, n_tracks=args.n_well_tracks)
+    test_fulls = load_the_well_pts(data_path / 'full', 'test', args.dataset, reshape_to_image=True, n_tracks=args.n_well_tracks)
 
     # Load V and scalers
     with open(data_path / 'metadata' / 'V.pkl', 'rb') as f:
@@ -218,8 +219,8 @@ def load_well_data_track_pod(args, track = None, split = None):
     data_path = data_dir / 'the_well_custom' / args.dataset[:-4]
 
     # Load training, validation, and testing data
-    pods = load_the_well_pts(data_path / 'pod', split, track, reshape_to_image=True, n_tracks=args.n_well_tracks)
-    fulls = load_the_well_pts(data_path / 'full', split, track, reshape_to_image=True, n_tracks=args.n_well_tracks)
+    pods = load_the_well_pts(data_path / 'pod', split, args.dataset, track, reshape_to_image=True, n_tracks=args.n_well_tracks)
+    fulls = load_the_well_pts(data_path / 'full', split, args.dataset, track, reshape_to_image=True, n_tracks=args.n_well_tracks)
 
     # Load V and scalers
     with open(data_path / 'metadata' / 'V.pkl', 'rb') as f:
@@ -241,9 +242,9 @@ def load_well_data_pod(args):
     data_path = data_dir / 'the_well_custom' / args.dataset[:-4]
 
     # Load training, validation, and testing data
-    train_pods = load_the_well_pts(data_path / 'pod', 'train', reshape_to_image=True, n_tracks=args.n_well_tracks)
-    val_pods = load_the_well_pts(data_path / 'pod', 'valid', reshape_to_image=True, n_tracks=args.n_well_tracks)
-    test_pods = load_the_well_pts(data_path / 'pod', 'test', reshape_to_image=True, n_tracks=args.n_well_tracks)
+    train_pods = load_the_well_pts(data_path / 'pod', 'train', args.dataset, reshape_to_image=True, n_tracks=args.n_well_tracks)
+    val_pods = load_the_well_pts(data_path / 'pod', 'valid', args.dataset, reshape_to_image=True, n_tracks=args.n_well_tracks)
+    test_pods = load_the_well_pts(data_path / 'pod', 'test', args.dataset, reshape_to_image=True, n_tracks=args.n_well_tracks)
 
     # Load V and scalers
     with open(data_path / 'metadata' / 'V.pkl', 'rb') as f:
