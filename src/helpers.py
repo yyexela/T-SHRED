@@ -270,8 +270,6 @@ def create_plots(model, ds, sensors, scaler, args=None):
                 outputs = inverse_min_max_scale(outputs, scaler)
                 labels = inverse_min_max_scale(labels, scaler)
 
-                im_dims = get_dataset_dims(args.dataset)
-
                 plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_{i}")
 
     if args.dataset == "plasma":

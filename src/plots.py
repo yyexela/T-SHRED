@@ -94,7 +94,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
     if save:
         if fname is None:
             raise ValueError("Filename must be provided when save=True")
-        plt.savefig(figure_dir.parent / f"{fname}.pdf", bbox_inches='tight', dpi=300)
+        plt.savefig(figure_dir / f"{fname}.pdf", bbox_inches='tight', dpi=300)
     else:
         plt.show()
     
