@@ -13,7 +13,8 @@ from decoders import MLP, UNET
 
 def load_model_from_checkpoint(checkpoint_path, args):
     model = MixedModel(args)
-    if (not args.skip_load_checkpoint) and (checkpoint_path.exists()):
+    print("Checking if checkpoint exists")
+    if checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         model.load_state_dict(checkpoint['model_state_dict'])

@@ -6,7 +6,7 @@ top_dir = Path(__file__).parent.parent
 
 cmd_template = \
 """\
-time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --device {device} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --verbose --skip_load_checkpoint 2>&1 | tee {log_path}
+time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --device {device} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --verbose 2>&1 | tee {log_path}
 """
 
 # File paths

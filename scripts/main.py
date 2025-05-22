@@ -45,7 +45,10 @@ def main(args=None):
     random.seed(0)
 
     # Load dataset
-    train_ds, val_ds, test_ds, _ = datasets.load_dataset(args)
+    if args.dataset in ["planetswe_full"]:
+        train_ds, val_ds, test_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
+    else:
+        train_ds, val_ds, test_ds, (scaler) = datasets.load_dataset(args)
     args.d_data = train_ds[0]['input_fields'].shape[-1]
     args.data_rows, args.data_cols = (train_ds[0]['input_fields'].shape[-3],
                                       train_ds[0]['input_fields'].shape[-2])
@@ -91,6 +94,7 @@ def main(args=None):
         train_losses=train_losses,
         val_losses=val_losses,
         optimizer=optimizer,
+        scaler=scaler,
         args=args
     )
 
@@ -100,13 +104,17 @@ def main(args=None):
     time.sleep(1.0)
 
     # Evaluate best validation model
-    best_model, best_optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
+    best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses = models.load_model_from_checkpoint(args.best_checkpoint_path, args)
 
     # Calculate loss
-    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, args=args, use_sindy_loss=False)
+    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, scaler, args=args, use_sindy_loss=False)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
     save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'sensors': sensors}
+
+    # Create plots
+    if args.generate_test_plots:
+        helpers.create_plots(best_model, test_ds, sensors, scaler, args=args)
 
     # Save pickle
     with open(pickle_dir / f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_p{args.poly_order}.pkl', 'wb') as f:
@@ -129,6 +137,8 @@ if __name__ == '__main__':
     parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
+    parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
+    parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
     parser.add_argument('--include_sine', action='store_true', help="Include sine in transformer SINDy library")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
     parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
@@ -138,7 +148,6 @@ if __name__ == '__main__':
     parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
     parser.add_argument('--sindy_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification")
     parser.add_argument('--sindy_weight', type=float, default=100, help="Weight for SINDy loss term")
-    parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading model checkpoint")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")
     args = parser.parse_args()

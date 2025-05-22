@@ -1,0 +1,1 @@
+time python -u /home/alexey/Research4/T-SHRED/scripts/main.py --dataset planetswe --device cuda:2 --encoder vanilla_transformer --decoder unet --decoder_depth 1 --device cuda:2 --dropout 0.1 --epochs 100 --save_every_n_epochs 10 --hidden_size 100 --lr 0.01 --n_heads 2 --poly_order 1 --batch_size 128 --encoder_depth 4 --window_length 50 --early_stop 10 --verbose

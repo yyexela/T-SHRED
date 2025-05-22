@@ -29,13 +29,13 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
     n_dims = prediction.shape[2]
     
     # Create figure with GridSpec for better control over subplot spacing
-    if dataset in ['planetswe', 'planetswe_pod']:
+    if dataset in ['planetswe', 'planetswe_pod', 'planetswe_full']:
         figsize = (30, 4*n_dims)
         width_ratios = [1, 1, 0.05, 1, 0.05]
     elif dataset in ['sst']:
         figsize = (30, 4*n_dims)
         width_ratios = [1, 1, 0.05, 1, 0.05]
-    elif dataset in ['gray_scott_reaction_diffusion', 'gray_scott_reaction_diffusion_pod' ]:
+    elif dataset in ['gray_scott_reaction_diffusion', 'gray_scott_reaction_diffusion_pod']:
         figsize = (14, 4*n_dims)
         width_ratios = [1, 1, 0.05, 1, 0.05]
     elif dataset in ['plasma']:

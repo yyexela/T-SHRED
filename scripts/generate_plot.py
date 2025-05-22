@@ -6,6 +6,7 @@ import os
 import sys
 import torch
 import pickle
+import random
 import einops
 import argparse
 from pathlib import Path
@@ -41,41 +42,43 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 ########
 
 def main(args=None):
+    # Set Seed
+    torch.manual_seed(0)
+    random.seed(0)
+
     # Load pickle
-    fpath = os.path.join(pickle_dir, f"{args.identifier}_test_loss.pkl")
+    fpath = os.path.join(pickle_dir, f"{args.identifier}.pkl")
     with open(fpath, 'rb') as f:
         result = pickle.load(f)
         hp = Namespace(**result['hyperparameters'])
         print(hp)
 
+    # Switch device
+    hp.device = 'cuda:2'
+    im_dims = helpers.get_dataset_dims(hp.dataset)
+
     # Set up dataset and iterator
-    if "pod" in hp.dataset:
-        hp.eval_full = True
-        pod_ds, pod_full_ds, (V, scaler, im_dims) = datasets.load_dataset_track_pod(hp, track=0, split='test')
-        ds_iter = [0, len(pod_ds)-1]
+    if hp.dataset in ["planetswe_full"]:
+        train_ds, val_ds, test_ds, (V, scaler, im_dims) = datasets.load_dataset(hp)
     else:
         train_ds, val_ds, test_ds, (scaler) = datasets.load_dataset(hp)
-        if args.split == 'test':
-            ds = test_ds
-        elif args.split == 'val':
-            ds = val_ds
-        else:
-            ds = train_ds
-        im_dims = (hp.data_rows, hp.data_cols, hp.d_data)
-        if hp.dataset == "plasma":
-            ds_iter = range(len(ds))
-        else:
-            ds_iter = [0, len(ds)-1]
+    if args.split == 'test':
+        ds = test_ds
+    elif args.split == 'val':
+        ds = val_ds
+    else:
+        ds = train_ds
+    if hp.dataset == "plasma":
+        ds_iter = range(len(ds))
+    else:
+        ds_iter = [0, len(ds)-1]
 
     # Get sensors
-    if 'sensors' in result:
-        sensors = result['sensors']
-    else:
-        sensors = helpers.generate_sensor_positions(hp.n_sensors, hp.data_rows, hp.data_cols)
+    sensors = result['sensors']
 
     # Load model
-    latest_model_name = f'{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_model_latest.pt'
-    best_model_name = f'{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_model_best.pt'
+    latest_model_name = f'{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_p{hp.poly_order}_model_latest.pt'
+    best_model_name = f'{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_p{hp.poly_order}_model_best.pt'
     hp.latest_checkpoint_path = checkpoint_dir / latest_model_name
     hp.best_checkpoint_path = checkpoint_dir / best_model_name
     print("Checking ", hp.best_checkpoint_path)
@@ -90,63 +93,42 @@ def main(args=None):
         output_trajectory = list()
     with torch.no_grad():
         for i in ds_iter:
-            # Get data
-            if "pod" in hp.dataset:
-                inputs, pod_labels = pod_ds[0]["input_fields"], pod_ds[0]["output_fields"]
-
-                full_inputs, full_labels = pod_full_ds[0]["input_fields"], pod_full_ds[0]["output_fields"]
-            else:
-                inputs, labels = ds[i]["input_fields"], ds[i]["output_fields"][0,:,:,:]
-
+            # Get raw data
+            inputs, labels = ds[i]["input_fields"], ds[i]["output_fields"][0,:,:,:]
             if hp.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
                 inputs, labels = inputs.to(hp.device), labels.to(hp.device)
-            
+
             # Extract sensors per input tensor
             input_sensors = []
             for sensor in sensors:
                 input_sensors.append(inputs[:,sensor[0],sensor[1],:])
             input_sensors = torch.stack(input_sensors, dim=2)
-
+    
             # Prepare input for model
             input_sensors = einops.rearrange(input_sensors, 'w n d -> 1 w (n d)')
 
             # Pass data through model
-            outputs = model(input_sensors)
+            output = model(input_sensors)
+
+            outputs = output["output"]
+
+            # Reshape output
+            outputs = einops.rearrange(outputs, '1 (r w d) -> r w d', r=hp.data_rows, w=hp.data_cols, d=hp.d_data)
 
             if hp.dataset == "plasma":
                 # Collect
                 expected_trajectory.append(labels)
                 output_trajectory.append(outputs)
-            elif hp.dataset == "sst":
-                # Convert back to original shape
-                outputs_shaped = einops.rearrange(outputs, "1 (r c d) -> r c d", r=im_dims[0], c=im_dims[1], d=im_dims[2])
-
+            elif hp.dataset in ["sst", "planetswe_full"]:
                 # Convert back to original scale
-                outputs_shaped = helpers.inverse_min_max_scale(outputs_shaped, scaler)
+                outputs = helpers.inverse_min_max_scale(outputs, scaler)
                 labels = helpers.inverse_min_max_scale(labels, scaler)
 
-                plots.plot_field_comparison(outputs_shaped, labels, dataset=hp.dataset, save=True, fname=f"{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_full_comparison_{i}")
-            elif "pod" in hp.dataset:
-                # Reshape output (will be: batch x 1 x dim x 1)
-                pod_outputs = einops.rearrange(outputs, '1 (r w d) -> 1 r w d', r=hp.data_rows, w=hp.data_cols, d=hp.d_data)
-                
-                # Remove singular dimensions
-                pod_outputs_squeezed = pod_outputs[:,0,:,0]
-                pod_labels_squeezed = pod_labels[:,0,:,0]
-                full_labels_squeezed = full_labels[:,0,:,0]
+                if hp.dataset == "planetswe_full":
+                    outputs = einops.rearrange(outputs, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
+                    labels = einops.rearrange(labels, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
 
-                # Inverse POD to get full scale image
-                pod_outputs_full = helpers.inverse_pods_torch(pod_outputs_squeezed, scaler, V, device=hp.device)
-                pod_labels_full = helpers.inverse_pods_torch(pod_labels_squeezed, scaler, V, device=hp.device)
-
-                # Convert back to original shape
-                pod_outputs_shaped = einops.rearrange(pod_outputs_full, "1 (r c d) -> r c d", r=im_dims[0], c=im_dims[1], d=im_dims[2])
-                pod_labels_shaped = einops.rearrange(pod_labels_full, "1 (r c d) -> r c d", r=im_dims[0], c=im_dims[1], d=im_dims[2])
-                full_labels_shaped = einops.rearrange(full_labels_squeezed, "1 (r c d) -> r c d", r=im_dims[0], c=im_dims[1], d=im_dims[2])
-
-                # Generate plots
-                plots.plot_field_comparison(pod_outputs_shaped, pod_labels_shaped, dataset=hp.dataset, save=True, fname=f"{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_pod_comparison_{i}")
-                plots.plot_field_comparison(pod_outputs_shaped, full_labels_shaped, dataset=hp.dataset, save=True, fname=f"{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_full_comparison_{i}")
+                plots.plot_field_comparison(outputs, labels, dataset=hp.dataset, save=True, fname=f"{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_full_comparison_{i}")
 
     if hp.dataset == "plasma":
         # Only plasma here
@@ -156,7 +138,7 @@ def main(args=None):
 
         # Make plot
         plots.plot_field_comparison(output_trajectory, expected_trajectory, hp.dataset, save=True, fname=f"{hp.encoder}_{hp.decoder}_{hp.dataset}_e{hp.encoder_depth}_d{hp.decoder_depth}_lr{hp.lr:0.2e}_comparison")
-    
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--identifier', type=str, default=None, help="Identifier of the associated run")

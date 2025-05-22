@@ -4,7 +4,15 @@ import einops
 import random
 import pickle
 from pathlib import Path
-from src.plots import plot_losses
+from src.plots import plot_losses, plot_field_comparison
+
+def get_dataset_dims(dataset):
+    if dataset == "sst":
+        return (180, 360, 1)
+    elif dataset == "planetswe_full":
+        return(256, 512, 3)
+    else:
+        raise NotImplementedError(f"Unknown dataset: {dataset}")
 
 def print_model_size(model, name):
     param_size = 0
@@ -141,7 +149,7 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model(model, dl, sensors, args=None, use_sindy_loss=False):
+def evaluate_model(model, dl, sensors, scaler, epoch=0, args=None, use_sindy_loss=False):
     """
     Evaluate a PyTorch model.
     """
@@ -151,7 +159,7 @@ def evaluate_model(model, dl, sensors, args=None, use_sindy_loss=False):
     dl_loss = 0.0
     sindy_loss = 0.0
     with torch.no_grad():
-        for batch in dl:
+        for i, batch in enumerate(dl):
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
             if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
@@ -190,6 +198,26 @@ def evaluate_model(model, dl, sensors, args=None, use_sindy_loss=False):
             if use_sindy_loss and sindy_loss_batch is not None:
                 sindy_loss += sindy_loss_batch.item()
 
+            # Plot
+            if args.generate_training_plots and i == 0:
+                outputs = outputs.detach()[0]
+                labels = labels[0]
+
+                if args.dataset == "planetswe_full":
+                    im_dims = get_dataset_dims(args.dataset)
+                    outputs = einops.rearrange(outputs, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
+                    labels = einops.rearrange(labels, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
+
+                outputs = inverse_min_max_scale(outputs, scaler)
+                labels = inverse_min_max_scale(labels, scaler)
+
+                if use_sindy_loss:
+                    ident = "val"
+                else:
+                    ident = "test"
+
+                plot_field_comparison(outputs, labels, dataset=args.dataset, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}_{ident}")
+
         # Average loss
         dl_loss /= len(dl)
         if use_sindy_loss and sindy_loss_batch is not None:
@@ -197,7 +225,71 @@ def evaluate_model(model, dl, sensors, args=None, use_sindy_loss=False):
 
     return dl_loss, sindy_loss
 
-def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, args):
+def create_plots(model, ds, sensors, scaler, args=None):
+    model.eval()
+
+    # Collect plot data
+    if args.dataset == "plasma":
+        # Collect all outputs from test trajectory
+        expected_trajectory = list()
+        output_trajectory = list()
+
+    # Which timesteps to evaluate
+    if args.dataset == "plasma":
+        ds_iter = range(len(ds))
+    else:
+        ds_iter = [0, len(ds)-1]
+
+    with torch.no_grad():
+        for i in ds_iter:
+            # Get raw data
+            inputs, labels = ds[i]["input_fields"], ds[i]["output_fields"][0,:,:,:]
+            if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
+                inputs, labels = inputs.to(args.device), labels.to(args.device)
+
+            # Extract sensors per input tensor
+            input_sensors = []
+            for sensor in sensors:
+                input_sensors.append(inputs[:,sensor[0],sensor[1],:])
+            input_sensors = torch.stack(input_sensors, dim=2)
+    
+            # Prepare input for model
+            input_sensors = einops.rearrange(input_sensors, 'w n d -> 1 w (n d)')
+
+            # Pass data through model
+            output = model(input_sensors)
+
+            outputs = output["output"]
+
+            # Reshape output
+            outputs = einops.rearrange(outputs, '1 (r w d) -> r w d', r=args.data_rows, w=args.data_cols, d=args.d_data)
+
+            if args.dataset == "plasma":
+                # Collect
+                expected_trajectory.append(labels)
+                output_trajectory.append(outputs)
+            elif args.dataset in ["sst", "planetswe_full"]:
+                # Convert back to original scale
+                outputs = inverse_min_max_scale(outputs, scaler)
+                labels = inverse_min_max_scale(labels, scaler)
+
+                im_dims = get_dataset_dims(args.dataset)
+
+                if args.dataset == "planetswe_full":
+                    outputs = einops.rearrange(outputs, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
+                    labels = einops.rearrange(labels, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
+
+                plot_field_comparison(outputs, labels, dataset=args.dataset, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_{i}")
+
+    if args.dataset == "plasma":
+        # Only plasma here
+        expected_trajectory = torch.cat(expected_trajectory, dim=0)
+        output_trajectory = torch.cat(output_trajectory, dim=0)
+
+        # Make plot
+        plot_field_comparison(output_trajectory, expected_trajectory, args.dataset, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_comparison")
+
+def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, scaler, args):
     """
     Train a PyTorch model.
 
@@ -212,6 +304,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses (list): List of training losses.
         val_losses (list): List of validation losses.
         optimizer (torch.optim.Optimizer): Optimizer to use for training.
+        scaler (tuple): Tuple of (min, max) values used for scaling (for inverse transformation)
         args (argparse.Namespace): Arguments to use for training.
     """
     # Set up model, optimizer, and loss
@@ -266,6 +359,22 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             train_loss += loss.item()
             if sindy_loss_batch is not None:
                 sindy_loss += sindy_loss_batch.item()
+
+            # Plot
+            if args.generate_training_plots and i == 0:
+                outputs = outputs.detach()[0]
+                labels = labels[0]
+
+                if args.dataset == "planetswe_full":
+                    im_dims = get_dataset_dims(args.dataset)
+                    outputs = einops.rearrange(outputs, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
+                    labels = einops.rearrange(labels, "1 (r w d) 1 -> r w d", r=im_dims[0], w=im_dims[1], d=im_dims[2])
+
+                outputs = inverse_min_max_scale(outputs, scaler)
+                labels = inverse_min_max_scale(labels, scaler)
+
+                plot_field_comparison(outputs, labels, dataset=args.dataset, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}")
+
         # Average loss
         train_loss /= len(train_dl)
         if sindy_loss_batch is not None:
@@ -273,7 +382,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses.append(train_loss)
 
         # Calculate validation loss
-        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, args=args, use_sindy_loss=True)
+        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, scaler=scaler, args=args, use_sindy_loss=True)
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
