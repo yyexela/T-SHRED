@@ -734,3 +734,36 @@ def get_identifier(filename):
     if name.endswith('_test_loss'):
         name = name[:-10]  # Remove _test_loss suffix
     return name
+
+def generate_sinusoid_sum(n_sin: int, X: int, T: int, seed: int = 42) -> torch.Tensor:
+    """
+    Generate time series data by summing multiple sinusoids with random frequencies and amplitudes.
+    
+    Args:
+        n_sin (int): Number of sinusoids to sum
+        X (int): Number of time series to generate
+        T (int): Number of time steps per series
+        seed (int): Random seed for reproducibility
+        
+    Returns:
+        torch.Tensor: Generated time series of shape (X, T)
+    """
+    # Set random seed for reproducibility
+    torch.manual_seed(seed)
+    
+    # Create time points
+    t = torch.linspace(0, 2*torch.pi, T)
+    
+    # Initialize output tensor
+    output = torch.zeros((X, T))
+    
+    # Generate each time series
+    for i in range(X):
+        # Sum all sinusoids
+        for j in range(n_sin):
+            # Generate random frequencies and amplitudes
+            frequencies = torch.rand(n_sin) * 4 * torch.pi  # Random frequencies between 0 and 2π
+            amplitudes = torch.rand(n_sin) * 2  # Random amplitudes between 0 and 2
+            output[i] += amplitudes[j] * torch.sin(frequencies[j] * t)
+    
+    return output

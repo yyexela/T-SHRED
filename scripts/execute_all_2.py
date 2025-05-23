@@ -31,8 +31,8 @@ save_every_n_epochs = 10
 window_length = 50
 
 # These two will be zipped pairwise
-encoder_depths = [1, 2, 3, 4]
-decoder_depths = [1, 1, 1, 1]
+encoder_depths = [1, 2, 3, 4, 5, 6, 16, 32, 64, 128]
+decoder_depths = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
 skip_count = 0
 write_count = 0

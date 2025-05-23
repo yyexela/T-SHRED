@@ -10,7 +10,7 @@ from matplotlib.gridspec import GridSpec
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / 'figures'
 
-def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, sensors: list[tuple[int, int]], save: bool = False, fname: str = None) -> None:
+def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, sensors: list[tuple[int, int]], sensors_all = False, save: bool = False, fname: str = None) -> None:
     """
     Plot comparison between predicted and target fields using matplotlib, with one row per dimension. Ensure that each row has a single colorbar that is scaled to the minimum and maximum of the target field. Each row has a separate colorbar with a separate scale.
     
@@ -19,6 +19,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         target (torch.Tensor): Target field of shape (rows, cols, dim)
         dataset (str): Name of the dataset to use for figure size
         sensors (list[tuple[int, int]]): List of sensor positions to plot
+        sensors_all (bool, optional): Whether to plot sensors on all plots. Defaults to False.
         save (bool, optional): Whether to save the figure to a file. Defaults to False.
         fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
     """
@@ -86,6 +87,9 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
                 for sensor in sensors:
                     x, y = sensor
                     ax_error.plot(y, x, 'ro', markersize=2)
+                    if sensors_all:
+                        ax_pred.plot(y, x, 'ro', markersize=2)
+                        ax_target.plot(y, x, 'ro', markersize=2)
         
         # Add colorbar for this row
         cbar_ax = fig.add_subplot(gs[i, 4])

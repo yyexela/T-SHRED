@@ -182,7 +182,14 @@ cython_debug/
 results/
 datasets/
 test.py
+checkpoints
 checkpoints/
+pickles
+pickles/
+figures
+figures/
+logs
+logs/
 logs/
 apptainer/apptainer.sif
 datasets
