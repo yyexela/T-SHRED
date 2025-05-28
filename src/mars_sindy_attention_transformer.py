@@ -82,14 +82,14 @@ class TRANSFORMER_SINDY(nn.Module):
 
 class SINDyLayer(nn.Module):
     def __init__(self, d_model: int, dim_feedforward: int, dropout: float, activation: nn.Module,
-                 poly_order: int, include_sine: bool, sindy_threshold: float = 0.01, hidden_size: int = 64):
+                 poly_order: int, include_sine: bool, sindy_loss_threshold: float = 0.01, hidden_size: int = 64):
         super().__init__()
         self.d_model = d_model
         self.hidden_size = hidden_size
         self.poly_order = poly_order
         self.include_sine = include_sine
         self.library_dim = calculate_library_dim(hidden_size, poly_order, include_sine)
-        self.sindy_threshold_val = sindy_threshold # For thresholding (sparsify)
+        self.sindy_loss_threshold = sindy_loss_threshold # For thresholding (sparsify)
 
         # SINDy coefficients (nn.parameter which is learnable)
         self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, self.hidden_size))
@@ -152,7 +152,7 @@ class SINDyLayer(nn.Module):
     # may cause numerical instability, temp optional
     def thresholding(self, threshold=None):
         if threshold is None:
-            threshold = self.sindy_threshold_val
+            threshold = self.sindy_loss_threshold
         with torch.no_grad():
             mask = torch.abs(self.coefficients.data) > threshold
             self.coefficients.data *= mask

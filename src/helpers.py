@@ -1,8 +1,10 @@
 import os
+import copy
 import torch
 import einops
 import random
 import pickle
+from torch import nn
 from pathlib import Path
 from src.plots import plot_losses, plot_field_comparison
 
@@ -187,7 +189,7 @@ def evaluate_model(model, dl, sensors, scaler, epoch=0, args=None, use_sindy_los
             reconstruction_loss = loss_fn(outputs, labels)
 
             if use_sindy_loss and sindy_loss_batch is not None:
-                sindy_loss_batch = args.sindy_weight * sindy_loss_batch
+                sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
                 loss_batch = reconstruction_loss + sindy_loss_batch
 
             else:
@@ -307,6 +309,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         # Calculate training loss
         train_loss = 0.0
         sindy_loss = 0.0
+
         for i, batch in enumerate(train_dl):
             # Get raw data
             inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
@@ -334,14 +337,15 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
-            
-            # Add SINDy loss if available
-            if sindy_loss_batch is not None:
-                sindy_loss_batch = args.sindy_weight * sindy_loss_batch
-                loss = reconstruction_loss + sindy_loss_batch
 
-            else:
-                loss = reconstruction_loss
+            # Add other losses if available
+            loss = reconstruction_loss
+            if sindy_loss_batch is not None:
+                sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
+                loss += sindy_loss_batch
+            if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+                sindy_sum = args.sindy_attention_weight * model.encoder.get_SINDy_coefficients_sum()
+                loss += sindy_sum
 
             # Backprop
             loss.backward()
@@ -361,6 +365,12 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
                 plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}")
 
+        # Threshold if necessary
+        if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+            if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_epoch == 0:
+                print(f"Thresholding SINDy coefficients")
+                model.encoder.threshold_all_layers(args.sindy_attention_threshold)
+
         # Average loss
         train_loss /= len(train_dl)
         if sindy_loss_batch is not None:
@@ -368,7 +378,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses.append(train_loss)
 
         # Calculate validation loss
-        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, scaler=scaler, args=args, use_sindy_loss=True)
+        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, scaler=scaler, args=args, use_sindy_loss=True)
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
@@ -425,6 +435,10 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             if sindy_loss_batch is not None:
                 print(f'Epoch {epoch+1}, SINDy training loss: {sindy_loss:0.4e}, SINDy validation loss: {sindy_val_loss:0.4e}')
 
+        # Print model coefficients
+        if args.verbose and args.encoder == "sindy_attention_transformer":
+            print_model_coefficients(model, args)
+
         # Make plot
         plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_p{args.poly_order}_losses")
 
@@ -454,8 +468,51 @@ def calculate_library_dim(latent_dim, poly_order, include_sine):
         dim += latent_dim
     return dim
 
+def sindy_library_terms(latent_dim, poly_order, include_sine=False):
+    # Ones - constant term
+    library = ["1"]
+
+    # Add polynomials up to poly_order
+    for i in range(latent_dim):
+        library.append(f"z{i}")
+
+    if poly_order > 1:
+        for i in range(latent_dim):
+            for j in range(i,latent_dim):
+                library.append(f"z{i} * z{j}") # Use element-wise multiplication
+
+    if poly_order > 2:
+        for i in range(latent_dim):
+            for j in range(i,latent_dim):
+                for k in range(j,latent_dim):
+                    library.append(f"z{i} * z{j} * z{k}")
+
+    if poly_order > 3:
+        for i in range(latent_dim):
+            for j in range(i,latent_dim):
+                for k in range(j,latent_dim):
+                    for p in range(k,latent_dim):
+                        library.append(f"z{i} * z{j} * z{k} * z{p}")
+
+    if poly_order > 4:
+        for i in range(latent_dim):
+            for j in range(i,latent_dim):
+                for k in range(j,latent_dim):
+                    for p in range(k,latent_dim):
+                        for q in range(p,latent_dim):
+                            library.append(f"z{i} * z{j} * z{k} * z{p} * z{q}")
+
+    # Add sine terms if requested
+    if include_sine:
+        for i in range(latent_dim):
+            library.append(f"sin(z{i})")
+
+    return library
+
 def sindy_library_torch(z, latent_dim, poly_order, include_sine=False):
     device = z.device # Get device from input tensor
+
+    # Ones - constant term
     library = [torch.ones(z.shape[0], device=device)]
 
     # Add polynomials up to poly_order
@@ -701,6 +758,20 @@ def get_dictionaries_from_pickles(pickle_dir, early_stop=None):
 def get_result_loss(result):
     return result.get('test_loss', result.get('test_loss_pod', None))
 
+def print_model_coefficients(model, args):
+    library = model.encoder.encoder.layers[0].self_attn.library_terms
+    for i in range(args.encoder_depth):
+        print(f"Layer {i}:")
+        for j in range(args.n_heads):
+            print(f"Head {j}:")
+            for k in range(args.hidden_size // args.n_heads):
+                print(f"Hidden layer {k}:")
+                output_str = ""
+                for l in range(len(library)):
+                    output_str += f"{model.encoder.encoder.layers[i].self_attn.coefficients[j][l][k].item():0.3f} \\cdot {library[l]} + "
+                print(output_str[:-3])
+            print()
+
 def get_top_N_models_by_loss(dataset_name, pickle_dir, loss_only=False, N=5):
     """
     Returns the top 5 models (filenames) with the lowest test loss for a given dataset.
@@ -767,3 +838,8 @@ def generate_sinusoid_sum(n_sin: int, X: int, T: int, seed: int = 42) -> torch.T
             output[i] += amplitudes[j] * torch.sin(frequencies[j] * t)
     
     return output
+
+# We use this for exact parity with the PyTorch implementation, having the same init
+# for every layer might not be necessary.
+def _get_clones(module, N):
+    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])

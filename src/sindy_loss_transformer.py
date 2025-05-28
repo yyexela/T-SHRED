@@ -24,8 +24,7 @@ class SINDyLossTransformer(nn.Module):
         poly_order: int = 2,
         include_sine: bool = False,
         device: str = 'cpu',
-        sindy_regularization: float = 1.0,  # Weight for SINDy loss component
-        sindy_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
+        sindy_loss_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
         dt: float = 1.0,                    # Time step for SINDy derivatives
     ):
         super().__init__()
@@ -38,8 +37,7 @@ class SINDyLossTransformer(nn.Module):
         self.num_encoder_layers = num_encoder_layers
         self.window_length = window_length
         self.device = device
-        self.sindy_regularization = sindy_regularization
-        self.sindy_threshold = sindy_threshold
+        self.sindy_loss_threshold = sindy_loss_threshold
         self.dt = dt  # Time step for Euler integration
         
         # Create the standard transformer encoder
@@ -209,7 +207,7 @@ class SINDyLossTransformer(nn.Module):
             threshold (float, optional): Threshold value. If None, uses the default threshold.
         """
         if threshold is None:
-            threshold = self.sindy_threshold
+            threshold = self.sindy_loss_threshold
             
         with torch.no_grad():
             mask = torch.abs(self.coefficients.data) > threshold
@@ -228,7 +226,6 @@ class SINDyLossTransformer(nn.Module):
             "hidden_size": self.hidden_size,
             "poly_order": self.poly_order,
             "include_sine": self.include_sine,
-            "sindy_regularization": self.sindy_regularization,
-            "sindy_threshold": self.sindy_threshold,
+            "sindy_loss_threshold": self.sindy_loss_threshold,
             "library_dim": self.library_dim
         }

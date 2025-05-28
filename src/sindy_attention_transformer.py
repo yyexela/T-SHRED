@@ -5,7 +5,7 @@ import torch.nn as nn
 from typing import Optional
 import torch.nn.functional as F
 from positional_encoding import PositionalEncoding
-from helpers import calculate_library_dim, sindy_library_torch
+from helpers import calculate_library_dim, sindy_library_torch, sindy_library_terms, _get_clones
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
@@ -58,6 +58,7 @@ class MultiHeadSindyAttention(nn.Module):
         self.include_sine = include_sine
         self.library_dim = calculate_library_dim(self.E_head, poly_order, include_sine)
         self.coefficients = nn.ParameterList([torch.Tensor(self.library_dim, self.E_head) for _ in range(nheads)])
+        self.library_terms = sindy_library_terms(self.E_head, poly_order, include_sine)
         for i in range(nheads):
             nn.init.xavier_uniform_(self.coefficients[i])
 
@@ -129,6 +130,8 @@ class MultiHeadSindyAttention(nn.Module):
         # (N, nheads, L_t, E_head) -> (N, L_t, nheads, E_head) -> (N, L_t, E_total)
 
         # Step 4. Per-head pysindy
+        # coeffs: n_terms x hidden_dim
+        # library_Theta: (batch x window len) x n_terms
         sindy_attn_output = []
         for i in range(self.nheads):
             # Extract head
@@ -323,12 +326,32 @@ class SindyAttentionTransformer(nn.Module):
             "final_hidden_state": transformer_output[:, -1, :], # Last timestep [batch_size, d_model]
             "sindy_loss": None
         }
-        
-# We use this for exact parity with the PyTorch implementation, having the same init
-# for every layer might not be necessary.
-def _get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
+    def get_SINDy_coefficients_sum(self):
+        """
+        Sum of all SINDy coefficients in all heads of all layers.
+        """
+        with torch.no_grad():
+            sindy_sum = 0.
+            for i, layer in enumerate(self.encoder.layers):
+                for i in range(layer.self_attn.nheads):
+                    sindy_sum += torch.sqrt((torch.abs(layer.self_attn.coefficients[i].data)**2).sum())
+        return sindy_sum
+
+    def threshold_all_layers(self, threshold):
+        """
+        Threshold all SINDy coefficients in all heads of all layers.
+        """
+        for i, layer in enumerate(self.encoder.layers):
+            print(f"Layer {i}")
+            with torch.no_grad():
+                for i in range(layer.self_attn.nheads):
+                    mask = torch.abs(layer.self_attn.coefficients[i].data) > threshold
+                    layer.self_attn.coefficients[i].data *= mask
+                    print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
+            print()
+                
+        
 class SindyAttentionSindyLossTransformer(nn.Module):
     def __init__(
         self,
@@ -345,8 +368,7 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         hidden_size=10,
         poly_order=2,
         include_sine=False,
-        sindy_regularization: float = 1.0,  # Weight for SINDy loss component
-        sindy_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
+        sindy_loss_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
         dt: float = 1.0,                    # Time step for SINDy derivatives
         device='cpu',
     ):
@@ -365,8 +387,7 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         self.hidden_size = hidden_size
         self.poly_order = poly_order
         self.include_sine = include_sine
-        self.sindy_regularization = sindy_regularization
-        self.sindy_threshold = sindy_threshold
+        self.sindy_loss_threshold = sindy_loss_threshold
         self.dt = dt
         self.device = device
 
@@ -522,8 +543,27 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         total_loss = derivative_loss + first_step_loss + second_step_loss + 0.001*l2_loss
 
         return total_loss
-        
-# We use this for exact parity with the PyTorch implementation, having the same init
-# for every layer might not be necessary.
-def _get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+
+    def get_SINDy_coefficients_sum(self):
+        """
+        Sum of all SINDy coefficients in all heads of all layers.
+        """
+        with torch.no_grad():
+            sindy_sum = 0.
+            for i, layer in enumerate(self.encoder.layers):
+                for i in range(layer.self_attn.nheads):
+                    sindy_sum += torch.sqrt((torch.abs(layer.self_attn.coefficients[i].data)**2).sum())
+        return sindy_sum
+
+    def threshold_all_layers(self, threshold):
+        """
+        Threshold all SINDy coefficients in all heads of all layers.
+        """
+        for i, layer in enumerate(self.encoder.layers):
+            print(f"Layer {i}")
+            with torch.no_grad():
+                for i in range(layer.self_attn.nheads):
+                    mask = torch.abs(layer.self_attn.coefficients[i].data) > threshold
+                    layer.self_attn.coefficients[i].data *= mask
+                    print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
+            print()

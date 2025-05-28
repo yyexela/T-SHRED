@@ -103,6 +103,15 @@ def main(args=None):
     # Evaluate best validation model
     best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses, sensors = models.load_model_from_checkpoint(args.best_checkpoint_path, force_load=True, args=args)
 
+    # Threshold
+    if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+        print(f"Thresholding SINDy coefficients")
+        best_model.encoder.threshold_all_layers(args.sindy_attention_threshold)
+
+    # Print model coefficients
+    if args.verbose and args.encoder == "sindy_attention_transformer":
+        helpers.print_model_coefficients(best_model, args)
+
     # Calculate loss
     test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, scaler, args=args, use_sindy_loss=False)
     if args.verbose:
@@ -143,8 +152,11 @@ if __name__ == '__main__':
     parser.add_argument('--n_well_tracks', type=int, default=10, help="Maximum number of tracks to load from the well dataset")
     parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
     parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
-    parser.add_argument('--sindy_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification")
-    parser.add_argument('--sindy_weight', type=float, default=100, help="Weight for SINDy loss term")
+    parser.add_argument('--sindy_attention_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification (attention)")
+    parser.add_argument('--sindy_attention_threshold_epoch', type=int, default=10, help="Every n epochs to threshold SINDy coefficients (attention)")
+    parser.add_argument('--sindy_attention_weight', type=float, default=100, help="Weight for SINDy attention term")
+    parser.add_argument('--sindy_loss_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification (loss)")
+    parser.add_argument('--sindy_loss_weight', type=float, default=100, help="Weight for SINDy loss term")
     parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading checkpoint")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")

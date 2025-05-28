@@ -92,8 +92,7 @@ class MixedModel(nn.Module):
                 dropout=args.dropout,
                 poly_order=args.poly_order,
                 include_sine=args.include_sine,
-                sindy_regularization=args.sindy_weight,  # Use CLI argument
-                sindy_threshold=args.sindy_threshold,    # Use CLI argument
+                sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
                 dt=args.dt,                            # Time step for Euler integration
                 device=args.device
             )
@@ -113,8 +112,7 @@ class MixedModel(nn.Module):
                 dropout=args.dropout,
                 poly_order=args.poly_order,
                 include_sine=args.include_sine,
-                sindy_regularization=args.sindy_weight,  # Use CLI argument
-                sindy_threshold=args.sindy_threshold,    # Use CLI argument
+                sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
                 dt=args.dt,                             # Time step for Euler integration
                 device=args.device
             )
@@ -162,8 +160,7 @@ class MixedModel(nn.Module):
                 bias=True,
                 poly_order=args.poly_order,
                 include_sine=args.include_sine,
-                sindy_regularization=args.sindy_weight,  # Use CLI argument
-                sindy_threshold=args.sindy_threshold,    # Use CLI argument
+                sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
                 dt=args.dt,                              # Time step for Euler integration
                 device=args.device
             )
@@ -182,8 +179,7 @@ class MixedModel(nn.Module):
                 poly_order=args.poly_order,
                 include_sine=args.include_sine,
                 device=args.device,
-                sindy_regularization=args.sindy_weight,  # Use CLI argument
-                sindy_threshold=args.sindy_threshold,    # Use CLI argument
+                sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
                 dt=args.dt                             # Time step for Euler integration
             )
         elif args.encoder == "david_ye_transformer":

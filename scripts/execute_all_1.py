@@ -6,7 +6,7 @@ top_dir = Path(__file__).parent.parent
 
 cmd_template = \
 """\
-time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --device {device} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --generate_test_plots --verbose 2>&1 | tee {log_path}
+time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --device {device} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --generate_training_plots --generate_test_plots --verbose 2>&1 | tee {log_path}
 """
 
 # File paths
@@ -16,23 +16,23 @@ script_dir = Path(repo) / 'scripts' / 'main.py'
 log_dir = Path(repo) / 'logs'
 
 # We will iterate through every combination of these
-datasets = ["planetswe_full", "sst", "plasma"]
-encoders = ["gru", "sindy_loss_gru", "vanilla_transformer", "sindy_attention_transformer"]
-decoders = ["mlp", "unet"]
+datasets = ["planetswe_full"]
+encoders = ["sindy_attention_transformer"]
+decoders = ["unet"]
 lrs = [1e-2, 1e-3]
-poly_orders = [1]
+poly_orders = [2]
 device = "cuda:1"
 batch_size = 128
 dropout = 0.1
 early_stop = 10
 epochs = 100
-n_heads = 2
+n_heads = 4
 save_every_n_epochs = 10
 window_length = 50
 
 # These two will be zipped pairwise
-encoder_depths = [1, 2, 3, 4, 5, 6, 16, 32, 64, 128]
-decoder_depths = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+encoder_depths = [1, 2]
+decoder_depths = [1, 1]
 
 skip_count = 0
 write_count = 0
@@ -48,14 +48,11 @@ for dataset in datasets:
                             n_sensors = 5
                             hidden_size = 4
                         elif dataset in ['planetswe_full', 'planetswe_pod']:
-                            if poly_order == 2:
-                                continue
-
                             n_sensors = 50
-                            hidden_size = 100
+                            hidden_size = 8
                         else: # sst
                             n_sensors = 50
-                            hidden_size = 100
+                            hidden_size = 8
 
                         if dataset in ['planetswe_full', 'planetswe_pod']:
                             memory = 64
@@ -68,6 +65,8 @@ for dataset in datasets:
 
                         # Skip creating slurms that are completed
                         pickle_file = top_dir / 'pickles' / f'{identifier}.pkl'
+
+                        print(pickle_file)
 
                         if pickle_file.exists():
                             #print(f'Skipping {identifier}')

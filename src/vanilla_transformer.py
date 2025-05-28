@@ -5,6 +5,7 @@ from torch import Tensor
 from typing import Optional
 import torch.nn.functional as F
 from positional_encoding import PositionalEncoding
+from helpers import _get_clones
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
@@ -452,8 +453,3 @@ class TransformerDecoderLayer(nn.Module):
             x = self.norm3(x + self._ff_block(x))
 
         return x
-
-# We use this for exact parity with the PyTorch implementation, having the same init
-# for every layer might not be necessary.
-def _get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])

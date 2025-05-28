@@ -9,8 +9,7 @@ class SINDyLossGRU(nn.Module):
                  dropout:float = 0.1,
                  poly_order: int = 2,
                  include_sine: bool = False,
-                 sindy_regularization: float = 1.0,  # Weight for SINDy loss component
-                 sindy_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
+                 sindy_loss_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
                  dt: float = 1.0,                    # Time step for SINDy derivatives
                  device: str = 'cpu'
                 ):
@@ -23,8 +22,7 @@ class SINDyLossGRU(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.poly_order = poly_order
         self.include_sine = include_sine
-        self.sindy_regularization = sindy_regularization
-        self.sindy_threshold = sindy_threshold
+        self.sindy_loss_threshold = sindy_loss_threshold
         self.dt = dt
         self.device = device
 
@@ -157,8 +155,7 @@ class SINDyLossLSTM(nn.Module):
                  dropout:float = 0.1,
                  poly_order: int = 2,
                  include_sine: bool = False,
-                 sindy_regularization: float = 1.0,  # Weight for SINDy loss component
-                 sindy_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
+                 sindy_loss_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
                  dt: float = 1.0,                    # Time step for SINDy derivatives
                  device: str = 'cpu'
                 ):
@@ -171,8 +168,7 @@ class SINDyLossLSTM(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.poly_order = poly_order
         self.include_sine = include_sine
-        self.sindy_regularization = sindy_regularization
-        self.sindy_threshold = sindy_threshold
+        self.sindy_loss_threshold = sindy_loss_threshold
         self.dt = dt
         self.device = device
 

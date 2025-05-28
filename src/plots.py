@@ -45,6 +45,8 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         width_ratios = [1, 1, 0.1, 1, 0.1]
     fig = plt.figure(figsize=figsize, constrained_layout=True)
     gs = GridSpec(n_dims, 5, figure=fig, width_ratios=width_ratios, wspace=0.3)
+
+    planetswe_fields = ["$u$", "$v$", "$h$"]
     
     # Plot each dimension
     for i in range(n_dims):
@@ -56,7 +58,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         ax_pred = fig.add_subplot(gs[i, 0])
         im_pred = ax_pred.imshow(prediction[:,:,i], vmin=vmin, vmax=vmax)
         if n_dims >= 2:
-            ax_pred.set_title(f'Prediction (dim {i})')
+            ax_pred.set_title(f'Prediction (dim {i}: {planetswe_fields[i]})')
         else:
             ax_pred.set_title(f'Prediction')
         
@@ -64,7 +66,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         ax_target = fig.add_subplot(gs[i, 1])
         im_target = ax_target.imshow(target[:,:,i], vmin=vmin, vmax=vmax)
         if n_dims >= 2:
-            ax_target.set_title(f'Target (dim {i})')
+            ax_target.set_title(f'Target (dim {i}: {planetswe_fields[i]})')
         else:
             ax_target.set_title(f'Target')
 
@@ -77,7 +79,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         error = np.abs(prediction[:,:,i] - target[:,:,i])
         im_error = ax_error.imshow(error)
         if n_dims >= 2:
-            ax_error.set_title(f'Absolute Error (dim {i})')
+            ax_error.set_title(f'Absolute Error (dim {i}: {planetswe_fields[i]})')
         else:
             ax_error.set_title(f'Absolute Error')
 
@@ -216,11 +218,30 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     
     # First add dummy traces for encoders to create legend entries
     for encoder in unique_encoders:
+        encoder_name = None
+        if encoder == "lstm":
+            encoder_name = "LSTM"
+        elif encoder == "gru":
+            encoder_name = "GRU"
+        elif encoder == "sindy_loss_lstm":
+            encoder_name = "SL-LSTM"
+        elif encoder == "sindy_loss_gru":
+            encoder_name = "SL-GRU"
+        elif encoder == "vanilla_transformer":
+            encoder_name = "T"
+        elif encoder == "sindy_loss_transformer":
+            encoder_name = "SL-T"
+        elif encoder == "sindy_attention_transformer":
+            encoder_name = "SA-T"
+        elif encoder == "sindy_attention_sindy_loss_transformer":
+            encoder_name = "SASL-T"
+            
+            
         fig.add_trace(go.Scatter(
             x=[None],
             y=[None],
             mode='markers',
-            name=f'Encoder: {encoder}',
+            name=f'Encoder: {encoder_name}',
             marker=dict(
                 color="white",
                 line=dict(
@@ -234,11 +255,16 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     
     # Then add dummy traces for decoders to create legend entries
     for decoder in unique_decoders:
+        decoder_name = None
+        if decoder == "mlp":
+            decoder_name = "MLP"
+        elif decoder == "unet":
+            decoder_name = "CNN"
         fig.add_trace(go.Scatter(
             x=[None],
             y=[None],
             mode='markers',
-            name=f'Decoder: {decoder}',
+            name=f'Decoder: {decoder_name}',
             marker=dict(
                 color=decoder_color_map[decoder],
                 line=dict(
@@ -283,15 +309,23 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             ))
     
     # Update layout with log scales
+    dataset_name = None
+    if dataset == "sst":
+        dataset_name = "SST"
+    elif dataset == "planetswe_full":
+        dataset_name = "PlanetSWE"
+    elif dataset == "plasma":
+        dataset_name = "Plasma"
+        
     fig.update_layout(
-        title=f'Model Results for {dataset} Dataset' + (f' (Top {top_n})' if top_n is not None else ''),
+        title=f'{dataset_name}',
         xaxis_title='Model',
         yaxis_title='Test Loss',
         showlegend=True,
         template='plotly_white',
         hovermode='closest',
         xaxis=dict(
-            title='Model',
+            title='Top 12 Models',
             showticklabels=False
         ),
         yaxis=dict(
@@ -303,7 +337,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             title='Legend'
         ),
         height=400,
-        width=800
+        width=525
     )
     
     # Show or save the plot
