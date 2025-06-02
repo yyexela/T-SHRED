@@ -61,6 +61,10 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
             ax_pred.set_title(f'Prediction (dim {i}: {planetswe_fields[i]})')
         else:
             ax_pred.set_title(f'Prediction')
+        if dataset in ['plasma']:
+            ax_pred.set_xlabel('Features')
+            if i == 0:  # Only add y-label to first subplot in each row
+                ax_pred.set_ylabel('Time')
         
         # Target subplot
         ax_target = fig.add_subplot(gs[i, 1])
@@ -69,6 +73,8 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
             ax_target.set_title(f'Target (dim {i}: {planetswe_fields[i]})')
         else:
             ax_target.set_title(f'Target')
+        if dataset in ['plasma']:
+            ax_target.set_xlabel('Features')
 
         # Add colorbar for first two images
         cbar_ax = fig.add_subplot(gs[i, 2])
@@ -82,6 +88,8 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
             ax_error.set_title(f'Absolute Error (dim {i}: {planetswe_fields[i]})')
         else:
             ax_error.set_title(f'Absolute Error')
+        if dataset in ['plasma']:
+            ax_error.set_xlabel('Features')
 
         # Add sensor markers to error subplot
         if dataset in ["sst", "planetswe_full"]:
