@@ -7,10 +7,13 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from matplotlib.gridspec import GridSpec
 
+# Set font to Times New Roman globally
+plt.rcParams['font.family'] = 'Times New Roman'
+
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / 'figures'
 
-def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, sensors: list[tuple[int, int]], sensors_all = False, save: bool = False, fname: str = None, title_fontsize=18, label_fontsize=18, tick_fontsize=18) -> None:
+def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, sensors: list[tuple[int, int]], sensors_all = False, save: bool = False, fname: str = None, title_fontsize=20, label_fontsize=20, tick_fontsize=20) -> None:
     """
     Plot comparison between predicted and target fields using matplotlib, with one row per dimension. Ensure that each row has a single colorbar that is scaled to the minimum and maximum of the target field. Each row has a separate colorbar with a separate scale.
     
@@ -50,6 +53,8 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
     gs = GridSpec(n_dims, 5, figure=fig, width_ratios=width_ratios, wspace=0.3)
 
     planetswe_fields = ["$u$", "$v$", "$h$"]
+
+    cmap = palettable.mycarta.Cube1_20.mpl_colormap
     
     # Plot each dimension
     for i in range(n_dims):
@@ -59,7 +64,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         
         # Prediction subplot
         ax_pred = fig.add_subplot(gs[i, 0])
-        im_pred = ax_pred.imshow(prediction[:,:,i], vmin=vmin, vmax=vmax)
+        im_pred = ax_pred.imshow(prediction[:,:,i], vmin=vmin, vmax=vmax, cmap=cmap)
         if n_dims >= 2:
             ax_pred.set_title(f'Prediction (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
@@ -68,25 +73,22 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
             ax_pred.set_xlabel('Features', fontsize=label_fontsize)
             if i == 0:  # Only add y-label to first subplot in each row
                 ax_pred.set_ylabel('Time', fontsize=label_fontsize)
-        # Set ticks at extremes only
-        ax_pred.set_xticks([0, prediction.shape[1]-1])
-        ax_pred.set_yticks([0, prediction.shape[0]-1])
-        print("DING!")
-        ax_pred.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+        # Remove all ticks
+        ax_pred.set_xticks([])
+        ax_pred.set_yticks([])
         
         # Target subplot
         ax_target = fig.add_subplot(gs[i, 1])
-        im_target = ax_target.imshow(target[:,:,i], vmin=vmin, vmax=vmax)
+        im_target = ax_target.imshow(target[:,:,i], vmin=vmin, vmax=vmax, cmap=cmap)
         if n_dims >= 2:
             ax_target.set_title(f'Target (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
             ax_target.set_title(f'Target', fontsize=title_fontsize)
         if dataset in ['plasma']:
             ax_target.set_xlabel('Features', fontsize=label_fontsize)
-        # Set ticks at extremes only
-        ax_target.set_xticks([0, target.shape[1]-1])
-        ax_target.set_yticks([0, target.shape[0]-1])
-        ax_target.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+        # Remove all ticks
+        ax_target.set_xticks([])
+        ax_target.set_yticks([])
 
         # Add colorbar for first two images
         cbar_ax = fig.add_subplot(gs[i, 2])
@@ -98,17 +100,16 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         # Error subplot
         ax_error = fig.add_subplot(gs[i, 3])
         error = np.abs(prediction[:,:,i] - target[:,:,i])
-        im_error = ax_error.imshow(error)
+        im_error = ax_error.imshow(error, cmap=cmap)
         if n_dims >= 2:
             ax_error.set_title(f'Absolute Error (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
             ax_error.set_title(f'Absolute Error', fontsize=title_fontsize)
         if dataset in ['plasma']:
             ax_error.set_xlabel('Features', fontsize=label_fontsize)
-        # Set ticks at extremes only
-        ax_error.set_xticks([0, error.shape[1]-1])
-        ax_error.set_yticks([0, error.shape[0]-1])
-        ax_error.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+        # Remove all ticks
+        ax_error.set_xticks([])
+        ax_error.set_yticks([])
 
         # Add sensor markers to error subplot
         if dataset in ["sst", "planetswe_full"]:
