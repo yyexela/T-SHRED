@@ -49,12 +49,15 @@ def main(args=None):
         train_ds, val_ds, test_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
     else:
         train_ds, val_ds, test_ds, (scaler) = datasets.load_dataset(args)
-    args.d_data = train_ds[0]['input_fields'].shape[-1]
-    args.data_rows, args.data_cols = (train_ds[0]['input_fields'].shape[-3],
+    args.d_data_in = train_ds[0]['input_fields'].shape[-1]
+    args.data_rows_in, args.data_cols_in = (train_ds[0]['input_fields'].shape[-3],
                                       train_ds[0]['input_fields'].shape[-2])
-    args.d_model = args.n_sensors * args.d_data
+    args.d_data_out = train_ds[0]['output_fields'].shape[-1]
+    args.data_rows_out, args.data_cols_out = (train_ds[0]['output_fields'].shape[-3],
+                                      train_ds[0]['output_fields'].shape[-2])
+    args.d_model = args.n_sensors * args.d_data_in
     args.dim_feedforward = args.hidden_size * 4
-    args.output_size = args.data_rows*args.data_cols*args.d_data
+    args.output_size = args.data_rows_out*args.data_cols_out*args.d_data_out
 
     # Create dataloader
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)

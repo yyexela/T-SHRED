@@ -183,7 +183,7 @@ def evaluate_model(model, dl, sensors, scaler, epoch=0, args=None, use_sindy_los
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
-            outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows, w=args.data_cols, d=args.d_data)
+            outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
@@ -333,7 +333,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
-            outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows, w=args.data_cols, d=args.d_data)
+            outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)

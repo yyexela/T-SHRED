@@ -59,13 +59,13 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
         # Generate sensors
         # Handle SST differently (don't place sensors on land)
         if args.dataset == "sst":
-            sensors = helpers.generate_sensor_positions(args.n_sensors*4, args.data_rows, args.data_cols)
+            sensors = helpers.generate_sensor_positions(args.n_sensors*4, args.data_rows_in, args.data_cols_in)
             with open(data_dir / 'sst' / 'SST_zeros.pkl', 'rb') as f:
                 zeros = pickle.load(f)
             sensors = [pos for pos in sensors if (zeros[pos[0], pos[1]] == False)]
             sensors = sensors[0:args.n_sensors]
         else:
-            sensors = helpers.generate_sensor_positions(args.n_sensors, args.data_rows, args.data_cols)
+            sensors = helpers.generate_sensor_positions(args.n_sensors, args.data_rows_in, args.data_cols_in)
     print()
     return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, sensors
 

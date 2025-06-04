@@ -32,32 +32,39 @@ fig_dir = top_dir / 'figures'
 #############
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, tensors, window_length, device):
+    def __init__(self, input_tensors, output_tensors, window_length, device):
         """
         Args:
-            tensors (list of torch.Tensor): List of tensors where each tensor is
+            input_tensors (list of torch.Tensor): List of input tensors where each tensor is
                 a time series of shape (time_steps, features)
-            target (str): Column to target as the output
+            output_tensors (list of torch.Tensor): List of output tensors where each tensor is
+                a time series of shape (time_steps, features)
             window_length (int): Length of the sliding window
+            device (str): Device to move the tensors to
         """
         super().__init__()
         self.window_length = window_length
-        self.tensors = tensors
+        self.input_tensors = input_tensors
+        self.output_tensors = output_tensors
 
         # Convert tensors to torch
-        if isinstance(self.tensors[0], np.ndarray):
-            self.tensors = [torch.from_numpy(tensor) for tensor in self.tensors]
+        if isinstance(self.input_tensors[0], np.ndarray):
+            self.input_tensors = [torch.from_numpy(tensor) for tensor in self.input_tensors]
+        if isinstance(self.output_tensors[0], np.ndarray):
+            self.output_tensors = [torch.from_numpy(tensor) for tensor in self.output_tensors]
 
         # Float32 for both sensors and tensors
-        self.tensors = [tensor.float() for tensor in self.tensors]
+        self.input_tensors = [tensor.float() for tensor in self.input_tensors]
+        self.output_tensors = [tensor.float() for tensor in self.output_tensors]
 
         # Move to GPU
-        self.tensors = [tensor.to(device) for tensor in self.tensors]
+        self.input_tensors = [tensor.to(device) for tensor in self.input_tensors]
+        self.output_tensors = [tensor.to(device) for tensor in self.output_tensors]
 
         # Calculate cumulative window counts for index mapping
         self.cumulative_offsets = [0]
         current = 0
-        for tensor in self.tensors:
+        for tensor in self.input_tensors:
             L = tensor.size(0)
             n_windows = (L - window_length - 1) + 1
             n_windows = max(n_windows, 0)  # Ensure non-negative
@@ -83,10 +90,11 @@ class TimeSeriesDataset(Dataset):
         end = start + self.window_length
         target = end # because end is exclusive
 
-        tensor = self.tensors[tensor_idx]
+        input_tensor = self.input_tensors[tensor_idx]
+        output_tensor = self.output_tensors[tensor_idx]
 
-        window = tensor[start:end]
-        target = tensor[target].unsqueeze(0)
+        window = input_tensor[start:end]
+        target = output_tensor[target].unsqueeze(0)
 
         return {"input_fields": window, "output_fields": target}
 
@@ -184,8 +192,8 @@ def load_well_data_track_full(args, track = None, split = None):
         im_dims = pickle.load(f)
 
     # Create torch datasets
-    pod_ds = TimeSeriesDataset(tensors=pods, window_length=args.window_length, device=args.device)
-    full_ds = TimeSeriesDataset(tensors=fulls, window_length=args.window_length, device=args.device)
+    pod_ds = TimeSeriesDataset(input_tensors=pods, output_tensors=pods, window_length=args.window_length, device=args.device)
+    full_ds = TimeSeriesDataset(input_tensors=fulls, output_tensors=fulls, window_length=args.window_length, device=args.device)
 
     return pod_ds, full_ds, (V, scaler, im_dims)
 
@@ -208,9 +216,9 @@ def load_well_data_full(args):
         im_dims = pickle.load(f)
 
     # Create torch datasets
-    train_full_ds = TimeSeriesDataset(tensors=train_fulls, window_length=args.window_length, device=args.device)
-    valid_full_ds = TimeSeriesDataset(tensors=val_fulls, window_length=args.window_length, device=args.device)
-    test_full_ds = TimeSeriesDataset(tensors=test_fulls, window_length=args.window_length, device=args.device)
+    train_full_ds = TimeSeriesDataset(input_tensors=train_fulls, output_tensors=train_fulls, window_length=args.window_length, device=args.device)
+    valid_full_ds = TimeSeriesDataset(input_tensors=val_fulls, output_tensors=val_fulls, window_length=args.window_length, device=args.device)
+    test_full_ds = TimeSeriesDataset(input_tensors=test_fulls, output_tensors=test_fulls, window_length=args.window_length, device=args.device)
 
     return train_full_ds, valid_full_ds, test_full_ds, (V, scaler, im_dims)
 
@@ -232,8 +240,8 @@ def load_well_data_track_pod(args, track = None, split = None):
         im_dims = pickle.load(f)
 
     # Create torch datasets
-    pod_ds = TimeSeriesDataset(tensors=pods, window_length=args.window_length, device=args.device)
-    full_ds = TimeSeriesDataset(tensors=fulls, window_length=args.window_length, device=args.device)
+    pod_ds = TimeSeriesDataset(input_tensors=pods, output_tensors=pods, window_length=args.window_length, device=args.device)
+    full_ds = TimeSeriesDataset(input_tensors=fulls, output_tensors=fulls, window_length=args.window_length, device=args.device)
 
     return pod_ds, full_ds, (V, scaler, im_dims)
 
@@ -256,9 +264,9 @@ def load_well_data_pod(args):
         im_dims = pickle.load(f)
 
     # Create torch datasets
-    train_pod_ds = TimeSeriesDataset(tensors=train_pods, window_length=args.window_length, device=args.device)
-    valid_pod_ds = TimeSeriesDataset(tensors=val_pods, window_length=args.window_length, device=args.device)
-    test_pod_ds = TimeSeriesDataset(tensors=test_pods, window_length=args.window_length, device=args.device)
+    train_pod_ds = TimeSeriesDataset(input_tensors=train_pods, output_tensors=train_pods, window_length=args.window_length, device=args.device)
+    valid_pod_ds = TimeSeriesDataset(input_tensors=val_pods, output_tensors=val_pods, window_length=args.window_length, device=args.device)
+    test_pod_ds = TimeSeriesDataset(input_tensors=test_pods, output_tensors=test_pods, window_length=args.window_length, device=args.device)
 
     return train_pod_ds, valid_pod_ds, test_pod_ds, (V, scaler, im_dims)
 
@@ -287,7 +295,7 @@ def load_sst_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(tensors=[split], window_length=args.window_length, device=args.device)
+        sst_ds = TimeSeriesDataset(input_tensors=[split], output_tensors=[split], window_length=args.window_length, device=args.device)
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
@@ -321,7 +329,7 @@ def load_sst_demo_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(tensors=[split], window_length=args.window_length, device=args.device)
+        sst_ds = TimeSeriesDataset(input_tensors=[split], output_tensors=[split], window_length=args.window_length, device=args.device)
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
@@ -331,6 +339,63 @@ def load_sst_demo_data(args):
     return train_ds, valid_ds, test_ds, scaler
 
 def load_plasma_data(args):
+    # Load data
+    ne_data = sio.loadmat(plasma_dir / 'ne.mat') # (65792, 2000) = (256 * 257, 2000)
+    ne_data = ne_data['Data']
+
+    u_total = np.load(plasma_dir / 'u_total.npy') # (65792, 280)
+    s_total = np.load(plasma_dir / 's_total.npy') # (14, 20)
+    v_total = np.load(plasma_dir / 'v_total.npy') # (280, 2000)
+
+    # Switch from ne = U S V to ne * = V* S* U*
+    ne_data = ne_data.T # (2000, 256 * 257) = (2000, 65792)
+    u_total = u_total.T # (280, 2000)
+    s_total = s_total.T # (20, 14)
+    v_total = v_total.T # (2000, 280)
+
+    # Convert ne_data to image (2000, 256, 257, 1)
+    ne_data = einops.rearrange(ne_data, "t (r w d) -> t r w d", t=ne_data.shape[0], r=256, w=257, d=1)
+
+    # Convert v_total output to image (2000, 1, 280, 1)
+    v_total_output = einops.rearrange(v_total, "t (r w d) -> t r w d", t=v_total.shape[0], r=1, w=280, d=1)
+
+    # Create training, testing, and validation split
+    train_size = int(ne_data.shape[0] * 0.8)
+    val_size = int(ne_data.shape[0] * 0.1)
+    input_train, input_val, input_test = np.split(ne_data, [train_size, train_size + val_size])
+    output_train, output_val, output_test = np.split(v_total_output, [train_size, train_size + val_size])
+
+    # Convert data to pytorch
+    input_train = torch.from_numpy(input_train).float()
+    input_val = torch.from_numpy(input_val).float()
+    input_test = torch.from_numpy(input_test).float()
+
+    output_train = torch.from_numpy(output_train).float()
+    output_val = torch.from_numpy(output_val).float()
+    output_test = torch.from_numpy(output_test).float()
+
+    # Min Max Scale input data
+    # Note: u_total and v_total are all in [-1,1] already, s_total is eigenvalues and has a larger range but we can't do anything about that
+    _, scaler = min_max_scale(ne_data)
+    input_train, _ = min_max_scale(input_train, scaler=scaler)
+    input_val, _ = min_max_scale(input_val, scaler=scaler)
+    input_test, _ = min_max_scale(input_test, scaler=scaler)
+
+    # Create torch datasets
+    datasets = []
+    for i, (input_split, output_split) in enumerate([(input_train, output_train),
+                                                     (input_val, output_val),
+                                                     (input_test, output_test)]):
+        plasma_ds = TimeSeriesDataset(input_tensors=[input_split], output_tensors=[output_split], window_length=args.window_length, device=args.device)
+        datasets.append(plasma_ds)
+
+    train_ds = datasets[0]
+    valid_ds = datasets[1]
+    test_ds = datasets[2]
+
+    return train_ds, valid_ds, test_ds, scaler
+
+def load_plasma_data_old(args):
     # Load data
     plasma_data = sio.loadmat(plasma_dir / 'ne.mat') #Load file from matlab
     plasma_data = plasma_data['Data'] # Access plasma data using the data key
