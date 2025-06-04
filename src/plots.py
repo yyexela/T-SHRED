@@ -10,7 +10,7 @@ from matplotlib.gridspec import GridSpec
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / 'figures'
 
-def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, sensors: list[tuple[int, int]], sensors_all = False, save: bool = False, fname: str = None) -> None:
+def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, dataset: str, sensors: list[tuple[int, int]], sensors_all = False, save: bool = False, fname: str = None, title_fontsize=18, label_fontsize=18, tick_fontsize=18) -> None:
     """
     Plot comparison between predicted and target fields using matplotlib, with one row per dimension. Ensure that each row has a single colorbar that is scaled to the minimum and maximum of the target field. Each row has a separate colorbar with a separate scale.
     
@@ -22,6 +22,9 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         sensors_all (bool, optional): Whether to plot sensors on all plots. Defaults to False.
         save (bool, optional): Whether to save the figure to a file. Defaults to False.
         fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
+        title_fontsize (int, optional): Font size for plot titles. Defaults to 16.
+        label_fontsize (int, optional): Font size for axis labels. Defaults to 14.
+        tick_fontsize (int, optional): Font size for tick labels. Defaults to 12.
     """
     # Move tensors to CPU and convert to numpy
     prediction = prediction.cpu().detach().numpy()
@@ -58,38 +61,54 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         ax_pred = fig.add_subplot(gs[i, 0])
         im_pred = ax_pred.imshow(prediction[:,:,i], vmin=vmin, vmax=vmax)
         if n_dims >= 2:
-            ax_pred.set_title(f'Prediction (dim {i}: {planetswe_fields[i]})')
+            ax_pred.set_title(f'Prediction (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
-            ax_pred.set_title(f'Prediction')
+            ax_pred.set_title(f'Prediction', fontsize=title_fontsize)
         if dataset in ['plasma']:
-            ax_pred.set_xlabel('Features')
+            ax_pred.set_xlabel('Features', fontsize=label_fontsize)
             if i == 0:  # Only add y-label to first subplot in each row
-                ax_pred.set_ylabel('Time')
+                ax_pred.set_ylabel('Time', fontsize=label_fontsize)
+        # Set ticks at extremes only
+        ax_pred.set_xticks([0, prediction.shape[1]-1])
+        ax_pred.set_yticks([0, prediction.shape[0]-1])
+        print("DING!")
+        ax_pred.tick_params(axis='both', which='major', labelsize=tick_fontsize)
         
         # Target subplot
         ax_target = fig.add_subplot(gs[i, 1])
         im_target = ax_target.imshow(target[:,:,i], vmin=vmin, vmax=vmax)
         if n_dims >= 2:
-            ax_target.set_title(f'Target (dim {i}: {planetswe_fields[i]})')
+            ax_target.set_title(f'Target (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
-            ax_target.set_title(f'Target')
+            ax_target.set_title(f'Target', fontsize=title_fontsize)
         if dataset in ['plasma']:
-            ax_target.set_xlabel('Features')
+            ax_target.set_xlabel('Features', fontsize=label_fontsize)
+        # Set ticks at extremes only
+        ax_target.set_xticks([0, target.shape[1]-1])
+        ax_target.set_yticks([0, target.shape[0]-1])
+        ax_target.tick_params(axis='both', which='major', labelsize=tick_fontsize)
 
         # Add colorbar for first two images
         cbar_ax = fig.add_subplot(gs[i, 2])
-        plt.colorbar(im_target, cax=cbar_ax)
+        cbar = plt.colorbar(im_target, cax=cbar_ax)
+        # Set colorbar ticks at extremes only
+        cbar.set_ticks([vmin, vmax])
+        cbar.ax.tick_params(labelsize=tick_fontsize)
         
         # Error subplot
         ax_error = fig.add_subplot(gs[i, 3])
         error = np.abs(prediction[:,:,i] - target[:,:,i])
         im_error = ax_error.imshow(error)
         if n_dims >= 2:
-            ax_error.set_title(f'Absolute Error (dim {i}: {planetswe_fields[i]})')
+            ax_error.set_title(f'Absolute Error (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
-            ax_error.set_title(f'Absolute Error')
+            ax_error.set_title(f'Absolute Error', fontsize=title_fontsize)
         if dataset in ['plasma']:
-            ax_error.set_xlabel('Features')
+            ax_error.set_xlabel('Features', fontsize=label_fontsize)
+        # Set ticks at extremes only
+        ax_error.set_xticks([0, error.shape[1]-1])
+        ax_error.set_yticks([0, error.shape[0]-1])
+        ax_error.tick_params(axis='both', which='major', labelsize=tick_fontsize)
 
         # Add sensor markers to error subplot
         if dataset in ["sst", "planetswe_full"]:
@@ -103,7 +122,11 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         
         # Add colorbar for this row
         cbar_ax = fig.add_subplot(gs[i, 4])
-        plt.colorbar(im_error, cax=cbar_ax)
+        cbar = plt.colorbar(im_error, cax=cbar_ax)
+        # Set colorbar ticks at extremes only
+        error_min, error_max = error.min(), error.max()
+        cbar.set_ticks([error_min, error_max])
+        cbar.ax.tick_params(labelsize=tick_fontsize)
     
     # Remove tight_layout call since we're using constrained_layout
     if save:
@@ -184,7 +207,8 @@ def plot_losses(training_loss: list[float], validation_loss: list[float], saved_
     else:
         fig.show()
 
-def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None) -> None:
+def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None, 
+                              title_fontsize: int = 16, axes_fontsize: int = 14, legend_fontsize: int = 12) -> None:
     """
     Create a scatter plot of model results using plotly, where:
     - y-axis shows the results (test loss) on a log scale
@@ -197,6 +221,11 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         results (list[dict]): List of dictionaries containing model results and hyperparameters
         dataset (str): Name of the dataset to filter results for
         top_n (int, optional): If provided, only show the top N performing models. Defaults to None.
+        save (bool, optional): Whether to save the figure to a file. Defaults to False.
+        fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
+        title_fontsize (int, optional): Font size for the plot title. Defaults to 16.
+        axes_fontsize (int, optional): Font size for axes titles and tick labels. Defaults to 14.
+        legend_fontsize (int, optional): Font size for legend text. Defaults to 12.
     """
     # Filter results for the specified dataset
     filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset]
@@ -249,7 +278,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             x=[None],
             y=[None],
             mode='markers',
-            name=f'Encoder: {encoder_name}',
+            name=f'{encoder_name}',
             marker=dict(
                 color="white",
                 line=dict(
@@ -272,7 +301,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             x=[None],
             y=[None],
             mode='markers',
-            name=f'Decoder: {decoder_name}',
+            name=f'{decoder_name}',
             marker=dict(
                 color=decoder_color_map[decoder],
                 line=dict(
@@ -326,23 +355,64 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         dataset_name = "Plasma"
         
     fig.update_layout(
-        title=f'{dataset_name}',
+        title=dict(
+            text=f'{dataset_name}',
+            font=dict(
+                family="Times New Roman",
+                size=title_fontsize
+            )
+        ),
         xaxis_title='Model',
         yaxis_title='Test Loss',
         showlegend=True,
         template='plotly_white',
         hovermode='closest',
+        font=dict(
+            family="Times New Roman"
+        ),
         xaxis=dict(
-            title='Top 12 Models',
-            showticklabels=False
+            title=dict(
+                text='Top 12 Models',
+                font=dict(
+                    family="Times New Roman",
+                    size=axes_fontsize
+                )
+            ),
+            showticklabels=False,
+            tickfont=dict(
+                family="Times New Roman",
+                size=axes_fontsize
+            )
         ),
         yaxis=dict(
             type='log',
-            title='Test Loss',
-            exponentformat = 'E'
+            title=dict(
+                text='Test Loss',
+                font=dict(
+                    family="Times New Roman",
+                    size=axes_fontsize
+                )
+            ),
+            exponentformat='E',
+            tickformat='1.2e',
+            nticks=5,
+            tickfont=dict(
+                family="Times New Roman",
+                size=axes_fontsize
+            )
         ),
         legend=dict(
-            title='Legend'
+            title=dict(
+                text='Legend',
+                font=dict(
+                    family="Times New Roman",
+                    size=legend_fontsize
+                )
+            ),
+            font=dict(
+                family="Times New Roman",
+                size=legend_fontsize
+            )
         ),
         height=400,
         width=525
