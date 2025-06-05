@@ -62,8 +62,8 @@ def main(args=None):
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
     # Save model location
-    latest_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_p{args.poly_order}_model_latest.pt'
-    best_model_name = f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_p{args.poly_order}_model_best.pt'
+    latest_model_name = f'{args.identifier}_latest.pt'
+    best_model_name = f'{args.identifier}_best.pt'
     args.latest_checkpoint_path = checkpoint_dir / latest_model_name
     args.best_checkpoint_path = checkpoint_dir / best_model_name
 
@@ -123,7 +123,7 @@ def main(args=None):
         helpers.create_plots(best_model, test_ds, sensors, metadata, args=args)
 
     # Save pickle
-    with open(pickle_dir / f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_p{args.poly_order}.pkl', 'wb') as f:
+    with open(pickle_dir / f'{args.identifier}.pkl', 'wb') as f:
         save_dict['hyperparameters'] = vars(args)
         pickle.dump(save_dict, f)
 
