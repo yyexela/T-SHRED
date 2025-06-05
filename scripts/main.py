@@ -45,10 +45,7 @@ def main(args=None):
     random.seed(0)
 
     # Load dataset
-    if args.dataset in ["planetswe_full"]:
-        train_ds, val_ds, test_ds, (V, scaler, im_dims) = datasets.load_dataset(args)
-    else:
-        train_ds, val_ds, test_ds, (scaler) = datasets.load_dataset(args)
+    train_ds, val_ds, test_ds, metadata = datasets.load_dataset(args)
     args.d_data_in = train_ds[0]['input_fields'].shape[-1]
     args.data_rows_in, args.data_cols_in = (train_ds[0]['input_fields'].shape[-3],
                                       train_ds[0]['input_fields'].shape[-2])
@@ -94,7 +91,7 @@ def main(args=None):
         train_losses=train_losses,
         val_losses=val_losses,
         optimizer=optimizer,
-        scaler=scaler,
+        scalers=metadata['scalers'],
         args=args
     )
 
@@ -116,14 +113,14 @@ def main(args=None):
         helpers.print_model_coefficients(best_model, args)
 
     # Calculate loss
-    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, scaler, args=args, use_sindy_loss=False)
+    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata['scalers'], args=args, use_sindy_loss=False)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
     save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'sensors': sensors}
 
     # Create plots
     if args.generate_test_plots:
-        helpers.create_plots(best_model, test_ds, sensors, scaler, args=args)
+        helpers.create_plots(best_model, test_ds, sensors, metadata, args=args)
 
     # Save pickle
     with open(pickle_dir / f'{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_p{args.poly_order}.pkl', 'wb') as f:

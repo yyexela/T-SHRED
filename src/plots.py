@@ -37,17 +37,14 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
     n_dims = prediction.shape[2]
     
     # Create figure with GridSpec for better control over subplot spacing
-    if dataset in ['planetswe', 'planetswe_pod', 'planetswe_full']:
+    if dataset in ['planetswe']:
         figsize = (15, 2*n_dims)
         width_ratios = [1, 1, 0.05, 1, 0.05]
     elif dataset in ['sst']:
         figsize = (15, 2*n_dims)
         width_ratios = [1, 1, 0.05, 1, 0.05]
-    elif dataset in ['gray_scott_reaction_diffusion', 'gray_scott_reaction_diffusion_pod']:
-        figsize = (14, 4*n_dims)
-        width_ratios = [1, 1, 0.05, 1, 0.05]
     elif dataset in ['plasma']:
-        figsize = (8, 4*n_dims)
+        figsize = (8, 1.8*n_dims)
         width_ratios = [1, 1, 0.1, 1, 0.1]
     fig = plt.figure(figsize=figsize, constrained_layout=True)
     gs = GridSpec(n_dims, 5, figure=fig, width_ratios=width_ratios, wspace=0.3)
@@ -58,9 +55,9 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
     
     # Plot each dimension
     for i in range(n_dims):
-        # Get min/max for this dimension from target
-        vmin = target[:,:,i].min()
-        vmax = target[:,:,i].max()
+        # Get min/max for this dimension from both prediction and target
+        vmin = min(prediction[:,:,i].min(), target[:,:,i].min())
+        vmax = max(prediction[:,:,i].max(), target[:,:,i].max())
         
         # Prediction subplot
         ax_pred = fig.add_subplot(gs[i, 0])
@@ -69,10 +66,6 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
             ax_pred.set_title(f'Prediction (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
             ax_pred.set_title(f'Prediction', fontsize=title_fontsize)
-        if dataset in ['plasma']:
-            ax_pred.set_xlabel('Features', fontsize=label_fontsize)
-            if i == 0:  # Only add y-label to first subplot in each row
-                ax_pred.set_ylabel('Time', fontsize=label_fontsize)
         # Remove all ticks
         ax_pred.set_xticks([])
         ax_pred.set_yticks([])
@@ -84,8 +77,6 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
             ax_target.set_title(f'Target (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
             ax_target.set_title(f'Target', fontsize=title_fontsize)
-        if dataset in ['plasma']:
-            ax_target.set_xlabel('Features', fontsize=label_fontsize)
         # Remove all ticks
         ax_target.set_xticks([])
         ax_target.set_yticks([])
@@ -105,14 +96,12 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
             ax_error.set_title(f'Absolute Error (dim {i}: {planetswe_fields[i]})', fontsize=title_fontsize)
         else:
             ax_error.set_title(f'Absolute Error', fontsize=title_fontsize)
-        if dataset in ['plasma']:
-            ax_error.set_xlabel('Features', fontsize=label_fontsize)
         # Remove all ticks
         ax_error.set_xticks([])
         ax_error.set_yticks([])
 
         # Add sensor markers to error subplot
-        if dataset in ["sst", "planetswe_full"]:
+        if dataset in ["sst", "planetswe"]:
             if sensors:
                 for sensor in sensors:
                     x, y = sensor
@@ -350,7 +339,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     dataset_name = None
     if dataset == "sst":
         dataset_name = "SST"
-    elif dataset == "planetswe_full":
+    elif dataset == "planetswe":
         dataset_name = "PlanetSWE"
     elif dataset == "plasma":
         dataset_name = "Plasma"

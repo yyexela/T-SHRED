@@ -57,7 +57,7 @@ for file in slurm_dir.glob('*.slurm'):
     file.unlink()
 
 # We will iterate through every combination of these
-datasets = ["planetswe_full", "sst", "plasma"]
+datasets = ["planetswe", "sst", "plasma"]
 encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
 decoders = ["mlp", "unet"]
 lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]

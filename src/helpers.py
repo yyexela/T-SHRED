@@ -11,7 +11,7 @@ from src.plots import plot_losses, plot_field_comparison
 def get_dataset_dims(dataset):
     if dataset == "sst":
         return (180, 360, 1)
-    elif dataset == "planetswe_full":
+    elif dataset == "planetswe":
         return(256, 512, 3)
     else:
         raise NotImplementedError(f"Unknown dataset: {dataset}")
@@ -151,7 +151,7 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model(model, dl, sensors, scaler, epoch=0, args=None, use_sindy_loss=False):
+def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_loss=False):
     """
     Evaluate a PyTorch model.
     """
@@ -205,8 +205,9 @@ def evaluate_model(model, dl, sensors, scaler, epoch=0, args=None, use_sindy_los
                 outputs = outputs.detach()[0]
                 labels = labels[0]
 
-                outputs = inverse_min_max_scale(outputs, scaler)
-                labels = inverse_min_max_scale(labels, scaler)
+                for i in range(outputs.shape[2]):
+                    outputs[:,:,i] = inverse_min_max_scale(outputs[:,:,i], scalers[i])
+                    labels[:,:,i] = inverse_min_max_scale(labels[:,:,i], scalers[i])
 
                 if use_sindy_loss:
                     ident = "val"
@@ -222,22 +223,16 @@ def evaluate_model(model, dl, sensors, scaler, epoch=0, args=None, use_sindy_los
 
     return dl_loss, sindy_loss
 
-def create_plots(model, ds, sensors, scaler, args=None):
+def create_plots(model, ds, sensors, metadata, args=None):
     model.eval()
-
-    # Collect plot data
-    if args.dataset == "plasma":
-        # Collect all outputs from test trajectory
-        expected_trajectory = list()
-        output_trajectory = list()
 
     # Which timesteps to evaluate
     if args.dataset == "plasma":
-        ds_iter = range(len(ds))
-    elif args.dataset == "planetswe_full":
-        ds_iter = [0, 49]
+        ds_iter = [0, 49, 99, 149]
+    elif args.dataset == "planetswe":
+        ds_iter = [0, 24, 49]
     elif args.dataset == "sst":
-        ds_iter = [0, 89]
+        ds_iter = [0, 44, 89]
 
     with torch.no_grad():
         for i in ds_iter:
@@ -261,28 +256,32 @@ def create_plots(model, ds, sensors, scaler, args=None):
             outputs = output["output"]
 
             # Reshape output
-            outputs = einops.rearrange(outputs, '1 (r w d) -> r w d', r=args.data_rows, w=args.data_cols, d=args.d_data)
+            outputs = einops.rearrange(outputs, '1 (r w d) -> r w d', r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
 
-            if args.dataset == "plasma":
-                # Collect
-                expected_trajectory.append(labels)
-                output_trajectory.append(outputs)
-            elif args.dataset in ["sst", "planetswe_full"]:
-                # Convert back to original scale
-                outputs = inverse_min_max_scale(outputs, scaler)
-                labels = inverse_min_max_scale(labels, scaler)
+            # Convert back to original scale (except for plasma)
+            if args.dataset not in ['plasma']:
+                for i in range(outputs.shape[3]):
+                    outputs[:,:,:,i] = inverse_min_max_scale(outputs[:,:,:,i], metadata['scalers'][i])
+                    labels[:,:,:,i] = inverse_min_max_scale(labels[:,:,:,i], metadata['scalers'][i])
 
                 plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_{i}")
+            elif args.dataset in ['plasma']:
+                # For each feature ...
+                for k in range(14):
+                    # Convert from V to full space
+                    u = torch.from_numpy(metadata['u_total'][20*k:20*(k+1),:]).float().to(args.device)
+                    s = torch.from_numpy(metadata['s_total'][:,k]).float().to(args.device)
+                    v = torch.from_numpy(metadata['v_total'][:,20*k:20*(k+1)]).float().to(args.device)
 
-    if args.dataset == "plasma":
-        # Only plasma here
-        expected_trajectory = torch.cat(expected_trajectory, dim=0)
-        output_trajectory = torch.cat(output_trajectory, dim=0)
+                    true_shaped = (labels[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
+                    output_shaped = (outputs[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
 
-        # Make plot
-        plot_field_comparison(output_trajectory, expected_trajectory, args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_comparison")
+                    true_shaped = einops.rearrange(true_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
+                    output_shaped = einops.rearrange(output_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
 
-def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, scaler, args):
+                    plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_f{k+1}_full_comparison_{i}")
+
+def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, scalers, args):
     """
     Train a PyTorch model.
 
@@ -297,7 +296,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses (list): List of training losses.
         val_losses (list): List of validation losses.
         optimizer (torch.optim.Optimizer): Optimizer to use for training.
-        scaler (tuple): Tuple of (min, max) values used for scaling (for inverse transformation)
+        scalers (list): List of tuples of (min, max) values used for scaling (for inverse transformation) for each dimension
         args (argparse.Namespace): Arguments to use for training.
     """
     # Set up model, optimizer, and loss
@@ -344,8 +343,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
                 loss += sindy_loss_batch
             if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
-                sindy_sum = args.sindy_attention_weight * model.encoder.get_SINDy_coefficients_sum()
-                loss += sindy_sum
+                if args.sindy_attention_weight > 0.0:
+                    sindy_sum = args.sindy_attention_weight * model.encoder.get_SINDy_coefficients_sum()
+                    loss += sindy_sum
 
             # Backprop
             loss.backward()
@@ -360,8 +360,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 outputs = outputs.detach()[0]
                 labels = labels[0]
 
-                outputs = inverse_min_max_scale(outputs, scaler)
-                labels = inverse_min_max_scale(labels, scaler)
+                for i in range(outputs.shape[2]):
+                    outputs[:,:,i] = inverse_min_max_scale(outputs[:,:,i], scalers[i])
+                    labels[:,:,i] = inverse_min_max_scale(labels[:,:,i], scalers[i])
 
                 plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}")
 
@@ -378,7 +379,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses.append(train_loss)
 
         # Calculate validation loss
-        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, scaler=scaler, args=args, use_sindy_loss=True)
+        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, scalers=scalers, args=args, use_sindy_loss=True)
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
@@ -621,7 +622,8 @@ def create_mats_full(train, valid, test, total_tracks, debug=False):
 
     mats = []
     for i in range(len(train)):
-        data = einops.rearrange(train[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+        #data = einops.rearrange(train[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+        data = train[i]["input_fields"]
         mats.append(data)
         track_count += 1
         if track_count >= total_tracks:
@@ -630,7 +632,8 @@ def create_mats_full(train, valid, test, total_tracks, debug=False):
             break
     if track_count < total_tracks:
         for i in range(len(valid)):
-            data = einops.rearrange(valid[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+           # data = einops.rearrange(valid[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+            data = valid[i]["input_fields"]
             mats.append(data)
             track_count += 1
             if track_count >= total_tracks:
@@ -639,7 +642,8 @@ def create_mats_full(train, valid, test, total_tracks, debug=False):
                 break
     if track_count < total_tracks:
         for i in range(len(test)):
-            data = einops.rearrange(test[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+            #data = einops.rearrange(test[i]["input_fields"], "t r c d -> t (r c d)", t=n_steps, r=im_rows, c=im_cols, d=im_dim)
+            data = test[i]["input_fields"]
             mats.append(data)
             track_count += 1
             if track_count >= total_tracks:
