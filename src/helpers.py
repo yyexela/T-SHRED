@@ -260,9 +260,9 @@ def create_plots(model, ds, sensors, metadata, args=None):
 
             # Convert back to original scale (except for plasma)
             if args.dataset not in ['plasma']:
-                for i in range(outputs.shape[3]):
-                    outputs[:,:,:,i] = inverse_min_max_scale(outputs[:,:,:,i], metadata['scalers'][i])
-                    labels[:,:,:,i] = inverse_min_max_scale(labels[:,:,:,i], metadata['scalers'][i])
+                for i in range(outputs.shape[2]):
+                    outputs[:,:,i] = inverse_min_max_scale(outputs[:,:,i], metadata['scalers'][i])
+                    labels[:,:,i] = inverse_min_max_scale(labels[:,:,i], metadata['scalers'][i])
 
                 plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_{i}")
             elif args.dataset in ['plasma']:
@@ -369,7 +369,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         # Threshold if necessary
         if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
             if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_epoch == 0:
-                print(f"Thresholding SINDy coefficients")
+                print(f"Thresholding SINDy coefficients (epoch {epoch+1})")
                 model.encoder.threshold_all_layers(args.sindy_attention_threshold)
 
         # Average loss
