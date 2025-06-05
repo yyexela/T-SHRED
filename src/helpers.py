@@ -205,9 +205,9 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
                 outputs = outputs.detach()[0]
                 labels = labels[0]
 
-                for i in range(outputs.shape[2]):
-                    outputs[:,:,i] = inverse_min_max_scale(outputs[:,:,i], scalers[i])
-                    labels[:,:,i] = inverse_min_max_scale(labels[:,:,i], scalers[i])
+                for j in range(outputs.shape[2]):
+                    outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], scalers[j])
+                    labels[:,:,j] = inverse_min_max_scale(labels[:,:,j], scalers[j])
 
                 if use_sindy_loss:
                     ident = "val"
@@ -260,9 +260,9 @@ def create_plots(model, ds, sensors, metadata, args=None):
 
             # Convert back to original scale (except for plasma)
             if args.dataset not in ['plasma']:
-                for i in range(outputs.shape[2]):
-                    outputs[:,:,i] = inverse_min_max_scale(outputs[:,:,i], metadata['scalers'][i])
-                    labels[:,:,i] = inverse_min_max_scale(labels[:,:,i], metadata['scalers'][i])
+                for j in range(outputs.shape[2]):
+                    outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], metadata['scalers'][j])
+                    labels[:,:,j] = inverse_min_max_scale(labels[:,:,j], metadata['scalers'][j])
 
                 plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_{i}")
             elif args.dataset in ['plasma']:
@@ -360,9 +360,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 outputs = outputs.detach()[0]
                 labels = labels[0]
 
-                for i in range(outputs.shape[2]):
-                    outputs[:,:,i] = inverse_min_max_scale(outputs[:,:,i], scalers[i])
-                    labels[:,:,i] = inverse_min_max_scale(labels[:,:,i], scalers[i])
+                for j in range(outputs.shape[2]):
+                    outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], scalers[j])
+                    labels[:,:,j] = inverse_min_max_scale(labels[:,:,j], scalers[j])
 
                 plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}")
 
