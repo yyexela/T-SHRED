@@ -41,8 +41,8 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 
 def main(args=None):
     # Set Seed
-    torch.manual_seed(0)
-    random.seed(0)
+    torch.manual_seed(args.seed)
+    random.seed(args.seed)
 
     # Load dataset
     train_ds, val_ds, test_ds, metadata = datasets.load_dataset(args)
@@ -146,12 +146,14 @@ if __name__ == '__main__':
     parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
     parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
     parser.add_argument('--include_sine', action='store_true', help="Include sine in transformer SINDy library")
+    parser.add_argument('--job_id', type=str, required=True, help="Job ID for logging")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
     parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
     parser.add_argument('--n_sensors', type=int, default=50, help="Number of sensors")
     parser.add_argument('--n_well_tracks', type=int, default=10, help="Maximum number of tracks to load from the well dataset")
     parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
     parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
+    parser.add_argument('--seed', type=int, default=0, help="Random seed")
     parser.add_argument('--sindy_attention_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification (attention)")
     parser.add_argument('--sindy_attention_threshold_epoch', type=int, default=10, help="Every n epochs to threshold SINDy coefficients (attention)")
     parser.add_argument('--sindy_attention_weight', type=float, default=100, help="Weight for SINDy attention term")

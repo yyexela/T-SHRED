@@ -6,6 +6,7 @@ From: pytorch/pytorch:2.7.0-cuda11.8-cudnn9-runtime
 	# Update image contents to have latest python3 and pip3 for image
 	apt-get update
 	apt-get install -y vim curl
+	apt-get install msttcorefonts -qq
 	
 	# Install OmniAnomaly requirements 
     cd /app

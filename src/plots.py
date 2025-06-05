@@ -7,9 +7,6 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from matplotlib.gridspec import GridSpec
 
-# Set font to Times New Roman globally
-plt.rcParams['font.family'] = 'Times New Roman'
-
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / 'figures'
 
@@ -348,7 +345,6 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         title=dict(
             text=f'{dataset_name}',
             font=dict(
-                family="Times New Roman",
                 size=title_fontsize
             )
         ),
@@ -357,20 +353,15 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         showlegend=True,
         template='plotly_white',
         hovermode='closest',
-        font=dict(
-            family="Times New Roman"
-        ),
         xaxis=dict(
             title=dict(
                 text='Top 12 Models',
                 font=dict(
-                    family="Times New Roman",
                     size=axes_fontsize
                 )
             ),
             showticklabels=False,
             tickfont=dict(
-                family="Times New Roman",
                 size=axes_fontsize
             )
         ),
@@ -379,7 +370,6 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             title=dict(
                 text='Test Loss',
                 font=dict(
-                    family="Times New Roman",
                     size=axes_fontsize
                 )
             ),
@@ -387,7 +377,6 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             tickformat='1.2e',
             nticks=5,
             tickfont=dict(
-                family="Times New Roman",
                 size=axes_fontsize
             )
         ),
@@ -395,12 +384,10 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             title=dict(
                 text='Legend',
                 font=dict(
-                    family="Times New Roman",
                     size=legend_fontsize
                 )
             ),
             font=dict(
-                family="Times New Roman",
                 size=legend_fontsize
             )
         ),

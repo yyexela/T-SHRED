@@ -192,6 +192,7 @@ logs
 logs/
 logs/
 apptainer/apptainer.sif
+apptainer/*.sif
 datasets
 slurms/
 .python-version

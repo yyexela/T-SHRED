@@ -36,11 +36,11 @@ def main(args=None):
             print(f"  {identifier}")
         print()
             
-    if only_in_pickle:
-        print("\nIdentifiers only in pickle directory:")
-        for identifier in sorted(only_in_pickle):
-            print(f"  {identifier}")
-        print()
+    #if only_in_pickle:
+        #print("\nIdentifiers only in pickle directory:")
+        #for identifier in sorted(only_in_pickle):
+            #print(f"  {identifier}")
+        #print()
 
     if args.rerun:
         for identifier in only_in_slurm:

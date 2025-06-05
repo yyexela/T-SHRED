@@ -6,8 +6,10 @@ cmd_template = \
 """\
 #!/bin/bash
 
+job_id={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}_s{seed}
+
 #SBATCH --account=amath
-#SBATCH --partition=gpu-rtx6k
+#SBATCH --partition=ckpt-g2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
@@ -16,8 +18,8 @@ cmd_template = \
 #SBATCH --time=4-0
 #SBATCH --nice=0
 
-#SBATCH --job-name={encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}
-#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/T-SHRED/logs/{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}_%j.out
+#SBATCH --job-name="$job_id"
+#SBATCH --output=/mmfs1/home/alexeyy/storage/r4/T-SHRED/logs/"$job_id"_%j.out
 
 #SBATCH --mail-type=NONE
 #SBATCH --mail-user=alexeyy@uw.edu
@@ -40,13 +42,15 @@ lr={lr:0.2e}
 n_heads=2
 poly_order={poly_order}
 save_every_n_epochs=10
+seed={seed}
 window_length=50
 n_sensors={n_sensors}
 n_well_tracks=10
+sindy_attention_weight=0.0
 
 echo "Running Apptainer"
 
-apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --early_stop "$early_stop" --n_well_tracks "$n_well_tracks" --verbose
+apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device cuda:0 --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --device "$device" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --early_stop "$early_stop" --sindy_attention_weight "$sindy_attention_weight" --n_well_tracks "$n_well_tracks" --generate_test_plots --seed "$seed" --job_id "$job_id"
 
 echo "Finished running Apptainer"\
 """
@@ -56,44 +60,42 @@ slurm_dir = top_dir / 'slurms'
 for file in slurm_dir.glob('*.slurm'):
     file.unlink()
 
-# We will iterate through every combination of these
-datasets = ["planetswe", "sst", "plasma"]
-encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
+datasets = ["sst", "plasma"]
+encoders = ["gru", "sindy_loss_gru", "lstm", "sindy_loss_lstm", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
 decoders = ["mlp", "unet"]
-lrs = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
-poly_orders = [1]
-
-# These two will be zipped pairwise
+lrs = [1e-2, 1e-3]
 encoder_depths = [1, 2, 3, 4]
-decoder_depths = [1, 1, 1, 1]
+poly_order = 1
+device = "cuda:0"
+batch_size = 128
+dropout = 0.1
+early_stop = 10
+epochs = 100
+save_every_n_epochs = 10
+seeds = [0, 1, 2, 3, 4]
+window_length = 50
+decoder_depth = 1
 
 skip_count = 0
 write_count = 0
 total_count = 0
 
-for dataset in datasets:
-    for encoder in encoders:
-        for decoder in decoders:
-            for lr in lrs:
-                for encoder_depth, decoder_depth in zip(encoder_depths, decoder_depths):
-                    for poly_order in poly_orders:
+for seed in seeds:
+    for dataset in datasets:
+        for encoder in encoders:
+            for decoder in decoders:
+                for lr in lrs:
+                    for encoder_depth in encoder_depths:
                         if dataset == 'plasma':
-                            n_sensors = 5
-                            hidden_size = 4
-                        elif dataset in ['planetswe_full', 'planetswe_pod']:
-                            if poly_order == 2:
-                                continue
-
                             n_sensors = 50
                             hidden_size = 100
-                        else: # sst
-                            n_sensors = 50
-                            hidden_size = 100
-
-                        if dataset in ['planetswe_full', 'planetswe_pod']:
-                            memory = 64
-                        else:
+                            n_heads = 4
                             memory = 32
+                        elif dataset in ['planetswe', 'sst']:
+                            n_sensors = 50
+                            hidden_size = 100
+                            n_heads = 4
+                            memory = 64
 
                         cmd = cmd_template.format(
                             dataset=dataset,
@@ -105,7 +107,8 @@ for dataset in datasets:
                             memory=memory,
                             encoder_depth=encoder_depth,
                             decoder_depth=decoder_depth,
-                            poly_order=poly_order
+                            poly_order=poly_order,
+                            seed=seed
                         )
 
                         identifier = f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}'
@@ -116,7 +119,7 @@ for dataset in datasets:
                         pickle_file = top_dir / 'pickles' / f'{identifier}.pkl'
 
                         if pickle_file.exists():
-                            #print(f'Skipping {identifier}')
+                            print(f'Skipping {identifier}')
                             skip_count += 1
                             continue
 
