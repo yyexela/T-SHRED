@@ -220,6 +220,9 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     # Filter results for the specified dataset
     filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset]
     
+    # Filter to only include transformer encoders
+    #filtered_results = [r for r in filtered_results if 'transformer' in r['hyperparameters']['encoder']]
+    
     # Sort results by test loss (ascending)
     filtered_results.sort(key=lambda x: x.get('test_loss', x.get('test_loss_pod', None)), reverse=True)
 

@@ -214,7 +214,7 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
                 else:
                     ident = "test"
 
-                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}_{ident}")
+                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_epoch{epoch}_{ident}")
 
         # Average loss
         dl_loss /= len(dl)
@@ -264,7 +264,7 @@ def create_plots(model, ds, sensors, metadata, args=None):
                     outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], metadata['scalers'][j])
                     labels[:,:,j] = inverse_min_max_scale(labels[:,:,j], metadata['scalers'][j])
 
-                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_{i}")
+                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_{i}")
             elif args.dataset in ['plasma']:
                 # For each feature ...
                 for k in range(14):
@@ -279,7 +279,7 @@ def create_plots(model, ds, sensors, metadata, args=None):
                     true_shaped = einops.rearrange(true_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
                     output_shaped = einops.rearrange(output_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
 
-                    plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_f{k+1}_full_comparison_{i}")
+                    plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_f{k+1}_full_comparison_{i}")
 
 def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, scalers, args):
     """
@@ -364,7 +364,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                     outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], scalers[j])
                     labels[:,:,j] = inverse_min_max_scale(labels[:,:,j], scalers[j])
 
-                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_full_comparison_epoch{epoch}")
+                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_epoch{epoch}")
 
         # Threshold if necessary
         if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
@@ -441,7 +441,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             print_model_coefficients(model, args)
 
         # Make plot
-        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.encoder}_{args.decoder}_{args.dataset}_e{args.encoder_depth}_d{args.decoder_depth}_lr{args.lr:0.2e}_p{args.poly_order}_losses")
+        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.identifier}_losses")
 
     if args.verbose:
         print(f"Training complete, best validation loss: {best_val:0.4e}")
