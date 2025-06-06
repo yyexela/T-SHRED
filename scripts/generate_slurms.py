@@ -129,6 +129,7 @@ for seed in seeds:
                             n_well_tracks=n_well_tracks,
                             seed=seed,
                             identifier=identifier,
+                            partition=partition,
                         )
 
                         identifier = f'{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}_s{seed}'
