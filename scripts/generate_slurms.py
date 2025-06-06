@@ -50,6 +50,8 @@ sindy_attention_weight={sindy_attention_weight}
 
 echo "Running Apptainer"
 
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 apptainer run --nv --bind "$repo":/app/code --bind "$datasets":'/app/code/datasets' "$repo"/apptainer/apptainer.sif --dataset "$dataset" --device "$device" --encoder "$encoder" --decoder "$decoder" --decoder_depth "$decoder_depth" --dropout "$dropout" --epochs "$epochs" --save_every_n_epochs "$save_every_n_epochs" --hidden_size "$hidden_size" --lr "$lr" --n_heads "$n_heads" --poly_order "$poly_order" --batch_size "$batch_size" --encoder_depth "$encoder_depth" --window_length "$window_length" --early_stop "$early_stop" --sindy_attention_weight "$sindy_attention_weight" --n_well_tracks "$n_well_tracks" --generate_test_plots --seed "$seed" --identifier "$identifier"
 
 echo "Finished running Apptainer"\
@@ -140,7 +142,7 @@ for seed in seeds:
                         pickle_file = top_dir / 'pickles' / f'{identifier}.pkl'
 
                         if pickle_file.exists():
-                            print(f'Skipping {identifier}')
+                            #print(f'Skipping {identifier}')
                             skip_count += 1
                             continue
 
