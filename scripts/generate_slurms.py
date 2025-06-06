@@ -87,7 +87,7 @@ for seed in seeds:
                 for lr in lrs:
                     for encoder_depth in encoder_depths:
                         if dataset == 'planetswe':
-                            partition = 'gpu-rtx6k'
+                            partition = 'ckpt-g2'
                         else:
                             partition = 'ckpt-g2'
 

@@ -8,6 +8,7 @@ import torch
 import pickle
 import random
 import argparse
+import numpy as np
 from pathlib import Path
 from torch.utils.data import DataLoader
 
@@ -40,9 +41,19 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 ########
 
 def main(args=None):
-    # Set Seed
+    # Set Seed for reproducibility
     torch.manual_seed(args.seed)
     random.seed(args.seed)
+    np.random.seed(args.seed)
+    
+    # Set CUDA seeds if using GPU
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(args.seed)
+        torch.cuda.manual_seed_all(args.seed)
+    
+    # Make CuDNN deterministic for reproducibility
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     # Load dataset
     train_ds, val_ds, test_ds, metadata = datasets.load_dataset(args)
