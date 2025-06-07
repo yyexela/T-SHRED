@@ -106,7 +106,7 @@ for seed in seeds:
                             n_heads = 4
                             memory = 64
 
-                        identifier = f"{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}_s{seed}"
+                        identifier = f"{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}_s{seed}"
 
                         cmd = cmd_template.format(
                             dataset=dataset,
