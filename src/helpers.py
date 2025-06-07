@@ -735,7 +735,7 @@ def split_mats(data_list):
 
 
 
-def get_dictionaries_from_pickles(pickle_dir, early_stop=None):
+def get_dictionaries_from_pickles(pickle_dir):
     """
     Returns a list of dictionaries from all the pickles in the given directory.
     
@@ -751,12 +751,7 @@ def get_dictionaries_from_pickles(pickle_dir, early_stop=None):
         fpath = os.path.join(pickle_dir, fname)
         with open(fpath, 'rb') as f:
             data = pickle.load(f)
-            if early_stop is not None:
-                print(data)
-                if data['best_epoch'] >= early_stop:
-                    results.append(data)
-            else:
-                results.append(data)
+            results.append(data)
     return results
 
 def get_result_loss(result):

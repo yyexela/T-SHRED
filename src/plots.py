@@ -194,8 +194,7 @@ def plot_losses(training_loss: list[float], validation_loss: list[float], saved_
     else:
         fig.show()
 
-def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None, 
-                              title_fontsize: int = 16, axes_fontsize: int = 14, legend_fontsize: int = 12) -> None:
+def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None, title_fontsize: int = 16, axes_fontsize: int = 14, legend_fontsize: int = 12, reverse: bool = False) -> None:
     """
     Create a scatter plot of model results using plotly, where:
     - y-axis shows the results (test loss) on a log scale
@@ -203,6 +202,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     - colors are based on encoder and decoder combinations
     - only shows results for the specified dataset
     - optionally shows only the top N performing models
+    - groups results by model configuration (excluding seed) and shows mean with error bars
     
     Args:
         results (list[dict]): List of dictionaries containing model results and hyperparameters
@@ -213,22 +213,66 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         title_fontsize (int, optional): Font size for the plot title. Defaults to 16.
         axes_fontsize (int, optional): Font size for axes titles and tick labels. Defaults to 14.
         legend_fontsize (int, optional): Font size for legend text. Defaults to 12.
+        reverse (bool, optional): Whether to reverse the order of the models. Defaults to False.
     """
     # Filter results for the specified dataset
     filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset]
-    
+
     # Filter to only include transformer encoders
     #filtered_results = [r for r in filtered_results if 'transformer' in r['hyperparameters']['encoder']]
     
-    # Sort results by test loss (ascending)
-    filtered_results.sort(key=lambda x: x.get('test_loss', x.get('test_loss_pod', None)), reverse=True)
+    # Group results by model configuration (excluding seed)
+    from collections import defaultdict
+    model_groups = defaultdict(list)
+    
+    for r in filtered_results:
+        # Create a key from hyperparameters excluding 'seed'
+        hyperparams = r['hyperparameters'].copy()
+        hyperparams.pop('seed', None)  # Remove seed if it exists
+        
+        # Convert to a frozenset of items to make it hashable
+        key = f"{hyperparams['encoder']}_{hyperparams['decoder']}_{hyperparams['dataset']}_e{hyperparams['encoder_depth']}_d{hyperparams['decoder_depth']}_lr{hyperparams['lr']:0.2e}_p{hyperparams['poly_order']}"
 
-    # Assert to make sure filtered_results does not contain None
-    assert None not in filtered_results, "filtered_results contains None"
+        test_loss = r.get('test_loss', None)
+        
+        if test_loss is not None:
+            model_groups[key].append({
+                'test_loss': test_loss,
+                'hyperparameters': hyperparams,
+                'original_result': r
+            })
+        else:
+            raise Exception("Test loss is None for", r)
+    
+    # Calculate mean and std for each model configuration
+    aggregated_results = []
+    for i, (key, group) in enumerate(model_groups.items()):
+        test_losses = [item['test_loss'] for item in group]
+        mean_loss = np.mean(test_losses)
+
+        if i == 0:
+            print("test losses:", test_losses)
+        std_loss = np.std(test_losses) if len(test_losses) > 1 else 0.0
+        
+        # Use the hyperparameters from the first result in the group
+        hyperparams = group[0]['hyperparameters']
+        
+        aggregated_results.append({
+            'mean_test_loss': mean_loss,
+            'std_test_loss': std_loss,
+            'n_seeds': len(test_losses),
+            'hyperparameters': hyperparams
+        })
+    
+    # Sort results by mean test loss (ascending - best models first)
+    aggregated_results.sort(key=lambda x: x['mean_test_loss'], reverse=reverse)
 
     # If top_n is specified, only keep the top N models
     if top_n is not None:
-        filtered_results = filtered_results[-top_n:]
+        aggregated_results = aggregated_results[:top_n]
+    
+    # Reverse list
+    aggregated_results = aggregated_results[::-1]
     
     # Get unique encoders and decoders
     unique_encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
@@ -303,37 +347,48 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             showlegend=True
         ))
     
-    # Add actual data points
-    for r in filtered_results:
+    # Add actual data points with error bars
+    for i, r in enumerate(aggregated_results):
         encoder = r['hyperparameters']['encoder']
         encoder_depth = r['hyperparameters']['encoder_depth']
         decoder = r['hyperparameters']['decoder']
         decoder_depth = r['hyperparameters']['decoder_depth']
-        test_loss = r.get('test_loss', r.get('test_loss_pod', None))
+        mean_test_loss = r['mean_test_loss']
+        std_test_loss = r['std_test_loss']
+        n_seeds = r['n_seeds']
         
-        if test_loss is not None:
-            fig.add_trace(go.Scatter(
-                x=[filtered_results.index(r) + 1],  # Add 1 to avoid log(0)
-                y=[test_loss],
-                mode='markers',
-                name=f'{encoder}-{decoder}',
-                marker=dict(
-                    color=decoder_color_map[decoder],
-                    line=dict(
-                        color=encoder_color_map[encoder],
-                        width=4
-                    ),
-                    size=12
+        fig.add_trace(go.Scatter(
+            x=[i + 1],  # Add 1 to avoid log(0)
+            y=[mean_test_loss],
+            error_y=dict(
+                type='data',
+                array=[std_test_loss],
+                visible=True,
+                color='black',
+                thickness=1,
+                width=3
+            ),
+            mode='markers',
+            name=f'{encoder}-{decoder}',
+            marker=dict(
+                color=decoder_color_map[decoder],
+                line=dict(
+                    color=encoder_color_map[encoder],
+                    width=4
                 ),
-                hovertemplate=(
-                    f"Encoder: {encoder} (x{encoder_depth})<br>"
-                    f"Decoder: {decoder} (x{decoder_depth})<br>"
-                    f"LR: {r['hyperparameters']['lr']:.2e}<br>"
-                    f"Test Loss: {test_loss:.2e}<br>"
-                    f"<extra></extra>"
-                ),
-                showlegend=False  # Don't show these in legend
-            ))
+                size=12
+            ),
+            hovertemplate=(
+                f"Encoder: {encoder} (x{encoder_depth})<br>"
+                f"Decoder: {decoder} (x{decoder_depth})<br>"
+                f"LR: {r['hyperparameters']['lr']:.2e}<br>"
+                f"Mean Test Loss: {mean_test_loss:.2e}<br>"
+                f"Std Test Loss: {std_test_loss:.2e}<br>"
+                f"Seeds: {n_seeds}<br>"
+                f"<extra></extra>"
+            ),
+            showlegend=False  # Don't show these in legend
+        ))
     
     # Update layout with log scales
     dataset_name = None
@@ -343,6 +398,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         dataset_name = "PlanetSWE"
     elif dataset == "plasma":
         dataset_name = "Plasma"
+
+    title_prefix = "Top" if not reverse else "Bottom"
         
     fig.update_layout(
         title=dict(
@@ -358,7 +415,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         hovermode='closest',
         xaxis=dict(
             title=dict(
-                text='Top 12 Models',
+                text=f'{title_prefix} {top_n if top_n else len(aggregated_results)} Models',
                 font=dict(
                     size=axes_fontsize
                 )
@@ -394,8 +451,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
                 size=legend_fontsize
             )
         ),
-        height=400,
-        width=525
+        height=500,
+        width=500
     )
     
     # Show or save the plot
