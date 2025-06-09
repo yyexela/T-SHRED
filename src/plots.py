@@ -272,7 +272,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         aggregated_results = aggregated_results[:top_n]
     
     # Reverse list
-    aggregated_results = aggregated_results[::-1]
+    if not reverse:
+        aggregated_results = aggregated_results[::-1]
     
     # Get unique encoders and decoders
     unique_encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
