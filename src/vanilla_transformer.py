@@ -271,12 +271,11 @@ class Transformer(nn.Module):
         norm_first=False,
         bias=True,
         window_length=10,
-        hidden_size=10,
         device='cpu',
     ):
         super().__init__()
         encoder_layer = TransformerEncoderLayer(
-            hidden_size,
+            d_model,
             nhead,
             dim_feedforward,
             dropout,
@@ -287,23 +286,15 @@ class Transformer(nn.Module):
             device=device,
         )
 
-        encoder_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps, bias=bias, device=device)
+        encoder_norm = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, device=device)
         self.encoder = TransformerEncoder(
             encoder_layer, num_encoder_layers, encoder_norm
         )
 
         self.pos_encoder = PositionalEncoding(
-            d_model=hidden_size,
+            d_model=d_model,
             sequence_length=window_length + 10, # Provide some buffer
             dropout=dropout
-        )
-
-        self.input_embedding = nn.GRU(
-            input_size=d_model,
-            hidden_size=hidden_size, # GRU output matches d_model
-            num_layers=2,                 # Example: 2 GRU layers for embedding
-            batch_first=True,
-            dropout=dropout if num_encoder_layers > 1 else 0.0 # Dropout between GRU layers
         )
 
     def forward(
@@ -312,9 +303,7 @@ class Transformer(nn.Module):
         src_mask=None,
         src_is_causal=False,
     ):
-        x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
-
-        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
+        x_pos_encoded = self.pos_encoder(src) # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,

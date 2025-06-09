@@ -64,7 +64,7 @@ def main(args=None):
     args.data_rows_out, args.data_cols_out = (train_ds[0]['output_fields'].shape[-3],
                                       train_ds[0]['output_fields'].shape[-2])
     args.d_model = args.n_sensors * args.d_data_in
-    args.dim_feedforward = args.hidden_size * 4
+    args.dim_feedforward = args.d_model * 4
     args.output_size = args.data_rows_out*args.data_cols_out*args.d_data_out
 
     # Create dataloader
@@ -153,7 +153,6 @@ if __name__ == '__main__':
     parser.add_argument('--eval_full', action='store_true', help="Evaluate on full dataset (BAD FOR RAM)")
     parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
-    parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
     parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
     parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
     parser.add_argument('--include_sine', action='store_true', help="Include sine in transformer SINDy library")

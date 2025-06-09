@@ -6,7 +6,7 @@ top_dir = Path(__file__).parent.parent
 
 cmd_template = \
 """\
-time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --sindy_attention_weight {sindy_attention_weight} --n_well_tracks {n_well_tracks} --generate_test_plots --seed {seed} --identifier {identifier} 2>&1 | tee {log_path}
+time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --sindy_attention_weight {sindy_attention_weight} --n_well_tracks {n_well_tracks} --generate_test_plots --seed {seed} --identifier {identifier} --verbose 2>&1 | tee {log_path}
 """
 
 # File paths
@@ -17,16 +17,16 @@ log_dir = Path(repo) / 'logs'
 
 # We will iterate through every combination of these
 datasets = ["planetswe"]
-encoders = ["gru", "lstm", "vanilla_transformer", "sindy_attention_transformer"]
-decoders = ["mlp", "unet"]
-lrs = [1e-2, 1e-3]
-encoder_depths = [1, 2, 3, 4]
+encoders = ["vanilla_transformer", "gru"]
+decoders = ["mlp"]
+lrs = [1e-3]
+encoder_depths = [1]
 poly_order = 1
 device = "cuda:1"
 batch_size = 128
 dropout = 0.1
 early_stop = 10
-epochs = 100
+epochs = 200
 save_every_n_epochs = 10
 seeds = [0, 1, 2, 3, 4]
 window_length = 50
@@ -51,12 +51,10 @@ for seed in seeds:
 
                         if dataset == 'plasma':
                             n_sensors = 50
-                            hidden_size = 100
-                            n_heads = 4
+                            n_heads = 10
                         elif dataset in ['planetswe', 'sst']:
                             n_sensors = 50
-                            hidden_size = 100
-                            n_heads = 4
+                            n_heads = 10
 
                         identifier = f"{encoder}_{decoder}_{dataset}_e{encoder_depth}_d{decoder_depth}_lr{lr:0.2e}_p{poly_order}_s{seed}"
 
@@ -89,7 +87,6 @@ for seed in seeds:
                             save_every_n_epochs=save_every_n_epochs,
                             window_length=window_length,
                             lr=lr,
-                            hidden_size=hidden_size,
                             n_sensors=n_sensors,
                             sindy_attention_weight=sindy_attention_weight,
                             log_path=log_path,

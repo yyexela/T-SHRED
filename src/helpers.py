@@ -763,7 +763,7 @@ def print_model_coefficients(model, args):
         print(f"Layer {i}:")
         for j in range(args.n_heads):
             print(f"Head {j}:")
-            for k in range(args.hidden_size // args.n_heads):
+            for k in range(args.d_model // args.n_heads):
                 print(f"Hidden layer {k}:")
                 output_str = ""
                 for l in range(len(library)):

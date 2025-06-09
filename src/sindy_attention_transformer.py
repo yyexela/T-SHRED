@@ -136,7 +136,7 @@ class MultiHeadSindyAttention(nn.Module):
         for i in range(self.nheads):
             # Extract head
             head = attn_output[:,i,:,:]
-            # Reshape src for sindy_library (batch_size * seq_len, hidden_size/nheads)
+            # Reshape src for sindy_library (batch_size * seq_len, d_model/nheads)
             head = einops.rearrange(head, 'b s h -> (b s) h', b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
             # Calculate SINDy library features
             library_Theta = sindy_library_torch(head, self.E_head, self.poly_order, self.include_sine)
@@ -144,7 +144,7 @@ class MultiHeadSindyAttention(nn.Module):
             # effective_coefficients = self.coefficients * self.coefficient_mask.to(self.coefficients.device) # Ensure mask is on correct device
             ############################## Simplified SINDy update (without mask) #############################
             sindy_update = library_Theta @ self.coefficients[i]
-            # Reshape update back to (batch_size, seq_len, hidden_size)
+            # Reshape update back to (batch_size, seq_len, d_model)
             sindy_update = einops.rearrange(sindy_update, '(b s) h -> b s h', b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
             sindy_attn_output.append(sindy_update)
         sindy_attn_output = torch.stack(sindy_attn_output, dim=1)
@@ -266,14 +266,13 @@ class SindyAttentionTransformer(nn.Module):
         norm_first=False,
         bias=True,
         window_length=10,
-        hidden_size=10,
         poly_order=2,
         include_sine=False,
         device='cpu',
     ):
         super().__init__()
         encoder_layer = TransformerSindyEncoderLayer(
-            hidden_size,
+            d_model,
             nhead,
             dim_feedforward,
             dropout,
@@ -286,23 +285,15 @@ class SindyAttentionTransformer(nn.Module):
             include_sine=include_sine,
         )
 
-        encoder_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps, bias=bias, device=device)
+        encoder_norm = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, device=device)
         self.encoder = TransformerSindyEncoder(
             encoder_layer, num_encoder_layers, encoder_norm
         )
 
         self.pos_encoder = PositionalEncoding(
-            d_model=hidden_size,
+            d_model=d_model,
             sequence_length=window_length + 10, # Provide some buffer
             dropout=dropout
-        )
-
-        self.input_embedding = nn.GRU(
-            input_size=d_model,
-            hidden_size=hidden_size, # GRU output matches d_model
-            num_layers=2,                 # Example: 2 GRU layers for embedding
-            batch_first=True,
-            dropout=dropout if num_encoder_layers > 1 else 0.0 # Dropout between GRU layers
         )
 
     def forward(
@@ -311,9 +302,7 @@ class SindyAttentionTransformer(nn.Module):
         src_mask=None,
         src_is_causal=False,
     ):
-        x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
-
-        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
+        x_pos_encoded = self.pos_encoder(src) # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,
@@ -365,7 +354,6 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         norm_first=False,
         bias=True,
         window_length=10,
-        hidden_size=10,
         poly_order=2,
         include_sine=False,
         sindy_loss_threshold: float = 0.05,      # Threshold for SINDy coefficient sparsification
@@ -384,7 +372,6 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         self.norm_first = norm_first
         self.bias = bias
         self.window_length = window_length
-        self.hidden_size = hidden_size
         self.poly_order = poly_order
         self.include_sine = include_sine
         self.sindy_loss_threshold = sindy_loss_threshold
@@ -392,7 +379,7 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         self.device = device
 
         encoder_layer = TransformerSindyEncoderLayer(
-            hidden_size,
+            d_model,
             nhead,
             dim_feedforward,
             dropout,
@@ -405,34 +392,26 @@ class SindyAttentionSindyLossTransformer(nn.Module):
             include_sine=include_sine,
         )
 
-        encoder_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps, bias=bias, device=device)
+        encoder_norm = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, device=device)
         self.encoder = TransformerSindyEncoder(
             encoder_layer, num_encoder_layers, encoder_norm
         )
 
         self.pos_encoder = PositionalEncoding(
-            d_model=hidden_size,
+            d_model=d_model,
             sequence_length=window_length + 10, # Provide some buffer
             dropout=dropout
         )
 
-        self.input_embedding = nn.GRU(
-            input_size=d_model,
-            hidden_size=hidden_size, # GRU output matches d_model
-            num_layers=2,                 # Example: 2 GRU layers for embedding
-            batch_first=True,
-            dropout=dropout if num_encoder_layers > 1 else 0.0 # Dropout between GRU layers
-        )
-
         # SINDy components
-        self.library_dim = calculate_library_dim(hidden_size, poly_order, include_sine)
+        self.library_dim = calculate_library_dim(d_model, poly_order, include_sine)
         
         # SINDy coefficients (learnable parameters)
-        self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, hidden_size))
+        self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, d_model))
         nn.init.xavier_uniform_(self.coefficients, gain=0.0000000)  # Initialize with small values
         
         # Coefficient mask for thresholding (not learnable, used for sparsification)
-        self.register_buffer('coefficient_mask', torch.ones(self.library_dim, hidden_size))
+        self.register_buffer('coefficient_mask', torch.ones(self.library_dim, d_model))
 
     def forward(
         self,
@@ -440,9 +419,7 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         src_mask=None,
         src_is_causal=False,
     ):
-        x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
-
-        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
+        x_pos_encoded = self.pos_encoder(src) # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,
@@ -464,33 +441,33 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         For each time step (t0 to t1), we integrate in two steps (t0 to t0.5, then t0.5 to t1).
         
         Args:
-            x: Transformed sequence of shape (batch_size, sequence_length, hidden_size)
+            x: Transformed sequence of shape (batch_size, sequence_length, d_model)
             
         Returns:
             torch.Tensor: SINDy regularization loss
         """
-        batch_size, seq_len, hidden_size = x.shape
+        batch_size, seq_len, d_model = x.shape
         
         # We need to compare: h_t -> h_{t+1} and h_{t+1} -> h_{t+2}
-        h_t = x[:, :-2, :]          # (batch_size, seq_len-2, hidden_size)
-        h_t_next = x[:, 1:-1, :]    # (batch_size, seq_len-2, hidden_size)
-        h_t_next2 = x[:, 2:, :]     # (batch_size, seq_len-2, hidden_size)
+        h_t = x[:, :-2, :]          # (batch_size, seq_len-2, d_model)
+        h_t_next = x[:, 1:-1, :]    # (batch_size, seq_len-2, d_model)
+        h_t_next2 = x[:, 2:, :]     # (batch_size, seq_len-2, d_model)
         
         # Compute observed derivatives using explicit dt
-        h_dot_observed = (h_t_next - h_t) / self.dt  # (batch_size, seq_len-2, hidden_size)
+        h_dot_observed = (h_t_next - h_t) / self.dt  # (batch_size, seq_len-2, d_model)
         
         # Reshape for SINDy library computation
-        h_t_flat = h_t.reshape(-1, hidden_size)  # (batch_size*(seq_len-2), hidden_size)
+        h_t_flat = h_t.reshape(-1, d_model)  # (batch_size*(seq_len-2), d_model)
         
         # Compute SINDy library features for h_t
-        library_theta_t = sindy_library_torch(h_t_flat, hidden_size, self.poly_order, self.include_sine)
+        library_theta_t = sindy_library_torch(h_t_flat, d_model, self.poly_order, self.include_sine)
         
         # Apply coefficient mask (for sparsity)
         effective_coefficients = self.coefficients * self.coefficient_mask
         
         # Calculate SINDy derivative predictions for h_t
         h_dot_pred = library_theta_t @ effective_coefficients
-        h_dot_pred = h_dot_pred.reshape(batch_size, seq_len-2, hidden_size)
+        h_dot_pred = h_dot_pred.reshape(batch_size, seq_len-2, d_model)
         
         # Calculate loss between SINDy derivative predictions and observed derivatives
         derivative_loss = torch.mean((h_dot_pred - h_dot_observed) ** 2)
@@ -502,10 +479,10 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         h_t_mid_pred = h_t + h_dot_pred * half_dt
         
         # Step 2: Compute derivatives at the midpoint h_{t+0.5}
-        h_t_mid_flat = h_t_mid_pred.reshape(-1, hidden_size)
-        library_theta_mid = sindy_library_torch(h_t_mid_flat, hidden_size, self.poly_order, self.include_sine)
+        h_t_mid_flat = h_t_mid_pred.reshape(-1, d_model)
+        library_theta_mid = sindy_library_torch(h_t_mid_flat, d_model, self.poly_order, self.include_sine)
         h_dot_mid_pred = library_theta_mid @ effective_coefficients
-        h_dot_mid_pred = h_dot_mid_pred.reshape(batch_size, seq_len-2, hidden_size)
+        h_dot_mid_pred = h_dot_mid_pred.reshape(batch_size, seq_len-2, d_model)
         
         # Step 3: Second half-step - use midpoint derivatives to predict h_{t+1}
         h_t_next_pred = h_t_mid_pred + h_dot_mid_pred * half_dt  # Use full dt but with midpoint derivatives
@@ -516,19 +493,19 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         # ---------- Repeat the process for the next time step (t+1 to t+2) ----------
         
         # Step 5: Compute derivatives at predicted h_{t+1}
-        h_t_next_flat = h_t_next_pred.reshape(-1, hidden_size)
-        library_theta_next = sindy_library_torch(h_t_next_flat, hidden_size, self.poly_order, self.include_sine)
+        h_t_next_flat = h_t_next_pred.reshape(-1, d_model)
+        library_theta_next = sindy_library_torch(h_t_next_flat, d_model, self.poly_order, self.include_sine)
         h_dot_next_pred = library_theta_next @ effective_coefficients
-        h_dot_next_pred = h_dot_next_pred.reshape(batch_size, seq_len-2, hidden_size)
+        h_dot_next_pred = h_dot_next_pred.reshape(batch_size, seq_len-2, d_model)
         
         # Step 6: First half-step from h_{t+1} - predict h_{t+1.5}
         h_t_next_mid_pred = h_t_next_pred + h_dot_next_pred * half_dt
         
         # Step 7: Compute derivatives at the midpoint h_{t+1.5}
-        h_t_next_mid_flat = h_t_next_mid_pred.reshape(-1, hidden_size)
-        library_theta_next_mid = sindy_library_torch(h_t_next_mid_flat, hidden_size, self.poly_order, self.include_sine)
+        h_t_next_mid_flat = h_t_next_mid_pred.reshape(-1, d_model)
+        library_theta_next_mid = sindy_library_torch(h_t_next_mid_flat, d_model, self.poly_order, self.include_sine)
         h_dot_next_mid_pred = library_theta_next_mid @ effective_coefficients
-        h_dot_next_mid_pred = h_dot_next_mid_pred.reshape(batch_size, seq_len-2, hidden_size)
+        h_dot_next_mid_pred = h_dot_next_mid_pred.reshape(batch_size, seq_len-2, d_model)
         
         # Step 8: Second half-step - use midpoint derivatives to predict h_{t+2}
         h_t_next2_pred = h_t_next_mid_pred + h_dot_next_mid_pred * half_dt  # Use full dt but with midpoint derivatives

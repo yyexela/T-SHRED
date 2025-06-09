@@ -1,1 +1,1 @@
-__all__ = ['datasets', 'models', 'transformer_model', 'helpers', 'vanilla_transformer', 'david_ye_vanilla_transformer', 'sindy_attention_transformer', 'mars_sindy_attention_transformer', 'sindy_loss_transformer', 'sindy_loss_rnns', 'rnns', 'decoders', 'positional_encoding', 'plots']
+__all__ = ['datasets', 'models', 'transformer_model', 'helpers', 'vanilla_transformer', 'sindy_attention_transformer', 'sindy_loss_transformer', 'sindy_loss_rnns', 'rnns', 'decoders', 'positional_encoding', 'plots']
