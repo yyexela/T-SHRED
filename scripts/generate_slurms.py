@@ -64,7 +64,7 @@ for file in slurm_dir.glob('*.slurm'):
 
 datasets = ["planetswe", "sst", "plasma"]
 encoders = ["gru", "sindy_loss_gru", "lstm", "sindy_loss_lstm", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
-decoders = ["mlp", "unet"]
+decoders = ["mlp", "cnn"]
 lrs = [1e-2, 1e-3]
 encoder_depths = [1, 2, 3, 4]
 poly_order = 1

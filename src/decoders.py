@@ -46,7 +46,7 @@ class MLP(nn.Module):
             "sindy_loss": sindy_loss
         }
 
-class UNET(nn.Module):
+class CNN(nn.Module):
     def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
         super().__init__()
         # Class variables

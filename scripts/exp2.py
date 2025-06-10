@@ -18,7 +18,7 @@ log_dir = Path(repo) / 'logs'
 # We will iterate through every combination of these
 datasets = ["sst", "plasma", "planetswe"]
 encoders = ["sindy_attention_transformer"]
-decoders = ["mlp", "unet"]
+decoders = ["mlp", "cnn"]
 lrs = [1e-3]
 encoder_depths = [2]
 poly_order = 1

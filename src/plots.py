@@ -277,7 +277,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     
     # Get unique encoders and decoders
     unique_encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
-    unique_decoders = ["mlp", "unet"]
+    unique_decoders = ["mlp", "cnn"]
     
     # Create color mappings
     encoder_colors = palettable.cartocolors.qualitative.Prism_8.hex_colors
@@ -330,7 +330,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         decoder_name = None
         if decoder == "mlp":
             decoder_name = "MLP"
-        elif decoder == "unet":
+        elif decoder == "cnn":
             decoder_name = "CNN"
         fig.add_trace(go.Scatter(
             x=[None],

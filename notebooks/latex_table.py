@@ -26,7 +26,7 @@ pickle_dir = top_dir / 'pickles'
 # We will iterate through every combination of these
 datasets = ["sst", "plasma", "planetswe_pod", "gray_scott_reaction_diffusion_pod"]
 encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
-decoders = ["mlp", "unet"]
+decoders = ["mlp", "cnn"]
 lrs = [f"lr{i:0.2e}" for i in [1e-2, 1e-3, 1e-4, 1e-5]]
 
 # These two will be zipped pairwise

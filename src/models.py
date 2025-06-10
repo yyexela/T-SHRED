@@ -11,7 +11,7 @@ from sindy_attention_transformer import SindyAttentionTransformer, SindyAttentio
 from sindy_loss_transformer import SINDyLossTransformer
 from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
 from rnns import GRU, LSTM
-from decoders import MLP, UNET
+from decoders import MLP, CNN
 
 from src import helpers
 
@@ -210,8 +210,8 @@ class MixedModel(nn.Module):
         else:
             raise NotImplementedError(f"Encoder {args.encoder} not implemented")
         
-        if args.decoder == "unet":
-            self.decoder = UNET(
+        if args.decoder == "cnn":
+            self.decoder = CNN(
                 in_dim = args.hidden_size,
                 out_dim = args.output_size,
                 n_layers = args.decoder_depth,

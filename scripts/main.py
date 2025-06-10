@@ -143,7 +143,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
     parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (active_matter, active_matter_pod, planetswe, planetswe_pod, sst, sst_demo, plasma)")
-    parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (unet, mlp)")
+    parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (cnn, mlp)")
     parser.add_argument('--decoder_depth', type=int, default=2, help="Number of decoder layers")
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
     parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
