@@ -8,6 +8,7 @@ from vanilla_transformer import Transformer
 from david_ye_vanilla_transformer import TRANSFORMER
 from mars_sindy_attention_transformer import TRANSFORMER_SINDY
 from sindy_attention_transformer import SindyAttentionTransformer, SindyAttentionSindyLossTransformer
+from sindy_attention_transformer_rollout import SindyAttentionTransformerRollout
 from sindy_loss_transformer import SINDyLossTransformer
 from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
 from rnns import GRU, LSTM
@@ -73,7 +74,7 @@ class MixedModel(nn.Module):
     """
     Main function to generate mixes of models
     """
-    def __init__(self, args): # Added SINDy params
+    def __init__(self, args):
         super().__init__()
 
         if args.encoder == "gru":
@@ -134,6 +135,23 @@ class MixedModel(nn.Module):
             self.encoder = SindyAttentionTransformer(
                 d_model=args.d_model,
                 nhead=args.n_heads,
+                dim_feedforward=args.dim_feedforward,
+                dropout=args.dropout,
+                activation=nn.GELU(),
+                hidden_size=args.hidden_size,
+                window_length=args.window_length,
+                num_encoder_layers=args.encoder_depth,
+                layer_norm_eps=1e-5,
+                bias=True,
+                poly_order=args.poly_order,
+                include_sine=args.include_sine,
+                device=args.device
+            )
+        elif args.encoder == "sindy_attention_transformer_rollout":
+            self.encoder = SindyAttentionTransformerRollout(
+                d_model=args.d_model,
+                nhead=args.n_heads,
+                forecast_length=args.forecast_length,
                 dim_feedforward=args.dim_feedforward,
                 dropout=args.dropout,
                 activation=nn.GELU(),

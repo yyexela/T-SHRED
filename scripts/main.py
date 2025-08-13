@@ -153,6 +153,7 @@ if __name__ == '__main__':
     parser.add_argument('--eval_full', action='store_true', help="Evaluate on full dataset (BAD FOR RAM)")
     parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
+    parser.add_argument('--forecast_length', type=int, default=1, help="Number of timesteps to forecast (sindy_attention_transformer_rollout only)")
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
     parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
     parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
