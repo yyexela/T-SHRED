@@ -229,10 +229,13 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
     # Which timesteps to evaluate
     if args.dataset == "plasma":
         ds_iter = [0]
+        forecast_length_plot = 50
     elif args.dataset == "planetswe":
         ds_iter = [0]
+        forecast_length_plot = 50
     elif args.dataset == "sst":
         ds_iter = [0]
+        forecast_length_plot = 50
 
     with torch.no_grad():
         for i in ds_iter:
@@ -251,7 +254,9 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
             input_sensors = einops.rearrange(input_sensors, 'w n d -> 1 w (n d)')
 
             # Pass data through model
+            model.encoder.encoder.layers[0].self_attn.forecast_length = forecast_length_plot
             output = model(input_sensors)
+            model.encoder.encoder.layers[0].self_attn.forecast_length = args.forecast_length
 
             outputs = output["output"]
 
@@ -262,10 +267,15 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
             if args.dataset not in ['plasma']:
                 for j in range(outputs.shape[3]):
                     outputs[...,j] = inverse_min_max_scale(outputs[...,j], metadata['scalers'][j])
-                    labels[...,j] = inverse_min_max_scale(labels[...,j], metadata['scalers'][j])
 
                 for j in range(outputs.shape[0]):
-                    plot_field_comparison(outputs[j], labels[j], dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_ds{i}_r{j}")
+                    tmp_label = ds[i + j]['output_fields'][0, :, :, :]
+                    tmp_label.to(outputs[j].device)
+
+                    for k in range(outputs.shape[3]):
+                        tmp_label[...,k] = inverse_min_max_scale(tmp_label[...,k], metadata['scalers'][k]) 
+
+                    plot_field_comparison(outputs[j], tmp_label, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_ds{i}_r{j}")
             elif args.dataset in ['plasma']:
                 # For each feature ...
                 for k in range(14):
