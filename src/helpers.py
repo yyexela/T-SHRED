@@ -163,7 +163,7 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
     with torch.no_grad():
         for i, batch in enumerate(dl):
             # Get raw data
-            inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
+            inputs, labels = batch["input_fields"], batch["output_fields"]
             if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
                 inputs, labels = inputs.to(args.device), labels.to(args.device)
 
@@ -183,7 +183,7 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
-            outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+            outputs = einops.rearrange(outputs, 'b n (r w d) -> b n r w d', n=outputs.shape[1], b=outputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
@@ -256,7 +256,7 @@ def create_plots(model, ds, sensors, metadata, args=None):
             outputs = output["output"]
 
             # Reshape output
-            outputs = einops.rearrange(outputs, '1 (r w d) -> r w d', r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+            outputs = einops.rearrange(outputs, '1 1 (r w d) -> r w d', r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
 
             # Convert back to original scale (except for plasma)
             if args.dataset not in ['plasma']:
@@ -311,7 +311,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
         for i, batch in enumerate(train_dl):
             # Get raw data
-            inputs, labels = batch["input_fields"], batch["output_fields"][:,0,:,:,:]
+            inputs, labels = batch["input_fields"], batch["output_fields"]
             if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
                 inputs, labels = inputs.to(args.device), labels.to(args.device)
 
@@ -332,7 +332,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
-            outputs = einops.rearrange(outputs, 'b (r w d) -> b r w d', b=inputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+            # Default is 128 x 64800
+            # Expected is 2 x 128 x 64800
+            outputs = einops.rearrange(outputs, 'b n (r w d) -> b n r w d', n=outputs.shape[1], b=outputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)

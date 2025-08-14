@@ -1,4 +1,5 @@
 import torch
+import einops
 import torch.nn as nn
 
 class GRU(nn.Module):
@@ -32,10 +33,11 @@ class GRU(nn.Module):
 
         out = self.dropout(out)
         h_out = self.dropout(h_out)
+        h_out = einops.rearrange(h_out, 'r b d -> b r d')
 
         return {
-            "sequence_output": out,
-            "final_hidden_state": h_out[-1].view(-1, self.hidden_size)
+            "sequence_output": out, # [batch_size, sequence_length, d_model]
+            "final_hidden_state": h_out # [batch_size, rollout, d_model]
         }
 
 class LSTM(nn.Module):
@@ -67,9 +69,10 @@ class LSTM(nn.Module):
 
         out = self.dropout(out)
         h_out = self.dropout(h_out)
+        h_out = einops.rearrange(h_out, 'r b d -> b r d')
 
         return {
             "sequence_output": out,
-            "final_hidden_state": h_out[-1].view(-1, self.hidden_size),
+            "final_hidden_state": h_out,
             "sindy_loss": None
         }

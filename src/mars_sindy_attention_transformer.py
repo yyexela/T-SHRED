@@ -1,4 +1,5 @@
 import torch
+import einops
 import torch.nn as nn
 from positional_encoding import PositionalEncoding
 from helpers import calculate_library_dim, sindy_library_torch
@@ -7,7 +8,7 @@ class TRANSFORMER_SINDY(nn.Module):
     def __init__(self, d_model: int = 128, dropout: float = 0.05,
                  poly_order: int = 1, include_sine: bool = False,
                  num_sindy_layers: int = 2, dim_feedforward: int = 128,
-                 window_length: int = 500,
+                 input_length: int = 500,
                  hidden_size: int = 64,
                  activation=nn.GELU(),
                  device:str='cpu'): # Added SINDy params
@@ -19,7 +20,7 @@ class TRANSFORMER_SINDY(nn.Module):
         self.poly_order = poly_order
         self.include_sine = include_sine
         self.num_sindy_layers = num_sindy_layers
-        self.window_length = window_length
+        self.input_length = input_length
         self.device = device
 
         # Store config for layers
@@ -33,12 +34,12 @@ class TRANSFORMER_SINDY(nn.Module):
             "include_sine": include_sine
         }
 
-        self.initialize(self.d_model, self.window_length)
+        self.initialize(self.d_model, self.input_length)
 
-    def initialize(self, d_model:int, window_length:int, **kwargs):
+    def initialize(self, d_model:int, input_length:int, **kwargs):
         self.pos_encoder = PositionalEncoding(
             d_model=self.hidden_size,
-            sequence_length=window_length + 10, # Provide some buffer
+            sequence_length=input_length + 10, # Provide some buffer
             dropout=self.dropout
         )
 
@@ -73,10 +74,13 @@ class TRANSFORMER_SINDY(nn.Module):
         # dropout layer
         x = self.dropout_layer(x)
 
+        # reshape output
+        x = einops.rearrange(x, 'b s d -> b 1 s d')
+
         # Return dictionary format as before
         return {
-            "sequence_output": x, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": x[:,-1,:], # last timestep hidden state [batch_size, d_model]
+            "sequence_output": x, # [batch_size, rollout, sequence_length, d_model]
+            "final_hidden_state": x[:,:,-1,:], # last timestep hidden state [batch_size, rollout, d_model]
             "sindy_loss": None
         }
 

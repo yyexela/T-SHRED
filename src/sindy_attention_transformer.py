@@ -265,7 +265,7 @@ class SindyAttentionTransformer(nn.Module):
         layer_norm_eps=1e-5,
         norm_first=False,
         bias=True,
-        window_length=10,
+        input_length=10,
         hidden_size=10,
         poly_order=2,
         include_sine=False,
@@ -293,7 +293,7 @@ class SindyAttentionTransformer(nn.Module):
 
         self.pos_encoder = PositionalEncoding(
             d_model=hidden_size,
-            sequence_length=window_length + 10, # Provide some buffer
+            sequence_length=input_length + 10, # Provide some buffer
             dropout=dropout
         )
 
@@ -321,9 +321,12 @@ class SindyAttentionTransformer(nn.Module):
             is_causal=src_is_causal,
         )
 
+        # reshape output
+        transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
+
         return {
-            "sequence_output": transformer_output, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, -1, :], # Last timestep [batch_size, d_model]
+            "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
+            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
             "sindy_loss": None
         }
 
@@ -364,7 +367,7 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         layer_norm_eps=1e-5,
         norm_first=False,
         bias=True,
-        window_length=10,
+        input_length=10,
         hidden_size=10,
         poly_order=2,
         include_sine=False,
@@ -383,7 +386,7 @@ class SindyAttentionSindyLossTransformer(nn.Module):
         self.layer_norm_eps = layer_norm_eps
         self.norm_first = norm_first
         self.bias = bias
-        self.window_length = window_length
+        self.input_length = input_length
         self.hidden_size = hidden_size
         self.poly_order = poly_order
         self.include_sine = include_sine
@@ -412,7 +415,7 @@ class SindyAttentionSindyLossTransformer(nn.Module):
 
         self.pos_encoder = PositionalEncoding(
             d_model=hidden_size,
-            sequence_length=window_length + 10, # Provide some buffer
+            sequence_length=input_length + 10, # Provide some buffer
             dropout=dropout
         )
 
@@ -452,9 +455,12 @@ class SindyAttentionSindyLossTransformer(nn.Module):
 
         sindy_loss = self.compute_sindy_loss(transformer_output)
 
+        # reshape output
+        transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
+
         return {
-            "sequence_output": transformer_output, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, -1, :], # Last timestep [batch_size, d_model]
+            "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
+            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
             "sindy_loss": sindy_loss
         }
 

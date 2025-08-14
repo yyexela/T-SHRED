@@ -58,7 +58,7 @@ class SINDyLossGRU(nn.Module):
 
         return {
             "sequence_output": out,
-            "final_hidden_state": h_out[-1].view(-1, self.hidden_size),
+            "final_hidden_state": h_out,
             "sindy_loss": sindy_loss
         }
 
@@ -205,7 +205,7 @@ class SINDyLossLSTM(nn.Module):
 
         return {
             "sequence_output": out,
-            "final_hidden_state": h_out[-1].view(-1, self.hidden_size),
+            "final_hidden_state": h_out,
             "sindy_loss": sindy_loss
         }
 

@@ -1,4 +1,5 @@
 import torch
+import einops
 import torch.nn as nn
 from positional_encoding import PositionalEncoding
 from helpers import calculate_library_dim, sindy_library_torch
@@ -17,7 +18,7 @@ class SINDyLossTransformer(nn.Module):
         dropout: float = 0.1,
         activation: nn.Module = nn.GELU(),
         hidden_size: int = 64,
-        window_length: int = 10,
+        input_length: int = 10,
         num_encoder_layers: int = 3,
         layer_norm_eps: float = 1e-5,
         bias: bool = True,
@@ -35,7 +36,7 @@ class SINDyLossTransformer(nn.Module):
         self.poly_order = poly_order
         self.include_sine = include_sine
         self.num_encoder_layers = num_encoder_layers
-        self.window_length = window_length
+        self.input_length = input_length
         self.device = device
         self.sindy_loss_threshold = sindy_loss_threshold
         self.dt = dt  # Time step for Euler integration
@@ -62,7 +63,7 @@ class SINDyLossTransformer(nn.Module):
         # Position encoding
         self.pos_encoder = PositionalEncoding(
             d_model=hidden_size,
-            sequence_length=window_length + 10,  # Provide some buffer
+            sequence_length=input_length + 10,  # Provide some buffer
             dropout=dropout
         )
         
@@ -106,10 +107,12 @@ class SINDyLossTransformer(nn.Module):
 
         # Calculate SINDy loss
         sindy_loss = self.compute_sindy_loss(x_transformed)
+
+        x_transformed = einops.rearrange(x_transformed, 'b s d -> b 1 s d')
         
         return {
-            "sequence_output": x_transformed,  # [batch_size, sequence_length, hidden_size]
-            "final_hidden_state": x_transformed[:, -1, :],  # last timestep [batch_size, hidden_size]
+            "sequence_output": x_transformed,  # [batch_size, rollout, sequence_length, hidden_size]
+            "final_hidden_state": x_transformed[:, :, -1, :],  # last timestep [batch_size, rollout, hidden_size]
             "sindy_loss": sindy_loss  # SINDy regularization loss
         }
     

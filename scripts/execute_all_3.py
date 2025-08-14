@@ -6,7 +6,7 @@ top_dir = Path(__file__).parent.parent
 
 cmd_template = \
 """\
-time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --device {device} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --sindy_attention_weight {sindy_attention_weight} --generate_test_plots 2>&1 | tee {log_path}
+time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --device {device} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --input_length {input_length} --early_stop {early_stop} --sindy_attention_weight {sindy_attention_weight} --generate_test_plots 2>&1 | tee {log_path}
 """
 
 # File paths
@@ -28,7 +28,7 @@ dropout = 0.1
 early_stop = 10
 epochs = 100
 save_every_n_epochs = 10
-window_length = 50
+input_length = 50
 decoder_depth = 1
 sindy_attention_weight = 0.0
 
@@ -81,7 +81,7 @@ for dataset in datasets:
                         n_heads=n_heads,
                         poly_order=poly_order,
                         save_every_n_epochs=save_every_n_epochs,
-                        window_length=window_length,
+                        input_length=input_length,
                         lr=lr,
                         hidden_size=hidden_size,
                         n_sensors=n_sensors,

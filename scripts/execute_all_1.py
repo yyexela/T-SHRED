@@ -6,7 +6,7 @@ top_dir = Path(__file__).parent.parent
 
 cmd_template = \
 """\
-time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --window_length {window_length} --early_stop {early_stop} --sindy_attention_weight {sindy_attention_weight} --n_well_tracks {n_well_tracks} --generate_test_plots --seed {seed} --identifier {identifier} 2>&1 | tee {log_path}
+time python -u {script_dir} --dataset {dataset} --device {device} --encoder {encoder} --decoder {decoder} --decoder_depth {decoder_depth} --dropout {dropout} --epochs {epochs} --save_every_n_epochs {save_every_n_epochs} --hidden_size {hidden_size} --lr {lr} --n_heads {n_heads} --poly_order {poly_order} --batch_size {batch_size} --encoder_depth {encoder_depth} --input_length {input_length} --early_stop {early_stop} --sindy_attention_weight {sindy_attention_weight} --n_well_tracks {n_well_tracks} --generate_test_plots --seed {seed} --identifier {identifier} 2>&1 | tee {log_path}
 """
 
 # File paths
@@ -29,7 +29,7 @@ early_stop = 10
 epochs = 100
 save_every_n_epochs = 10
 seeds = [0, 1, 2, 3, 4]
-window_length = 50
+input_length = 50
 decoder_depth = 1
 sindy_attention_weight = 0.0
 n_well_tracks = 10
@@ -87,7 +87,7 @@ for seed in seeds:
                             n_heads=n_heads,
                             poly_order=poly_order,
                             save_every_n_epochs=save_every_n_epochs,
-                            window_length=window_length,
+                            input_length=input_length,
                             lr=lr,
                             hidden_size=hidden_size,
                             n_sensors=n_sensors,

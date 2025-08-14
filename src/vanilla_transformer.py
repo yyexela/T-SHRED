@@ -1,5 +1,6 @@
 import copy
 import torch
+import einops
 import torch.nn as nn
 from torch import Tensor
 from typing import Optional
@@ -270,7 +271,7 @@ class Transformer(nn.Module):
         layer_norm_eps=1e-5,
         norm_first=False,
         bias=True,
-        window_length=10,
+        input_length=10,
         hidden_size=10,
         device='cpu',
     ):
@@ -294,7 +295,7 @@ class Transformer(nn.Module):
 
         self.pos_encoder = PositionalEncoding(
             d_model=hidden_size,
-            sequence_length=window_length + 10, # Provide some buffer
+            sequence_length=input_length + 10, # Provide some buffer
             dropout=dropout
         )
 
@@ -322,9 +323,11 @@ class Transformer(nn.Module):
             is_causal=src_is_causal,
         )
 
+        transformer_output = einops.rearrange(transformer_output, 'b s d -> 1 b s d')
+
         return {
-            "sequence_output": transformer_output, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, -1, :], # Last timestep [batch_size, d_model]
+            "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
+            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
             "sindy_loss": None
         }
         

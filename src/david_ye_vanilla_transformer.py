@@ -1,4 +1,5 @@
 import torch
+import einops
 import torch.nn as nn
 from positional_encoding import PositionalEncoding
 
@@ -10,7 +11,7 @@ class TRANSFORMER(nn.Module):
     def __init__(self, d_model: int = 128, nhead: int = 8, # nhead=16 was high for d_model=128, using 8
                  num_encoder_layers: int = 1, dim_feedforward: int = 256, # Often 4*d_model
                  dropout: float = 0.2, activation = nn.GELU(),
-                 window_length: int = 10, hidden_size: int = 10, device:str='cpu'):
+                 input_length: int = 10, hidden_size: int = 10, device:str='cpu'):
         super().__init__()
         self.d_model = d_model
         self.nhead = nhead
@@ -18,7 +19,7 @@ class TRANSFORMER(nn.Module):
         self.dim_feedforward = dim_feedforward
         self.dropout = dropout
         self.dropout_layer = nn.Dropout(dropout)
-        self.window_length = window_length
+        self.input_length = input_length
         self.hidden_size = hidden_size
         self.device = device
 
@@ -58,7 +59,7 @@ class TRANSFORMER(nn.Module):
         # Note: max_sequence_length in PositionalEncoding should be >= lags
         self.pos_encoder = PositionalEncoding(
             d_model=self.hidden_size,
-            sequence_length=self.window_length + 10, # Provide some buffer
+            sequence_length=self.input_length + 10, # Provide some buffer
             dropout=self.dropout
         )
 
@@ -114,9 +115,12 @@ class TRANSFORMER(nn.Module):
         # 5. Apply dropout
         transformer_output = self.dropout_layer(transformer_output)
 
-        # 5. Prepare Output
+        # 6. Reshape output
+        transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
+
+        # 7. Prepare Output
         return {
-            "sequence_output": transformer_output, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, -1, :], # Last timestep [batch_size, d_model]
+            "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
+            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
             "sindy_loss": None
         }

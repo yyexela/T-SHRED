@@ -170,7 +170,7 @@ class MultiHeadSindyAttention(nn.Module):
 
             #sindy_update = library_Theta @ self.coefficients[i]
             # Reshape update back to (batch_size, seq_len, hidden_size)
-            rollout = einops.rearrange(rollout, 'n (b s) h -> n b s h', n=self.forecast_length, b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
+            rollout = einops.rearrange(rollout, 'n (b s) h -> b n s h', n=self.forecast_length, b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
             sindy_attn_output.append(rollout)
         sindy_attn_output = torch.stack(sindy_attn_output, dim=2)
 
@@ -293,7 +293,7 @@ class SindyAttentionTransformerRollout(nn.Module):
         layer_norm_eps=1e-5,
         norm_first=False,
         bias=True,
-        window_length=10,
+        input_length=10,
         hidden_size=10,
         poly_order=2,
         include_sine=False,
@@ -322,7 +322,7 @@ class SindyAttentionTransformerRollout(nn.Module):
 
         self.pos_encoder = PositionalEncoding(
             d_model=hidden_size,
-            sequence_length=window_length + 10, # Provide some buffer
+            sequence_length=input_length + 10, # Provide some buffer
             dropout=dropout
         )
 
@@ -351,8 +351,8 @@ class SindyAttentionTransformerRollout(nn.Module):
         )
 
         return {
-            "sequence_output": transformer_output, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, -1, :], # Last timestep [batch_size, d_model]
+            "sequence_output": transformer_output, # [rollout, batch_size, sequence_length, d_model]
+            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
             "sindy_loss": None
         }
 

@@ -173,7 +173,7 @@ if __name__ == '__main__':
     parser.add_argument('--sindy_loss_weight', type=float, default=100, help="Weight for SINDy loss term")
     parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading checkpoint")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
-    parser.add_argument('--window_length', type=int, default=10, help="Dataset window length")
+    parser.add_argument('--input_length', type=int, default=10, help="Dataset window length")
     args = parser.parse_args()
 
     main(args)
