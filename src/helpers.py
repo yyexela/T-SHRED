@@ -223,7 +223,66 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
 
     return dl_loss, sindy_loss
 
-def create_plots(model, ds, sensors, metadata, args=None):
+def create_far_out_plots(model, ds, sensors, metadata, args=None):
+    model.eval()
+
+    # Which timesteps to evaluate
+    if args.dataset == "plasma":
+        ds_iter = [0]
+    elif args.dataset == "planetswe":
+        ds_iter = [0]
+    elif args.dataset == "sst":
+        ds_iter = [0]
+
+    with torch.no_grad():
+        for i in ds_iter:
+            # Get raw data
+            inputs, labels = ds[i]["input_fields"], ds[i]["output_fields"]
+            if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
+                inputs, labels = inputs.to(args.device), labels.to(args.device)
+
+            # Extract sensors per input tensor
+            input_sensors = []
+            for sensor in sensors:
+                input_sensors.append(inputs[:,sensor[0],sensor[1],:])
+            input_sensors = torch.stack(input_sensors, dim=2)
+    
+            # Prepare input for model
+            input_sensors = einops.rearrange(input_sensors, 'w n d -> 1 w (n d)')
+
+            # Pass data through model
+            output = model(input_sensors)
+
+            outputs = output["output"]
+
+            # Reshape output
+            outputs = einops.rearrange(outputs, '1 n (r w d) -> n r w d', n = outputs.shape[1], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+
+            # Convert back to original scale (except for plasma)
+            if args.dataset not in ['plasma']:
+                for j in range(outputs.shape[3]):
+                    outputs[...,j] = inverse_min_max_scale(outputs[...,j], metadata['scalers'][j])
+                    labels[...,j] = inverse_min_max_scale(labels[...,j], metadata['scalers'][j])
+
+                for j in range(outputs.shape[0]):
+                    plot_field_comparison(outputs[j], labels[j], dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_ds{i}_r{j}")
+            elif args.dataset in ['plasma']:
+                # For each feature ...
+                for k in range(14):
+                    # Convert from V to full space
+                    u = torch.from_numpy(metadata['u_total'][20*k:20*(k+1),:]).float().to(args.device)
+                    s = torch.from_numpy(metadata['s_total'][:,k]).float().to(args.device)
+                    v = torch.from_numpy(metadata['v_total'][:,20*k:20*(k+1)]).float().to(args.device)
+
+                    true_shaped = (labels[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
+                    output_shaped = (outputs[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
+
+                    true_shaped = einops.rearrange(true_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
+                    output_shaped = einops.rearrange(output_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
+
+                    plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_f{k+1}_full_comparison_{i}")
+
+def create_next_step_plots(model, ds, sensors, metadata, args=None):
     model.eval()
 
     # Which timesteps to evaluate
@@ -322,6 +381,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             input_sensors = torch.stack(input_sensors, dim=2)
 
             # Prepare input for model
+            # n is number of sensors
             input_sensors = einops.rearrange(input_sensors, 'b w n d -> b w (n d)')
 
             # Pass data through model
@@ -332,8 +392,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
-            # Default is 128 x 64800
-            # Expected is 2 x 128 x 64800
+            # n is number of rollout steps
             outputs = einops.rearrange(outputs, 'b n (r w d) -> b n r w d', n=outputs.shape[1], b=outputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
 
             # Calculate loss

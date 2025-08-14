@@ -249,7 +249,9 @@ class TransformerSindyEncoderLayer(nn.Module):
             x = x + self._sa_block(self.norm1(x), src_mask, is_causal)
             x = x + self._ff_block(self.norm2(x))
         else:
-            x = self.norm1(x + self._sa_block(x, src_mask, is_causal))
+            out_1 = self._sa_block(x, src_mask, is_causal)
+            out_2 = out_1 + x.unsqueeze(1).expand_as(out_1)
+            x = self.norm1(out_2)
             x = self.norm2(x + self._ff_block(x))
         return x
 

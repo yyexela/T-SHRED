@@ -157,9 +157,9 @@ def load_well_data(args):
         scalers = pickle.load(f)
 
     # Create torch datasets
-    train_full_ds = TimeSeriesDataset(input_tensors=train_fulls, input_length=args.input_length, device=args.device)
-    valid_full_ds = TimeSeriesDataset(input_tensors=val_fulls, input_length=args.input_length, device=args.device)
-    test_full_ds = TimeSeriesDataset(input_tensors=test_fulls, input_length=args.input_length, device=args.device)
+    train_full_ds = TimeSeriesDataset(input_tensors=train_fulls, input_length=args.input_length, output_length=args.forecast_length, device=args.device)
+    valid_full_ds = TimeSeriesDataset(input_tensors=val_fulls, input_length=args.input_length, output_length=args.forecast_length, device=args.device)
+    test_full_ds = TimeSeriesDataset(input_tensors=test_fulls, input_length=args.input_length, output_length=args.forecast_length, device=args.device)
 
     return train_full_ds, valid_full_ds, test_full_ds, {'scalers': scalers}
 
@@ -188,7 +188,7 @@ def load_sst_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(input_tensors=[split], input_length=args.input_length, device=args.device)
+        sst_ds = TimeSeriesDataset(input_tensors=[split], input_length=args.input_length, output_length=args.forecast_length, device=args.device)
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
@@ -222,7 +222,7 @@ def load_sst_demo_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(input_tensors=[split], input_length=args.input_length, device=args.device)
+        sst_ds = TimeSeriesDataset(input_tensors=[split], input_length=args.input_length, output_length=args.forecast_length, device=args.device)
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
@@ -279,7 +279,7 @@ def load_plasma_data(args):
     for i, (input_split, output_split) in enumerate([(input_train, output_train),
                                                      (input_val, output_val),
                                                      (input_test, output_test)]):
-        plasma_ds = TimeSeriesDataset(input_tensors=[input_split], output_tensors=[output_split], input_length=args.input_length, device=args.device)
+        plasma_ds = TimeSeriesDataset(input_tensors=[input_split], output_tensors=[output_split], input_length=args.input_length, output_length=args.forecast_length, device=args.device)
         datasets.append(plasma_ds)
 
     train_ds = datasets[0]

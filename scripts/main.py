@@ -131,7 +131,10 @@ def main(args=None):
 
     # Create plots
     if args.generate_test_plots:
-        helpers.create_plots(best_model, test_ds, sensors, metadata, args=args)
+        if not args.encoder == "sindy_attention_transformer_rollout":
+            helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
+        else:
+            helpers.create_far_out_plots(best_model, test_ds, sensors, metadata, args=args)
 
     # Save pickle
     with open(pickle_dir / f'{args.identifier}.pkl', 'wb') as f:
