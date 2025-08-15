@@ -117,7 +117,7 @@ def main(args=None):
     best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors = models.load_model_from_checkpoint(args.best_checkpoint_path, force_load=True, args=args)
 
     # Threshold
-    if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+    if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
         print(f"Thresholding SINDy coefficients")
         best_model.encoder.threshold_all_layers(args.sindy_attention_threshold)
 
@@ -133,7 +133,7 @@ def main(args=None):
 
     # Create plots
     if args.generate_test_plots:
-        if not args.encoder == "sindy_attention_transformer_rollout":
+        if not args.encoder in ["sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
             helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
         else:
             model_eigvs = np.asarray(model_eigvs)
@@ -177,7 +177,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=0, help="Random seed")
     parser.add_argument('--sindy_attention_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification (attention)")
     parser.add_argument('--sindy_attention_threshold_epoch', type=int, default=10, help="Every n epochs to threshold SINDy coefficients (attention)")
-    parser.add_argument('--sindy_attention_weight', type=float, default=100, help="Weight for SINDy attention term")
+    parser.add_argument('--sindy_attention_weight', type=float, default=0.0, help="Weight for SINDy attention term")
     parser.add_argument('--sindy_loss_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification (loss)")
     parser.add_argument('--sindy_loss_weight', type=float, default=100, help="Weight for SINDy loss term")
     parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading checkpoint")

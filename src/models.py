@@ -164,6 +164,27 @@ class MixedModel(nn.Module):
                 bias=True,
                 poly_order=args.poly_order,
                 include_sine=args.include_sine,
+                sindy_loss=False,
+                dt=args.dt,
+                device=args.device
+            )
+        elif args.encoder == "sindy_attention_sindy_loss_transformer_rollout":
+            self.encoder = SindyAttentionTransformerRollout(
+                d_model=args.d_model,
+                nhead=args.n_heads,
+                forecast_length=args.forecast_length,
+                dim_feedforward=args.dim_feedforward,
+                dropout=args.dropout,
+                activation=nn.GELU(),
+                hidden_size=args.hidden_size,
+                input_length=args.input_length,
+                num_encoder_layers=args.encoder_depth,
+                layer_norm_eps=1e-5,
+                bias=True,
+                poly_order=args.poly_order,
+                include_sine=args.include_sine,
+                sindy_loss=True,
+                dt=args.dt,
                 device=args.device
             )
         elif args.encoder == "sindy_attention_sindy_loss_transformer":

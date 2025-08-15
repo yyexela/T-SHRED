@@ -299,9 +299,16 @@ class SindyAttentionTransformerRollout(nn.Module):
         hidden_size=10,
         poly_order=2,
         include_sine=False,
+        sindy_loss=False,
+        dt=1.0,
         device='cpu',
     ):
         super().__init__()
+
+        self.sindy_loss = sindy_loss
+        self.dt = dt
+        self.poly_order = poly_order
+        self.include_sine = include_sine
 
         if num_encoder_layers > 1:
             raise ValueError("num_encoder_layers must be 1 for SindyAttentionTransformerRollout")
@@ -339,6 +346,17 @@ class SindyAttentionTransformerRollout(nn.Module):
             batch_first=True,
             dropout=dropout if num_encoder_layers > 1 else 0.0 # Dropout between GRU layers
         )
+        
+        if self.sindy_loss:
+            # SINDy components
+            self.library_dim = calculate_library_dim(hidden_size, poly_order, include_sine)
+            
+            # SINDy coefficients (learnable parameters)
+            self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, hidden_size))
+            nn.init.xavier_uniform_(self.coefficients, gain=0.0000000)  # Initialize with small values
+            
+            # Coefficient mask for thresholding (not learnable, used for sparsification)
+            self.register_buffer('coefficient_mask', torch.ones(self.library_dim, hidden_size))
 
     def forward(
         self,
@@ -356,11 +374,99 @@ class SindyAttentionTransformerRollout(nn.Module):
             is_causal=src_is_causal,
         )
 
+        sindy_loss = self.compute_sindy_loss(transformer_output) if self.sindy_loss else None
+
         return {
             "sequence_output": transformer_output, # [rollout, batch_size, sequence_length, d_model]
             "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
-            "sindy_loss": None
+            "sindy_loss": sindy_loss
         }
+    
+    def compute_sindy_loss(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate SINDy loss based on derivatives with a midpoint integration method.
+        For each time step (t0 to t1), we integrate in two steps (t0 to t0.5, then t0.5 to t1).
+        
+        Args:
+            x: Transformed sequence of shape (batch_size, sequence_length, hidden_size)
+            
+        Returns:
+            torch.Tensor: SINDy regularization loss
+        """
+        rollout_size, batch_size, seq_len, hidden_size = x.shape
+        
+        # We need to compare: h_t -> h_{t+1} and h_{t+1} -> h_{t+2}
+        h_t = x[:, :, :-2, :]          # (rollout_size, batch_size, seq_len-2, hidden_size)
+        h_t_next = x[:, :, 1:-1, :]    # (rollout_size, batch_size, seq_len-2, hidden_size)
+        h_t_next2 = x[:, :, 2:, :]     # (rollout_size, batch_size, seq_len-2, hidden_size)
+        
+        # Compute observed derivatives using explicit dt
+        h_dot_observed = (h_t_next - h_t) / self.dt  # (rollout_size, batch_size, seq_len-2, hidden_size)
+        
+        # Reshape for SINDy library computation
+        h_t_flat = h_t.reshape(-1, hidden_size)  # (rollout_size*batch_size*(seq_len-2), hidden_size)
+        
+        # Compute SINDy library features for h_t
+        library_theta_t = sindy_library_torch(h_t_flat, hidden_size, self.poly_order, self.include_sine)
+        
+        # Apply coefficient mask (for sparsity)
+        effective_coefficients = self.coefficients * self.coefficient_mask
+        
+        # Calculate SINDy derivative predictions for h_t
+        h_dot_pred = library_theta_t @ effective_coefficients
+        h_dot_pred = h_dot_pred.reshape(rollout_size, batch_size, seq_len-2, hidden_size)
+        
+        # Calculate loss between SINDy derivative predictions and observed derivatives
+        derivative_loss = torch.mean((h_dot_pred - h_dot_observed) ** 2)
+        
+        # ---------- Two-step integration within one time step (midpoint method) ----------
+        
+        # Step 1: First half-step - predict h_{t+0.5} using Euler forward
+        half_dt = self.dt / 2.0
+        h_t_mid_pred = h_t + h_dot_pred * half_dt
+        
+        # Step 2: Compute derivatives at the midpoint h_{t+0.5}
+        h_t_mid_flat = h_t_mid_pred.reshape(-1, hidden_size)
+        library_theta_mid = sindy_library_torch(h_t_mid_flat, hidden_size, self.poly_order, self.include_sine)
+        h_dot_mid_pred = library_theta_mid @ effective_coefficients
+        h_dot_mid_pred = h_dot_mid_pred.reshape(rollout_size, batch_size, seq_len-2, hidden_size)
+        
+        # Step 3: Second half-step - use midpoint derivatives to predict h_{t+1}
+        h_t_next_pred = h_t_mid_pred + h_dot_mid_pred * half_dt  # Use full dt but with midpoint derivatives
+        
+        # Step 4: Compute prediction loss for first time step
+        first_step_loss = torch.mean((h_t_next_pred - h_t_next) ** 2)
+        
+        # ---------- Repeat the process for the next time step (t+1 to t+2) ----------
+        
+        # Step 5: Compute derivatives at predicted h_{t+1}
+        h_t_next_flat = h_t_next_pred.reshape(-1, hidden_size)
+        library_theta_next = sindy_library_torch(h_t_next_flat, hidden_size, self.poly_order, self.include_sine)
+        h_dot_next_pred = library_theta_next @ effective_coefficients
+        h_dot_next_pred = h_dot_next_pred.reshape(rollout_size, batch_size, seq_len-2, hidden_size)
+        
+        # Step 6: First half-step from h_{t+1} - predict h_{t+1.5}
+        h_t_next_mid_pred = h_t_next_pred + h_dot_next_pred * half_dt
+        
+        # Step 7: Compute derivatives at the midpoint h_{t+1.5}
+        h_t_next_mid_flat = h_t_next_mid_pred.reshape(-1, hidden_size)
+        library_theta_next_mid = sindy_library_torch(h_t_next_mid_flat, hidden_size, self.poly_order, self.include_sine)
+        h_dot_next_mid_pred = library_theta_next_mid @ effective_coefficients
+        h_dot_next_mid_pred = h_dot_next_mid_pred.reshape(rollout_size, batch_size, seq_len-2, hidden_size)
+        
+        # Step 8: Second half-step - use midpoint derivatives to predict h_{t+2}
+        h_t_next2_pred = h_t_next_mid_pred + h_dot_next_mid_pred * half_dt  # Use full dt but with midpoint derivatives
+        
+        # Step 9: Compute prediction loss for second time step
+        second_step_loss = torch.mean((h_t_next2_pred - h_t_next2) ** 2)
+        
+        # Add L1 regularization for sparsity
+        l2_loss = torch.mean(torch.square(effective_coefficients))
+        
+        # Combine all losses
+        total_loss = derivative_loss + first_step_loss + second_step_loss + 0.001*l2_loss
+
+        return total_loss
 
     def get_SINDy_coefficients_sum(self):
         """

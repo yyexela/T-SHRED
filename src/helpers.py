@@ -414,7 +414,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             if sindy_loss_batch is not None:
                 sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
                 loss += sindy_loss_batch
-            if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+            if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
                 if args.sindy_attention_weight > 0.0:
                     sindy_sum = args.sindy_attention_weight * model.encoder.get_SINDy_coefficients_sum()
                     loss += sindy_sum
@@ -439,7 +439,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_epoch{epoch}")
 
         # Threshold if necessary
-        if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+        if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
             if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_epoch == 0:
                 print(f"Thresholding SINDy coefficients (epoch {epoch+1})")
                 model.encoder.threshold_all_layers(args.sindy_attention_threshold)
@@ -517,7 +517,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             pass
 
         # Collect model eigenvalues
-        if args.encoder == 'sindy_attention_transformer_rollout':
+        if args.encoder in ['sindy_attention_transformer_rollout', 'sindy_attention_sindy_loss_transformer_rollout']:
             model_eigvs_epoch = get_model_coefficient_eigenvalues(model, args)
             model_eigvs.append(model_eigvs_epoch)
 
