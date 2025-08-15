@@ -32,7 +32,15 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
     print("Checking if checkpoint exists")
     if (not args.skip_load_checkpoint or force_load) and checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+        coefficient_params = [p for name, p in model.named_parameters() if 'self_attn.coefficients' in name]
+        other_params = [p for name, p in model.named_parameters() if 'self_attn.coefficients' not in name]
+
+        optimizer = torch.optim.Adam([
+            {'params': coefficient_params, 'lr': args.lr*100},
+            {'params': other_params, 'lr': args.lr}
+        ], lr=args.lr)
+
         model.load_state_dict(checkpoint['model_state_dict'])
         model.to(args.device)
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -54,7 +62,15 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
         start_epoch = 0
         best_val = float('inf')
         model.to(args.device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+        coefficient_params = [p for name, p in model.named_parameters() if 'self_attn.coefficients' in name]
+        other_params = [p for name, p in model.named_parameters() if 'self_attn.coefficients' not in name]
+
+        optimizer = torch.optim.Adam([
+            {'params': coefficient_params, 'lr': args.lr*10},
+            {'params': other_params, 'lr': args.lr}
+        ], lr=args.lr)
+
         train_losses = []
         val_losses = []
         model_eigvs = []
