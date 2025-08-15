@@ -465,3 +465,103 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         fig.show()
     else:
         fig.show()
+
+def plot_eigvs(eigvs_np, save: bool = False, fname: str = None) -> None:
+    """
+    Plot eigenvalue trajectories in the complex plane using matplotlib. eigvs_np is a numpy array of shape [steps, terms], 
+    where steps is the number of time steps and terms is the number of different eigenvalues being tracked.
+    The x-axis represents the real component and y-axis represents the imaginary component of eigenvalues.
+    Time evolution is shown through color: first time step in green, last in red, intermediate in blue.
+    Each eigenvalue term is connected with a trajectory line.
+    
+    Args:
+        eigvs_np (np.ndarray): Array of complex eigenvalues with shape [steps, terms]
+        save (bool, optional): Whether to save the figure to a file. Defaults to False.
+        fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
+    """
+    # Convert to numpy array for easier handling
+    eigvs_array = np.array(eigvs_np)
+    
+    # Ensure we have a 2D array
+    if eigvs_array.ndim == 1:
+        eigvs_array = eigvs_array.reshape(-1, 1)
+    
+    steps, terms = eigvs_array.shape
+    
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Extract real and imaginary parts
+    real_parts = np.real(eigvs_array)
+    imag_parts = np.imag(eigvs_array)
+    
+    # Generate colors for time evolution (green -> blue -> red)
+    time_colors = []
+    if steps == 1:
+        time_colors = ['green']
+    elif steps == 2:
+        time_colors = ['green', 'red']
+    else:
+        # First green, last red, intermediate blue
+        time_colors = ['green'] + ['blue'] * (steps - 2) + ['red']
+    
+    # Plot each eigenvalue trajectory
+    for i in range(terms):
+        # Get trajectory for this eigenvalue term
+        real_traj = real_parts[:, i]
+        imag_traj = imag_parts[:, i]
+        
+        # Plot trajectory line connecting all time steps for this eigenvalue
+        ax.plot(real_traj, imag_traj, 
+                color='gray', linewidth=1, alpha=0.5, zorder=1)
+        
+        # Plot individual time points with color coding
+        for t in range(steps):
+            ax.scatter(real_traj[t], imag_traj[t], 
+                      c=time_colors[t], s=50, alpha=0.8, zorder=2,
+                      edgecolors='black', linewidth=0.5)
+        
+        # Add label for the first point of each eigenvalue
+        ax.annotate(f'λ{i+1}', 
+                   xy=(real_traj[0], imag_traj[0]), 
+                   xytext=(5, 5), textcoords='offset points',
+                   fontsize=8, alpha=0.7)
+    
+    # Set labels and title
+    ax.set_xlabel('Real Part')
+    ax.set_ylabel('Imaginary Part')
+    ax.set_title(f'Eigenvalue Trajectories in Complex Plane\n({terms} eigenvalue{"s" if terms > 1 else ""}, {steps} time step{"s" if steps > 1 else ""})')
+    ax.grid(True, alpha=0.3)
+    ax.set_aspect('equal', adjustable='box')
+    
+    # Add unit circle for reference (common in eigenvalue analysis)
+    circle = plt.Circle((0, 0), 1, fill=False, color='black', linestyle='--', alpha=0.3)
+    ax.add_patch(circle)
+    
+    # Create custom legend for time evolution
+    from matplotlib.lines import Line2D
+    legend_elements = []
+    if steps > 1:
+        legend_elements.append(Line2D([0], [0], marker='o', color='w', markerfacecolor='green', 
+                                    markersize=8, label='First time step', markeredgecolor='black'))
+        if steps > 2:
+            legend_elements.append(Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', 
+                                        markersize=8, label='Intermediate steps', markeredgecolor='black'))
+        legend_elements.append(Line2D([0], [0], marker='o', color='w', markerfacecolor='red', 
+                                    markersize=8, label='Last time step', markeredgecolor='black'))
+        legend_elements.append(Line2D([0], [0], color='gray', alpha=0.5, label='Trajectory'))
+    else:
+        legend_elements.append(Line2D([0], [0], marker='o', color='w', markerfacecolor='green', 
+                                    markersize=8, label='Eigenvalue', markeredgecolor='black'))
+    
+    ax.legend(handles=legend_elements, loc='best')
+    
+    # Save or show the plot
+    if save:
+        if fname is None:
+            raise ValueError("Filename must be provided when save=True")
+        plt.savefig(figure_dir / f"{fname}.pdf", bbox_inches='tight', dpi=300)
+    else:
+        plt.show()
+    
+    plt.close()

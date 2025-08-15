@@ -6,6 +6,7 @@ import sys
 import time
 import torch
 import pickle
+import einops
 import random
 import argparse
 import numpy as np
@@ -79,7 +80,7 @@ def main(args=None):
     args.best_checkpoint_path = checkpoint_dir / best_model_name
 
     # Load model if checkpoint exists
-    model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, sensors = models.load_model_from_checkpoint(args.latest_checkpoint_path, args=args)
+    model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors = models.load_model_from_checkpoint(args.latest_checkpoint_path, args=args)
 
     # Print hyperparameters
     helpers.print_dictionary(vars(args), 'Hyperparameters:')
@@ -101,6 +102,7 @@ def main(args=None):
         best_epoch=best_epoch,
         train_losses=train_losses,
         val_losses=val_losses,
+        model_eigvs=model_eigvs,
         optimizer=optimizer,
         scalers=metadata['scalers'],
         args=args
@@ -112,7 +114,7 @@ def main(args=None):
     time.sleep(1.0)
 
     # Evaluate best validation model
-    best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses, sensors = models.load_model_from_checkpoint(args.best_checkpoint_path, force_load=True, args=args)
+    best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors = models.load_model_from_checkpoint(args.best_checkpoint_path, force_load=True, args=args)
 
     # Threshold
     if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
@@ -120,20 +122,24 @@ def main(args=None):
         best_model.encoder.threshold_all_layers(args.sindy_attention_threshold)
 
     # Print model coefficients
-    if args.verbose and args.encoder == "sindy_attention_transformer":
+    if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_transformer_rollout"]):
         helpers.print_model_coefficients(best_model, args)
 
     # Calculate loss
     test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata['scalers'], args=args, use_sindy_loss=False)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
-    save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'sensors': sensors}
+    save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'model_eigvs': model_eigvs, 'sensors': sensors}
 
     # Create plots
     if args.generate_test_plots:
         if not args.encoder == "sindy_attention_transformer_rollout":
             helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
         else:
+            model_eigvs = np.asarray(model_eigvs)
+            model_eigvs = einops.rearrange(model_eigvs, 'epochs heads coeffs -> heads epochs coeffs')
+            for i in range(args.n_heads):
+                plots.plot_eigvs(model_eigvs[i], save=True, fname=f"{args.identifier}_eigvs_head{i}")
             helpers.create_far_out_plots(best_model, test_ds, sensors, metadata, args=args)
 
     # Save pickle

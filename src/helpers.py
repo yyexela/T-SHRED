@@ -350,7 +350,7 @@ def create_next_step_plots(model, ds, sensors, metadata, args=None):
 
                     plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_f{k+1}_full_comparison_{i}")
 
-def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, optimizer, scalers, args):
+def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, optimizer, scalers, args):
     """
     Train a PyTorch model.
 
@@ -364,6 +364,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         best_epoch (int): Epoch of best validation loss.
         train_losses (list): List of training losses.
         val_losses (list): List of validation losses.
+        model_eigvs (list): List of model eigenvalues (SINDy-Attention Transformer w/ Rollout only).
         optimizer (torch.optim.Optimizer): Optimizer to use for training.
         scalers (list): List of tuples of (min, max) values used for scaling (for inverse transformation) for each dimension
         args (argparse.Namespace): Arguments to use for training.
@@ -468,6 +469,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 'best_epoch': best_epoch,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
+                'model_eigvs': model_eigvs,
                 'sensors': sensors,
             }, args.best_checkpoint_path)
             torch.save({
@@ -478,6 +480,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 'best_epoch': best_epoch,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
+                'model_eigvs': model_eigvs,
                 'sensors': sensors,
             }, args.latest_checkpoint_path)
             if args.verbose:
@@ -496,6 +499,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 'best_epoch': best_epoch,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
+                'model_eigvs': model_eigvs,
                 'sensors': sensors
             }, args.latest_checkpoint_path)
             if args.verbose:
@@ -508,10 +512,16 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 print(f'Epoch {epoch+1}, SINDy training loss: {sindy_loss:0.4e}, SINDy validation loss: {sindy_val_loss:0.4e}')
 
         # Print model coefficients
-        if args.verbose and args.encoder == "sindy_attention_transformer":
-            print_model_coefficients(model, args)
+        if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_transformer_rollout"]):
+            #print_model_coefficients(model, args)
+            pass
 
-        # Make plot
+        # Collect model eigenvalues
+        if args.encoder == 'sindy_attention_transformer_rollout':
+            model_eigvs_epoch = get_model_coefficient_eigenvalues(model, args)
+            model_eigvs.append(model_eigvs_epoch)
+
+        # Make plots
         plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.identifier}_losses")
 
     if args.verbose:
@@ -829,6 +839,7 @@ def get_result_loss(result):
     return result.get('test_loss', result.get('test_loss_pod', None))
 
 def print_model_coefficients(model, args):
+    # coefficients: n_heads x ((library terms + 1 (for linear) terms) x library_terms equations)
     library = model.encoder.encoder.layers[0].self_attn.library_terms
     for i in range(args.encoder_depth):
         print(f"Layer {i}:")
@@ -841,6 +852,15 @@ def print_model_coefficients(model, args):
                     output_str += f"{model.encoder.encoder.layers[i].self_attn.coefficients[j][l][k].item():0.3f} \\cdot {library[l]} + "
                 print(output_str[:-3])
             print()
+
+def get_model_coefficient_eigenvalues(model, args):
+    eigvs_l = []
+    for j in range(args.n_heads):
+        # Head j
+        terms_matrix = model.encoder.encoder.layers[0].self_attn.coefficients[j].detach()
+        terms_eigvs = torch.linalg.eigvals(terms_matrix[1:])
+        eigvs_l.append(terms_eigvs)
+    return eigvs_l
 
 def get_top_N_models_by_loss(dataset_name, pickle_dir, loss_only=False, N=5):
     """

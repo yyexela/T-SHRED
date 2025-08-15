@@ -41,6 +41,7 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
         best_epoch = checkpoint['best_epoch']
         train_losses = checkpoint['train_losses']
         val_losses = checkpoint['val_losses']
+        model_eigvs = checkpoint['model_eigvs']
         sensors = checkpoint['sensors']
         if args.verbose:
             print(f"Loading model from {checkpoint_path}")
@@ -56,6 +57,7 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train_losses = []
         val_losses = []
+        model_eigvs = []
         best_epoch = 0
         # Generate sensors
         # Handle SST differently (don't place sensors on land)
@@ -68,7 +70,7 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
         else:
             sensors = helpers.generate_sensor_positions(args.n_sensors, args.data_rows_in, args.data_cols_in)
     print()
-    return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, sensors
+    return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors
 
 class MixedModel(nn.Module):
     """

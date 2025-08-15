@@ -151,7 +151,7 @@ class MultiHeadSindyAttention(nn.Module):
             ############################## Simplified SINDy update (without mask) #############################
             # Forecast n steps
             # > library_Theta: (batch x window len) x n_terms
-            # > coefficients: n_terms x (hidden_dim / n_heads)
+            # > coefficients: n_heads x ((library terms + 1 (for linear) terms) x library_terms equations)
             # > Initial condition is from library_Theta, propogate forward n steps
             
             def f(t, y):
@@ -288,7 +288,7 @@ class SindyAttentionTransformerRollout(nn.Module):
         d_model,
         nhead,
         forecast_length=1,
-        num_encoder_layers=6,
+        num_encoder_layers=1,
         dim_feedforward=2048,
         dropout=0.1,
         activation : nn.Module = torch.nn.functional.relu,
@@ -302,6 +302,10 @@ class SindyAttentionTransformerRollout(nn.Module):
         device='cpu',
     ):
         super().__init__()
+
+        if num_encoder_layers > 1:
+            raise ValueError("num_encoder_layers must be 1 for SindyAttentionTransformerRollout")
+
         encoder_layer = TransformerSindyEncoderLayer(
             hidden_size,
             nhead,
