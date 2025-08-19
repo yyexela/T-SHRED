@@ -4,17 +4,131 @@ import torch
 import einops
 import random
 import pickle
+import argparse
 from torch import nn
 from pathlib import Path
 from src.plots import plot_losses, plot_field_comparison
+
+def parse_args():
+    # To allow CLIs
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
+    parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (planetswe, sst, sst_demo, plasma)")
+    parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (cnn, mlp)")
+    parser.add_argument('--decoder_depth', type=int, default=2, help="Number of decoder layers")
+    parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
+    parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
+    parser.add_argument('--dt', type=float, default=1.0, help="Time step for SINDy derivatives (Euler integration)")
+    parser.add_argument('--early_stop', type=int, default=0, help="Train the model for at least this many epochs before saving best validation score")
+    parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, gru, sindy_loss_lstm, sindy_loss_gru, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer, sindy_attention_transformer_rollout, sindy_attention_sindy_loss_transformer_rollout)")
+    parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
+    parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
+    parser.add_argument('--forecast_length', type=int, default=1, help="Number of timesteps to forecast (sindy_attention_transformer_rollout and sindy_attention_sindy_loss_transformer_rollout only)")
+    parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
+    parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
+    parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
+    parser.add_argument('--identifier', type=str, required=True, help="Identifier for logging")
+    parser.add_argument('--input_length', type=int, default=10, help="Dataset window length")
+    parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
+    parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
+    parser.add_argument('--n_sensors', type=int, default=50, help="Number of sensors")
+    parser.add_argument('--n_well_tracks', type=int, default=10, help="Maximum number of tracks to load from the well dataset")
+    parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
+    parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
+    parser.add_argument('--seed', type=int, default=0, help="Random seed")
+    parser.add_argument('--sindy_attention_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification (attention)")
+    parser.add_argument('--sindy_attention_threshold_n_epochs', type=int, default=10, help="Every n epochs to threshold SINDy coefficients (attention)")
+    parser.add_argument('--sindy_attention_weight', type=float, default=0.0, help="Weight for SINDy attention coefficient loss term")
+    parser.add_argument('--sindy_loss_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification loss")
+    parser.add_argument('--sindy_loss_weight', type=float, default=100, help="Weight for SINDy loss term")
+    parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading checkpoint")
+    parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
+    args = parser.parse_args()
+
+    return args
 
 def verify_args(args):
     """
     Ensure CLIs make sense
     """
 
-    if "rollout" not in args.encoder and args.forecast_length != 1:
-        raise ValueError("forecast_length must be 1 for non-rollout encoders")
+    if args.batch_size <= 0:
+        raise ValueError(f"batch_size {args.batch_size} must be greater than 0")
+
+    if args.dataset not in ["planetswe", "sst", "plasma", "sst_demo"]:
+        raise ValueError(f"dataset {args.dataset} not supported, choose one of: planetswe, sst, plasma, sst_demo")
+
+    if args.decoder not in ["mlp", "cnn"]:
+        raise ValueError(f"decoder {args.decoder} not supported, choose one of: mlp, cnn")
+
+    if args.decoder_depth <= 0:
+        raise ValueError(f"decoder_depth {args.decoder_depth} must be greater than 0")
+
+    if args.dropout < 0 or args.dropout > 1:
+        raise ValueError(f"dropout {args.dropout} must be between 0 and 1")
+
+    if args.dt < 0:
+        raise ValueError(f"dt {args.dt} must be non-negative")
+
+    if args.early_stop not in [0, 1]:
+        raise ValueError(f"early_stop {args.early_stop} must be 0 or 1")
+
+    if args.encoder not in ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
+        raise ValueError(f"encoder {args.encoder} not supported, choose one of: gru, lstm, sindy_loss_gru, sindy_loss_lstm, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer, sindy_attention_transformer_rollout, sindy_attention_sindy_loss_transformer_rollout")
+    
+    if args.encoder_depth <= 0:
+        raise ValueError(f"encoder_depth {args.encoder_depth} must be greater than 0")
+
+    if args.epochs <= 0:
+        raise ValueError(f"epochs {args.epochs} must be greater than 0")
+
+    if args.forecast_length <= 0:
+        raise ValueError(f"forecast_length {args.forecast_length} must be greater than 0")
+
+    if args.forecast_length > 1 and args.encoder not in ["sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
+        raise ValueError(f"forecast_length {args.forecast_length} must be 1 for non-rollout encoders")
+
+    if args.hidden_size <= 0:
+        raise ValueError(f"hidden_size {args.hidden_size} must be greater than 0")
+
+    if args.input_length <= 0:
+        raise ValueError(f"input_length {args.input_length} must be greater than 0")
+
+    if args.lr <= 0:
+        raise ValueError(f"lr {args.lr} must be greater than 0")
+
+    if args.n_heads <= 0:
+        raise ValueError(f"n_heads {args.n_heads} must be greater than 0")
+
+    if args.n_sensors <= 0:
+        raise ValueError(f"n_sensors {args.n_sensors} must be greater than 0")
+
+    if args.n_well_tracks <= 0:
+        raise ValueError(f"n_well_tracks {args.n_well_tracks} must be greater than 0")
+
+    if args.poly_order <= 0:
+        raise ValueError(f"poly_order {args.poly_order} must be greater than 0")
+
+    if args.save_every_n_epochs <= 0:
+        raise ValueError(f"save_every_n_epochs {args.save_every_n_epochs} must be greater than 0")
+
+    if args.seed < 0:
+        raise ValueError(f"seed {args.seed} must be non-negative")
+        
+    if args.sindy_attention_threshold < 0:
+        raise ValueError(f"sindy_attention_threshold {args.sindy_attention_threshold} must be non-negative")
+
+    if args.sindy_attention_threshold_n_epochs <= 0:
+        raise ValueError(f"sindy_attention_threshold_n_epochs {args.sindy_attention_threshold_n_epochs} must be greater than 0")
+
+    if args.sindy_attention_weight < 0:
+        raise ValueError(f"sindy_attention_weight {args.sindy_attention_weight} must be non-negative")
+
+    if args.sindy_loss_threshold < 0:
+        raise ValueError(f"sindy_loss_threshold {args.sindy_loss_threshold} must be non-negative")
+
+    if args.sindy_loss_weight < 0:
+        raise ValueError(f"sindy_loss_weight {args.sindy_loss_weight} must be non-negative")
 
     return
 
@@ -450,7 +564,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
         # Threshold if necessary
         if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
-            if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_epoch == 0:
+            if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_n_epochs == 0:
                 print(f"Thresholding SINDy coefficients (epoch {epoch+1})")
                 threshold_all_layers(model.encoder, args.sindy_attention_threshold)
 

@@ -8,7 +8,6 @@ import torch
 import pickle
 import einops
 import random
-import argparse
 import numpy as np
 from pathlib import Path
 from torch.utils.data import DataLoader
@@ -151,41 +150,6 @@ def main(args=None):
         pickle.dump(save_dict, f)
 
 if __name__ == '__main__':
-    # To allow CLIs
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
-    parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (active_matter, active_matter_pod, planetswe, planetswe_pod, sst, sst_demo, plasma)")
-    parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (cnn, mlp)")
-    parser.add_argument('--decoder_depth', type=int, default=2, help="Number of decoder layers")
-    parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
-    parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
-    parser.add_argument('--dt', type=float, default=1.0, help="Time step for SINDy derivatives (Euler integration)")
-    parser.add_argument('--early_stop', type=int, default=0, help="Train the model for at least this many epochs before saving best validation score")
-    parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, gru, transformer, sindy_attention_transformer, sindy_loss_transformer)")
-    parser.add_argument('--eval_full', action='store_true', help="Evaluate on full dataset (BAD FOR RAM)")
-    parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
-    parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
-    parser.add_argument('--forecast_length', type=int, default=1, help="Number of timesteps to forecast (sindy_attention_transformer_rollout only)")
-    parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
-    parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
-    parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
-    parser.add_argument('--identifier', type=str, required=True, help="Identifier for logging")
-    parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
-    parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
-    parser.add_argument('--n_sensors', type=int, default=50, help="Number of sensors")
-    parser.add_argument('--n_well_tracks', type=int, default=10, help="Maximum number of tracks to load from the well dataset")
-    parser.add_argument('--poly_order', type=int, default=2, help="Order of polynomial library for SINDy transformer library")
-    parser.add_argument('--save_every_n_epochs', type=int, default=10, help="After how many epochs to checkpoint model")
-    parser.add_argument('--seed', type=int, default=0, help="Random seed")
-    parser.add_argument('--sindy_attention_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification (attention)")
-    parser.add_argument('--sindy_attention_threshold_epoch', type=int, default=10, help="Every n epochs to threshold SINDy coefficients (attention)")
-    parser.add_argument('--sindy_attention_weight', type=float, default=0.0, help="Weight for SINDy attention term")
-    parser.add_argument('--sindy_loss_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification (loss)")
-    parser.add_argument('--sindy_loss_weight', type=float, default=100, help="Weight for SINDy loss term")
-    parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading checkpoint")
-    parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
-    parser.add_argument('--input_length', type=int, default=10, help="Dataset window length")
-    args = parser.parse_args()
-
+    args = helpers.parse_args()
     main(args)
         
