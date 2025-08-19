@@ -5,8 +5,11 @@ from pytorch_polynomial_features import PolynomialFeatures
 class SINDyLoss(nn.Module):
     """Mixin for SINDy Loss"""
     def __init__(self, poly_order, dt, hidden_size, sindy_loss_threshold,  *args, **kwargs):
-        kwargs['hidden_size'] = hidden_size # Stupid? Maybe. Works? Yes.
+        # Stupid? Maybe. Works? Yes.
+        kwargs['hidden_size'] = hidden_size
+        kwargs['poly_order'] = poly_order
         super().__init__(*args, **kwargs)
+
         self.poly_order = poly_order
         self.dt = dt
         self.hidden_size = hidden_size
@@ -18,6 +21,13 @@ class SINDyLoss(nn.Module):
         self.pf = pf
         self.pf.fit(torch.randn(1, self.hidden_size)) # Necessary for output features
         self.library_dim = self.pf.n_output_features_
+
+        # SINDy coefficients (learnable parameters)
+        self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, self.hidden_size))
+        nn.init.xavier_uniform_(self.coefficients, gain=0.0000000)  # Initialize with small values
+
+        # Coefficient mask for thresholding (not learnable, used for sparsification)
+        self.register_buffer('coefficient_mask', torch.ones(self.library_dim, self.hidden_size))
 
     def compute_sindy_loss(self, x: torch.Tensor) -> torch.Tensor:
         """

@@ -14,18 +14,9 @@ class SINDyLossGRU(SINDyLoss, GRU):
                  dt: float, # Time step for SINDy derivatives
                  sindy_loss_threshold: float,
                  device:str = 'cpu',
+                 **kwargs
                 ):
         super().__init__(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, device=device, poly_order=poly_order, dt=dt, sindy_loss_threshold=sindy_loss_threshold)
-
-        # SINDy components
-        self.library_dim = self.pf.n_output_features_
-
-        # SINDy coefficients (learnable parameters)
-        self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, self.hidden_size))
-        nn.init.xavier_uniform_(self.coefficients, gain=0.0000000)  # Initialize with small values
-
-        # Coefficient mask for thresholding (not learnable, used for sparsification)
-        self.register_buffer('coefficient_mask', torch.ones(self.library_dim, self.hidden_size))
 
     def forward(self, x):
         """
@@ -57,18 +48,9 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
                  dt: float, # Time step for SINDy derivatives
                  sindy_loss_threshold: float,
                  device:str = 'cpu',
+                 **kwargs
                 ):
         super().__init__(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, device=device, poly_order=poly_order, dt=dt, sindy_loss_threshold=sindy_loss_threshold)
-
-        # SINDy components
-        self.library_dim = self.pf.n_output_features_
-
-        # SINDy coefficients (learnable parameters)
-        self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, self.hidden_size))
-        nn.init.xavier_uniform_(self.coefficients, gain=0.0000000)  # Initialize with small values
-
-        # Coefficient mask for thresholding (not learnable, used for sparsification)
-        self.register_buffer('coefficient_mask', torch.ones(self.library_dim, self.hidden_size))
 
     def forward(self, x):
         """

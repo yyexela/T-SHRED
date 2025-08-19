@@ -5,7 +5,8 @@ import numpy as np
 import torch.nn as nn
 from pathlib import Path
 from vanilla_transformer import Transformer
-from sindy_attention_transformer import SindyAttentionTransformer, SindyAttentionSindyLossTransformer
+from sindy_attention_transformer import SindyAttentionTransformer
+from sindy_attention_sindy_loss_transformer import SindyAttentionSindyLossTransformer
 from sindy_attention_transformer_rollout import SindyAttentionTransformerRollout
 from sindy_loss_transformer import SINDyLossTransformer
 from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
@@ -140,6 +141,7 @@ class MixedModel(nn.Module):
                 hidden_size=args.hidden_size,
                 input_length=args.input_length,
                 num_encoder_layers=args.encoder_depth,
+                norm_first=False,
                 layer_norm_eps=1e-5,
                 bias=True,
                 device=args.device
@@ -155,6 +157,7 @@ class MixedModel(nn.Module):
                 input_length=args.input_length,
                 num_encoder_layers=args.encoder_depth,
                 layer_norm_eps=1e-5,
+                norm_first=False,
                 bias=True,
                 poly_order=args.poly_order,
                 device=args.device
@@ -171,6 +174,7 @@ class MixedModel(nn.Module):
                 input_length=args.input_length,
                 num_encoder_layers=args.encoder_depth,
                 layer_norm_eps=1e-5,
+                norm_first=False,
                 bias=True,
                 poly_order=args.poly_order,
                 sindy_loss=False,
@@ -189,6 +193,7 @@ class MixedModel(nn.Module):
                 input_length=args.input_length,
                 num_encoder_layers=args.encoder_depth,
                 layer_norm_eps=1e-5,
+                norm_first=False,
                 bias=True,
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
@@ -207,6 +212,7 @@ class MixedModel(nn.Module):
                 input_length=args.input_length,
                 num_encoder_layers=args.encoder_depth,
                 layer_norm_eps=1e-5,
+                norm_first=False,
                 bias=True,
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
@@ -224,6 +230,7 @@ class MixedModel(nn.Module):
                 input_length=args.input_length,
                 num_encoder_layers=args.encoder_depth,
                 layer_norm_eps=1e-5,
+                norm_first=False,
                 bias=True,
                 poly_order=args.poly_order,
                 device=args.device,

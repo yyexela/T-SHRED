@@ -264,16 +264,17 @@ class Transformer(nn.Module):
         self,
         d_model,
         nhead,
-        num_encoder_layers=6,
-        dim_feedforward=2048,
-        dropout=0.1,
-        activation : nn.Module = torch.nn.functional.relu,
-        layer_norm_eps=1e-5,
-        norm_first=False,
-        bias=True,
-        input_length=10,
-        hidden_size=10,
+        num_encoder_layers,
+        dim_feedforward,
+        dropout,
+        activation : nn.Module,
+        layer_norm_eps,
+        norm_first,
+        bias,
+        input_length,
+        hidden_size,
         device='cpu',
+        **kwargs
     ):
         super().__init__()
         encoder_layer = TransformerEncoderLayer(

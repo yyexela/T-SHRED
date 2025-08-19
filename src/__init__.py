@@ -1,1 +1,1 @@
-__all__ = ['datasets', 'models', 'helpers', 'vanilla_transformer', 'sindy_attention_transformer', 'sindy_attention_transformer_rollout', 'sindy_loss_transformer', 'sindy_loss_rnns', 'rnns', 'decoders', 'positional_encoding', 'plots', 'pytorch_polynomial_features']
+__all__ = ['datasets', 'models', 'helpers', 'vanilla_transformer', 'sindy_attention_transformer', 'sindy_attention_transformer_rollout', 'sindy_loss_transformer', 'sindy_loss_rnns', 'rnns', 'decoders', 'positional_encoding', 'plots', 'pytorch_polynomial_features', 'sindy_attention_sindy_loss_transformer']

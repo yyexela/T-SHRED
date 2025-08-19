@@ -27,20 +27,11 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
         activation: nn.Module,
         bias: bool,
         layer_norm_eps: float,
+        norm_first: bool,
         device: str = 'cpu',
     ):
-        super().__init__(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout, hidden_size=hidden_size, input_length=input_length, num_encoder_layers=num_encoder_layers, poly_order=poly_order, dt=dt, sindy_loss_threshold=sindy_loss_threshold, activation=activation, bias=bias, layer_norm_eps=layer_norm_eps, device=device)
+        super().__init__(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout, hidden_size=hidden_size, input_length=input_length, num_encoder_layers=num_encoder_layers, poly_order=poly_order, dt=dt, sindy_loss_threshold=sindy_loss_threshold, activation=activation, bias=bias, layer_norm_eps=layer_norm_eps, norm_first=norm_first, device=device)
         
-        # SINDy components
-        self.library_dim = self.pf.n_output_features_
-
-        # SINDy coefficients (learnable parameters)
-        self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, self.hidden_size))
-        nn.init.xavier_uniform_(self.coefficients, gain=0.0000000)  # Initialize with small values
-
-        # Coefficient mask for thresholding (not learnable, used for sparsification)
-        self.register_buffer('coefficient_mask', torch.ones(self.library_dim, self.hidden_size))
-    
     def forward(
         self,
         src: torch.Tensor,
