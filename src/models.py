@@ -107,6 +107,7 @@ class MixedModel(nn.Module):
                 num_layers=args.encoder_depth,
                 dropout=args.dropout,
                 poly_order=args.poly_order,
+                sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt, # Time step for Euler integration
                 device=args.device
             )
@@ -125,6 +126,7 @@ class MixedModel(nn.Module):
                 num_layers=args.encoder_depth,
                 dropout=args.dropout,
                 poly_order=args.poly_order,
+                sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt,                             # Time step for Euler integration
                 device=args.device
             )
@@ -189,6 +191,7 @@ class MixedModel(nn.Module):
                 layer_norm_eps=1e-5,
                 bias=True,
                 poly_order=args.poly_order,
+                sindy_loss_threshold=args.sindy_loss_threshold,
                 sindy_loss=True,
                 dt=args.dt,
                 device=args.device
@@ -206,7 +209,7 @@ class MixedModel(nn.Module):
                 layer_norm_eps=1e-5,
                 bias=True,
                 poly_order=args.poly_order,
-                sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
+                sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt,                              # Time step for Euler integration
                 device=args.device
             )

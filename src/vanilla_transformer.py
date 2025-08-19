@@ -323,7 +323,7 @@ class Transformer(nn.Module):
             is_causal=src_is_causal,
         )
 
-        transformer_output = einops.rearrange(transformer_output, 'b s d -> 1 b s d')
+        transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
 
         return {
             "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]

@@ -4,12 +4,13 @@ from pytorch_polynomial_features import PolynomialFeatures
 
 class SINDyLoss(nn.Module):
     """Mixin for SINDy Loss"""
-    def __init__(self, poly_order, dt, hidden_size, *args, **kwargs):
+    def __init__(self, poly_order, dt, hidden_size, sindy_loss_threshold,  *args, **kwargs):
         kwargs['hidden_size'] = hidden_size # Stupid? Maybe. Works? Yes.
         super().__init__(*args, **kwargs)
         self.poly_order = poly_order
         self.dt = dt
         self.hidden_size = hidden_size
+        self.sindy_loss_threshold = sindy_loss_threshold
 
         pf = PolynomialFeatures(degree=poly_order,
                                 interaction_only=False,
@@ -103,3 +104,18 @@ class SINDyLoss(nn.Module):
         total_loss = derivative_loss + first_step_loss + second_step_loss + 0.001*l2_loss
 
         return total_loss
+
+    def thresholding(self, threshold=None):
+        """
+        Apply thresholding to SINDy coefficients to enforce sparsity.
+        
+        Args:
+            threshold (float, optional): Threshold value. If None, uses the default threshold.
+        """
+        if threshold is None:
+            threshold = self.sindy_loss_threshold
+            
+        with torch.no_grad():
+            mask = torch.abs(self.coefficients.data) > threshold
+            self.coefficients.data *= mask
+            self.coefficient_mask.copy_(mask.float())

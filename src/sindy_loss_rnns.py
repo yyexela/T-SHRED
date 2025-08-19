@@ -12,12 +12,10 @@ class SINDyLossGRU(SINDyLoss, GRU):
                  dropout:float,
                  poly_order: int,
                  dt: float, # Time step for SINDy derivatives
+                 sindy_loss_threshold: float,
                  device:str = 'cpu',
                 ):
-        super().__init__(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, device=device, poly_order=poly_order, dt=dt)
-
-        self.poly_order = poly_order
-        self.dt = dt
+        super().__init__(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, device=device, poly_order=poly_order, dt=dt, sindy_loss_threshold=sindy_loss_threshold)
 
         # SINDy components
         self.library_dim = self.pf.n_output_features_
@@ -57,12 +55,10 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
                  dropout:float,
                  poly_order: int,
                  dt: float, # Time step for SINDy derivatives
+                 sindy_loss_threshold: float,
                  device:str = 'cpu',
                 ):
-        super().__init__(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, device=device, poly_order=poly_order, dt=dt)
-
-        self.poly_order = poly_order
-        self.dt = dt
+        super().__init__(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, device=device, poly_order=poly_order, dt=dt, sindy_loss_threshold=sindy_loss_threshold)
 
         # SINDy components
         self.library_dim = self.pf.n_output_features_
