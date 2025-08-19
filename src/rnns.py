@@ -3,7 +3,7 @@ import einops
 import torch.nn as nn
 
 class GRU(nn.Module):
-    def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
+    def __init__(self, input_size:int, hidden_size:int, num_layers:int, dropout:float, device:str = 'cpu'):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -41,7 +41,7 @@ class GRU(nn.Module):
         }
 
 class LSTM(nn.Module):
-    def __init__(self, input_size:int = 3, hidden_size:int = 64, num_layers:int = 2, dropout:float = 0.1, device:str = 'cpu'):
+    def __init__(self, input_size:int, hidden_size:int, num_layers:int, dropout:float, device:str = 'cpu'):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size

@@ -5,7 +5,6 @@ import torch.nn as nn
 from typing import Optional
 import torch.nn.functional as F
 from positional_encoding import PositionalEncoding
-from helpers import calculate_library_dim, sindy_library_torch, sindy_library_terms, _get_clones
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html

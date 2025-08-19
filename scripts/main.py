@@ -42,6 +42,9 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 ########
 
 def main(args=None):
+    # Verify args
+    helpers.verify_args(args)
+
     # Set Seed for reproducibility
     torch.manual_seed(args.seed)
     random.seed(args.seed)
@@ -166,7 +169,6 @@ if __name__ == '__main__':
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
     parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
     parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
-    parser.add_argument('--include_sine', action='store_true', help="Include sine in transformer SINDy library")
     parser.add_argument('--identifier', type=str, required=True, help="Identifier for logging")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
     parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")

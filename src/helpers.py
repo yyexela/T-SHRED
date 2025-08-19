@@ -8,6 +8,16 @@ from torch import nn
 from pathlib import Path
 from src.plots import plot_losses, plot_field_comparison
 
+def verify_args(args):
+    """
+    Ensure CLIs make sense
+    """
+
+    if "rollout" not in args.encoder and args.forecast_length != 1:
+        raise ValueError("forecast_length must be 1 for non-rollout encoders")
+
+    return
+
 def get_dataset_dims(dataset):
     if dataset == "sst":
         return (180, 360, 1)
@@ -527,112 +537,6 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
     if args.verbose:
         print(f"Training complete, best validation loss: {best_val:0.4e}")
         print()
-
-def calculate_library_dim(latent_dim, poly_order, include_sine):
-    dim = 1 # Constant term
-    # Polynomial terms (using combinations with replacement)
-    current_dim = latent_dim
-    dim += current_dim
-    if poly_order > 1:
-        current_dim = current_dim * (latent_dim + 1) // 2
-        dim += current_dim
-    if poly_order > 2:
-        current_dim = current_dim * (latent_dim + 2) // 3
-        dim += current_dim
-    if poly_order > 3:
-        current_dim = current_dim * (latent_dim + 3) // 4
-        dim += current_dim
-    if poly_order > 4:
-        current_dim = current_dim * (latent_dim + 4) // 5
-        dim += current_dim
-
-    if include_sine:
-        dim += latent_dim
-    return dim
-
-def sindy_library_terms(latent_dim, poly_order, include_sine=False):
-    # Ones - constant term
-    library = ["1"]
-
-    # Add polynomials up to poly_order
-    for i in range(latent_dim):
-        library.append(f"z{i}")
-
-    if poly_order > 1:
-        for i in range(latent_dim):
-            for j in range(i,latent_dim):
-                library.append(f"z{i} * z{j}") # Use element-wise multiplication
-
-    if poly_order > 2:
-        for i in range(latent_dim):
-            for j in range(i,latent_dim):
-                for k in range(j,latent_dim):
-                    library.append(f"z{i} * z{j} * z{k}")
-
-    if poly_order > 3:
-        for i in range(latent_dim):
-            for j in range(i,latent_dim):
-                for k in range(j,latent_dim):
-                    for p in range(k,latent_dim):
-                        library.append(f"z{i} * z{j} * z{k} * z{p}")
-
-    if poly_order > 4:
-        for i in range(latent_dim):
-            for j in range(i,latent_dim):
-                for k in range(j,latent_dim):
-                    for p in range(k,latent_dim):
-                        for q in range(p,latent_dim):
-                            library.append(f"z{i} * z{j} * z{k} * z{p} * z{q}")
-
-    # Add sine terms if requested
-    if include_sine:
-        for i in range(latent_dim):
-            library.append(f"sin(z{i})")
-
-    return library
-
-def sindy_library_torch(z, latent_dim, poly_order, include_sine=False):
-    device = z.device # Get device from input tensor
-
-    # Ones - constant term
-    library = [torch.ones(z.shape[0], device=device)]
-
-    # Add polynomials up to poly_order
-    for i in range(latent_dim):
-        library.append(z[:,i])
-
-    if poly_order > 1:
-        for i in range(latent_dim):
-            for j in range(i,latent_dim):
-                library.append(z[:,i] * z[:,j]) # Use element-wise multiplication
-
-    if poly_order > 2:
-        for i in range(latent_dim):
-            for j in range(i,latent_dim):
-                for k in range(j,latent_dim):
-                    library.append(z[:,i] * z[:,j] * z[:,k])
-
-    if poly_order > 3:
-        for i in range(latent_dim):
-            for j in range(i,latent_dim):
-                for k in range(j,latent_dim):
-                    for p in range(k,latent_dim):
-                        library.append(z[:,i] * z[:,j] * z[:,k] * z[:,p])
-
-    if poly_order > 4:
-        for i in range(latent_dim):
-            for j in range(i,latent_dim):
-                for k in range(j,latent_dim):
-                    for p in range(k,latent_dim):
-                        for q in range(p,latent_dim):
-                            library.append(z[:,i] * z[:,j] * z[:,k] * z[:,p] * z[:,q])
-
-    # Add sine terms if requested
-    if include_sine:
-        for i in range(latent_dim):
-            library.append(torch.sin(z[:,i]))
-
-    return torch.stack(library, axis=1)
 
 def min_max_scale(tensor, feature_range=(0, 1), scaler=None):
     """

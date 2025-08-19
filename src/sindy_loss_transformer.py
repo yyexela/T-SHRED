@@ -2,7 +2,6 @@ import torch
 import einops
 import torch.nn as nn
 from positional_encoding import PositionalEncoding
-from helpers import calculate_library_dim, sindy_library_torch
 
 class SINDyLossTransformer(nn.Module):
     """

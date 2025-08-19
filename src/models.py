@@ -5,8 +5,6 @@ import numpy as np
 import torch.nn as nn
 from pathlib import Path
 from vanilla_transformer import Transformer
-from david_ye_vanilla_transformer import TRANSFORMER
-from mars_sindy_attention_transformer import TRANSFORMER_SINDY
 from sindy_attention_transformer import SindyAttentionTransformer, SindyAttentionSindyLossTransformer
 from sindy_attention_transformer_rollout import SindyAttentionTransformerRollout
 from sindy_loss_transformer import SINDyLossTransformer
@@ -15,7 +13,6 @@ from rnns import GRU, LSTM
 from decoders import MLP, CNN
 
 from src import helpers
-
 
 # Local files
 pkg_path = Path(__file__).parent.parent / 'src'
@@ -110,9 +107,7 @@ class MixedModel(nn.Module):
                 num_layers=args.encoder_depth,
                 dropout=args.dropout,
                 poly_order=args.poly_order,
-                include_sine=args.include_sine,
-                sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
-                dt=args.dt,                            # Time step for Euler integration
+                dt=args.dt, # Time step for Euler integration
                 device=args.device
             )
         elif args.encoder == "lstm":
@@ -130,8 +125,6 @@ class MixedModel(nn.Module):
                 num_layers=args.encoder_depth,
                 dropout=args.dropout,
                 poly_order=args.poly_order,
-                include_sine=args.include_sine,
-                sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
                 dt=args.dt,                             # Time step for Euler integration
                 device=args.device
             )
@@ -162,7 +155,6 @@ class MixedModel(nn.Module):
                 layer_norm_eps=1e-5,
                 bias=True,
                 poly_order=args.poly_order,
-                include_sine=args.include_sine,
                 device=args.device
             )
         elif args.encoder == "sindy_attention_transformer_rollout":
@@ -179,7 +171,6 @@ class MixedModel(nn.Module):
                 layer_norm_eps=1e-5,
                 bias=True,
                 poly_order=args.poly_order,
-                include_sine=args.include_sine,
                 sindy_loss=False,
                 dt=args.dt,
                 device=args.device
@@ -198,7 +189,6 @@ class MixedModel(nn.Module):
                 layer_norm_eps=1e-5,
                 bias=True,
                 poly_order=args.poly_order,
-                include_sine=args.include_sine,
                 sindy_loss=True,
                 dt=args.dt,
                 device=args.device
@@ -216,7 +206,6 @@ class MixedModel(nn.Module):
                 layer_norm_eps=1e-5,
                 bias=True,
                 poly_order=args.poly_order,
-                include_sine=args.include_sine,
                 sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
                 dt=args.dt,                              # Time step for Euler integration
                 device=args.device
@@ -234,35 +223,9 @@ class MixedModel(nn.Module):
                 layer_norm_eps=1e-5,
                 bias=True,
                 poly_order=args.poly_order,
-                include_sine=args.include_sine,
                 device=args.device,
                 sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
                 dt=args.dt                             # Time step for Euler integration
-            )
-        elif args.encoder == "david_ye_transformer":
-            self.encoder = TRANSFORMER(
-                d_model=args.d_model,
-                nhead=args.n_heads,
-                dim_feedforward=args.dim_feedforward,
-                dropout=args.dropout,
-                activation=nn.GELU(),
-                hidden_size=args.hidden_size,
-                input_length=args.input_length,
-                num_encoder_layers=args.encoder_depth,
-                device=args.device
-            )
-        elif args.encoder == "mars_sindy_attention_transformer":
-            self.encoder = TRANSFORMER_SINDY(
-                d_model=args.d_model,
-                dropout=args.dropout,
-                poly_order=args.poly_order,
-                include_sine=args.include_sine,
-                num_sindy_layers=args.encoder_depth,
-                dim_feedforward=args.dim_feedforward,
-                input_length=args.input_length,
-                hidden_size=args.hidden_size,
-                activation=nn.GELU(),
-                device=args.device
             )
         else:
             raise NotImplementedError(f"Encoder {args.encoder} not implemented")

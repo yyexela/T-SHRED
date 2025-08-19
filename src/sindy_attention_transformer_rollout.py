@@ -7,7 +7,6 @@ from typing import Optional
 import torch.nn.functional as F
 from torchdiffeq import odeint
 from positional_encoding import PositionalEncoding
-from helpers import calculate_library_dim, sindy_library_torch, sindy_library_terms, _get_clones
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
@@ -37,7 +36,6 @@ class MultiHeadSindyAttention(nn.Module):
         dropout: float = 0.0,
         bias=True,
         poly_order=2,
-        include_sine=False,
         device=None,
         dtype=None,
     ):
@@ -59,7 +57,6 @@ class MultiHeadSindyAttention(nn.Module):
         self.E_head = E_total // nheads
         self.bias = bias
         self.poly_order = poly_order
-        self.include_sine = include_sine
         self.library_dim = calculate_library_dim(self.E_head, poly_order, include_sine) # (hidden_dim / n_heads) + 1 for linear
         self.coefficients = nn.ParameterList([torch.Tensor(self.library_dim, self.E_head) for _ in range(nheads)]) # n_heads x library_dim x (hidden_dim / n_heads)
         self.initial_conditions = nn.Parameter(torch.Tensor(nheads, self.E_head)) # n_heads x (hidden_dim / n_heads)
