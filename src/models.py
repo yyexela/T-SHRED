@@ -8,6 +8,7 @@ from vanilla_transformer import Transformer
 from sindy_attention_transformer import SindyAttentionTransformer
 from sindy_attention_sindy_loss_transformer import SindyAttentionSindyLossTransformer
 from sindy_attention_transformer_rollout import SindyAttentionTransformerRollout
+from sindy_attention_sindy_loss_transformer_rollout import SindyAttentionSindyLossTransformerRollout
 from sindy_loss_transformer import SINDyLossTransformer
 from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
 from rnns import GRU, LSTM
@@ -177,12 +178,10 @@ class MixedModel(nn.Module):
                 norm_first=False,
                 bias=True,
                 poly_order=args.poly_order,
-                sindy_loss=False,
-                dt=args.dt,
                 device=args.device
             )
         elif args.encoder == "sindy_attention_sindy_loss_transformer_rollout":
-            self.encoder = SindyAttentionTransformerRollout(
+            self.encoder = SindyAttentionSindyLossTransformerRollout(
                 d_model=args.d_model,
                 nhead=args.n_heads,
                 forecast_length=args.forecast_length,
@@ -197,7 +196,6 @@ class MixedModel(nn.Module):
                 bias=True,
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
-                sindy_loss=True,
                 dt=args.dt,
                 device=args.device
             )

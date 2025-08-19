@@ -32,10 +32,10 @@ class MultiHeadAttention(nn.Module):
         E_v: int,
         E_total: int,
         nheads: int,
-        dropout: float = 0.0,
-        bias=True,
-        device=None,
-        dtype=None,
+        dropout: float,
+        bias: bool,
+        dtype: torch.dtype,
+        device: str = 'cpu',
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -133,16 +133,16 @@ class MultiHeadAttention(nn.Module):
 class TransformerEncoderLayer(nn.Module):
     def __init__(
         self,
-        d_model,
-        nhead,
-        dim_feedforward=2048,
-        dropout=0.1,
-        activation : nn.Module = torch.nn.functional.relu,
-        layer_norm_eps=1e-5,
-        norm_first=True,
-        bias=True,
-        device=None,
-        dtype=None,
+        d_model: int,
+        nhead: int,
+        dim_feedforward: int,
+        dropout: float,
+        activation : nn.Module,
+        layer_norm_eps: float,
+        norm_first: bool,
+        bias: bool,
+        dtype: torch.dtype,
+        device: str = 'cpu',
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -189,7 +189,14 @@ class TransformerEncoderLayer(nn.Module):
             x = x + self._sa_block(self.norm1(x), src_mask, is_causal)
             x = x + self._ff_block(self.norm2(x))
         else:
-            x = self.norm1(x + self._sa_block(x, src_mask, is_causal))
+            out_1 = self._sa_block(x, src_mask, is_causal)
+            if out_1.dim() == 4:
+                # Required for rollout transformer
+                out_2 = out_1 + x.unsqueeze(1).expand_as(out_1)
+            else:
+                # Standard transformers
+                out_2 = out_1 + x
+            x = self.norm1(out_2)
             x = self.norm2(x + self._ff_block(x))
         return x
 
@@ -198,11 +205,11 @@ class TransformerEncoderLayer(nn.Module):
 class TransformerEncoder(nn.Module):
     def __init__(
         self,
-        encoder_layer: "TransformerEncoderLayer",
+        encoder_layer: nn.Module,
         num_layers: int,
-        norm: Optional[nn.Module] = None,
-        device=None,
-        dtype=None,
+        norm: Optional[nn.Module],
+        dtype: torch.dtype,
+        device: str = 'cpu',
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -223,9 +230,9 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
     def __init__(
         self,
-        decoder_layer: "TransformerDecoderLayer",
+        decoder_layer: nn.Module,
         num_layers: int,
-        norm: Optional[nn.Module] = None,
+        norm: Optional[nn.Module],
     ):
         super().__init__()
         self.layers = _get_clones(decoder_layer, num_layers)
@@ -262,18 +269,18 @@ class TransformerDecoder(nn.Module):
 class Transformer(nn.Module):
     def __init__(
         self,
-        d_model,
-        nhead,
-        num_encoder_layers,
-        dim_feedforward,
-        dropout,
+        d_model: int,
+        nhead: int,
+        num_encoder_layers: int,
+        dim_feedforward: int,
+        dropout: float,
         activation : nn.Module,
-        layer_norm_eps,
-        norm_first,
-        bias,
-        input_length,
-        hidden_size,
-        device='cpu',
+        layer_norm_eps: float,
+        norm_first: bool,
+        bias: bool,
+        input_length: int,
+        hidden_size: int,
+        device: str = 'cpu',
         **kwargs
     ):
         super().__init__()
@@ -286,12 +293,17 @@ class Transformer(nn.Module):
             layer_norm_eps,
             norm_first=norm_first,
             bias=bias,
+            dtype=None,
             device=device,
         )
 
         encoder_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps, bias=bias, device=device)
         self.encoder = TransformerEncoder(
-            encoder_layer, num_encoder_layers, encoder_norm
+            encoder_layer,
+            num_encoder_layers,
+            encoder_norm, 
+            dtype=None,
+            device=device,
         )
 
         self.pos_encoder = PositionalEncoding(
@@ -337,16 +349,16 @@ class Transformer(nn.Module):
 class TransformerDecoderLayer(nn.Module):
     def __init__(
         self,
-        d_model,
-        nhead,
-        dim_feedforward=2048,
-        dropout=0.1,
-        activation : nn.Module = torch.nn.functional.relu,
-        layer_norm_eps=1e-5,
-        norm_first = False,
-        bias=True,
-        device=None,
-        dtype=None,
+        d_model: int,
+        nhead: int,
+        dim_feedforward: int,
+        dropout: float,
+        activation : nn.Module,
+        layer_norm_eps: float,
+        norm_first: bool,
+        bias: bool,
+        dtype: torch.dtype,
+        device: str = 'cpu',
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()

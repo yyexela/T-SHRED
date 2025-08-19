@@ -11,7 +11,10 @@ class PolynomialFeatures(torch.nn.Module):
 
     X is of shape(n_samples, n_features_in)
     """
-    def __init__(self, degree, interaction_only=False, include_bias=True):
+    def __init__(self,
+                 degree: int,
+                 interaction_only: bool = False,
+                 include_bias: bool = True):
         super(PolynomialFeatures, self).__init__()
 
         if degree < 1:

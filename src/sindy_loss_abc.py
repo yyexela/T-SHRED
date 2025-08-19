@@ -4,8 +4,14 @@ from pytorch_polynomial_features import PolynomialFeatures
 
 class SINDyLoss(nn.Module):
     """Mixin for SINDy Loss"""
-    def __init__(self, poly_order, dt, hidden_size, sindy_loss_threshold,  *args, **kwargs):
-        # Stupid? Maybe. Works? Yes.
+    def __init__(self,
+                 poly_order: int,
+                 dt: float,
+                 hidden_size: int,
+                 sindy_loss_threshold: float,
+                 *args,
+                 **kwargs):
+        # Stupid? Maybe. Works? Yes. Forwards kwargs even though this class uses them.
         kwargs['hidden_size'] = hidden_size
         kwargs['poly_order'] = poly_order
         super().__init__(*args, **kwargs)

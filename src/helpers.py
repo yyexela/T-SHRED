@@ -414,7 +414,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
             # Reshape output
             # n is number of rollout steps
-            outputs = einops.rearrange(outputs, 'b n (r w d) -> b n r w d', n=outputs.shape[1], b=outputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+            outputs = einops.rearrange(outputs, 'batch rollouts (rows cols dim) -> batch rollouts rows cols dim', rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
@@ -426,7 +426,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 loss += sindy_loss_batch
             if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
                 if args.sindy_attention_weight > 0.0:
-                    sindy_sum = args.sindy_attention_weight * model.encoder.get_SINDy_coefficients_sum()
+                    sindy_sum = args.sindy_attention_weight * get_SINDy_coefficients_sum(model.encoder)
                     loss += sindy_sum
 
             # Backprop
@@ -452,7 +452,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
             if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_epoch == 0:
                 print(f"Thresholding SINDy coefficients (epoch {epoch+1})")
-                model.encoder.threshold_all_layers(args.sindy_attention_threshold)
+                threshold_all_layers(model.encoder, args.sindy_attention_threshold)
 
         # Average loss
         train_loss /= len(train_dl)
@@ -832,6 +832,30 @@ def generate_sinusoid_sum(n_sin: int, X: int, T: int, seed: int = 42) -> torch.T
             output[i] += amplitudes[j] * torch.sin(frequencies[j] * t)
     
     return output
+
+def get_SINDy_coefficients_sum(model):
+    """
+    Sum of all SINDy coefficients in all heads of all layers.
+    """
+    with torch.no_grad():
+        sindy_sum = 0.
+        for i, layer in enumerate(model.encoder.layers):
+            for i in range(layer.self_attn.nheads):
+                sindy_sum += torch.sqrt((torch.abs(layer.self_attn.coefficients[i].data)**2).sum())
+    return sindy_sum
+
+def threshold_all_layers(model, threshold):
+    """
+    Threshold all SINDy coefficients in all heads of all layers.
+    """
+    for i, layer in enumerate(model.encoder.layers):
+        print(f"Layer {i}")
+        with torch.no_grad():
+            for i in range(layer.self_attn.nheads):
+                mask = torch.abs(layer.self_attn.coefficients[i].data) > threshold
+                layer.self_attn.coefficients[i].data *= mask
+                print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
+        print()
 
 # We use this for exact parity with the PyTorch implementation, having the same init
 # for every layer might not be necessary.

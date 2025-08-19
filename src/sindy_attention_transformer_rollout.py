@@ -1,18 +1,17 @@
-import copy
 import torch
 import einops
-import numpy as np
 import torch.nn as nn
-from typing import Optional
-import torch.nn.functional as F
 from torchdiffeq import odeint
+import torch.nn.functional as F
+from vanilla_transformer import Transformer
 from positional_encoding import PositionalEncoding
+from pytorch_polynomial_features import PolynomialFeatures
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class MultiHeadSindyAttention(nn.Module):
+class MultiHeadSindyAttentionRollout(nn.Module):
     """
-    Computes multi-head attention. Supports nested or padded tensors.
+    Computes multi-head attention with latent space rollout. Supports nested or padded tensors.
 
     Args:
         E_q (int): Size of embedding dim for query
@@ -32,38 +31,50 @@ class MultiHeadSindyAttention(nn.Module):
         E_v: int,
         E_total: int,
         nheads: int,
-        forecast_length=1,
-        dropout: float = 0.0,
-        bias=True,
-        poly_order=2,
-        device=None,
-        dtype=None,
+        forecast_length: int,
+        dropout: float,
+        bias: bool,
+        poly_order: int,
+        dtype: torch.dtype,
+        device='cpu',
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
+
+        # Class variables
         self.nheads = nheads
         self.dropout = dropout
-        self.forecast_length = forecast_length
         self._qkv_same_embed_dim = E_q == E_k and E_q == E_v
+        self.bias = bias
+        self.poly_order = poly_order
+        self.forecast_length = forecast_length
+
+        # Create projection matrices (Q K V)
         if self._qkv_same_embed_dim:
             self.packed_proj = nn.Linear(E_q, E_total * 3, bias=bias, **factory_kwargs)
         else:
             self.q_proj = nn.Linear(E_q, E_total, bias=bias, **factory_kwargs)
             self.k_proj = nn.Linear(E_k, E_total, bias=bias, **factory_kwargs)
             self.v_proj = nn.Linear(E_v, E_total, bias=bias, **factory_kwargs)
-        E_out = E_q
-        self.out_proj = nn.Linear(E_total, E_out, bias=bias, **factory_kwargs)
-        assert E_total % nheads == 0, "Embedding dim is not divisible by nheads"
+
+        # Create output projection matrix
+        self.out_proj = nn.Linear(E_total, E_q, bias=bias, **factory_kwargs)
+
+        # Check if embedding dim is divisible by nheads
+        if E_total % nheads != 0:
+            raise ValueError("Embedding dim is not divisible by nheads")
         self.E_head = E_total // nheads
-        self.bias = bias
-        self.poly_order = poly_order
-        self.library_dim = calculate_library_dim(self.E_head, poly_order, include_sine) # (hidden_dim / n_heads) + 1 for linear
-        self.coefficients = nn.ParameterList([torch.Tensor(self.library_dim, self.E_head) for _ in range(nheads)]) # n_heads x library_dim x (hidden_dim / n_heads)
-        self.initial_conditions = nn.Parameter(torch.Tensor(nheads, self.E_head)) # n_heads x (hidden_dim / n_heads)
-        self.library_terms = sindy_library_terms(self.E_head, poly_order, include_sine)
+
+        # Create SINDy Attention library
+        self.pf = PolynomialFeatures(degree=poly_order)
+        self.pf.fit(torch.randn(1, self.E_head)) # Necessary for output features
+        self.library_dim = self.pf.n_output_features_
+        self.coefficients = nn.ParameterList([torch.Tensor(self.library_dim, self.E_head) for _ in range(nheads)])
+        self.library_terms = self.pf.get_feature_names_out()
+
+        # Initialize SINDy Attention coefficients
         for i in range(nheads):
             nn.init.xavier_uniform_(self.coefficients[i])
-        nn.init.xavier_uniform_(self.initial_conditions)
 
     def forward(
         self,
@@ -142,7 +153,7 @@ class MultiHeadSindyAttention(nn.Module):
             # Reshape src for sindy_library (batch_size * seq_len, hidden_size/nheads + 1 for linear)
             head = einops.rearrange(head, 'b s h -> (b s) h', b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
             # Calculate SINDy library features
-            library_theta = sindy_library_torch(head, self.E_head, self.poly_order, self.include_sine)
+            library_Theta = self.pf.fit_transform(head)
             # Calculate SINDy update (use masked coefficients)
             # effective_coefficients = self.coefficients * self.coefficient_mask.to(self.coefficients.device) # Ensure mask is on correct device
             ############################## Simplified SINDy update (without mask) #############################
@@ -152,7 +163,7 @@ class MultiHeadSindyAttention(nn.Module):
             # > Initial condition is from library_Theta, propogate forward n steps
             
             def f(t, y):
-                y = y.reshape(library_theta.shape[0], library_theta.shape[1] - 1)
+                y = y.reshape(library_Theta.shape[0], library_Theta.shape[1] - 1)
                 # add linear term back
                 y = torch.cat([torch.ones(y.shape[0], 1, device=y.device), y], dim=1)
                 y = y.T
@@ -160,12 +171,11 @@ class MultiHeadSindyAttention(nn.Module):
                 dy = dy.T
                 return dy.flatten()
             
-            t_eval = torch.arange(1, self.forecast_length+1, 1, device=library_theta.device).float()
-            library_theta_flat = library_theta[:,1:].flatten() # don't include the linear term when passing into odeint
-            rollout = odeint(f, library_theta_flat, t_eval, method='rk4')
-            rollout = rollout.reshape(self.forecast_length, library_theta.shape[0], library_theta.shape[1] - 1)
+            t_eval = torch.arange(1, self.forecast_length+1, 1, device=library_Theta.device).float()
+            library_Theta_flat = library_Theta[:,1:].flatten() # don't include the linear term when passing into odeint
+            rollout = odeint(f, library_Theta_flat, t_eval, method='rk4')
+            rollout = rollout.reshape(self.forecast_length, library_Theta.shape[0], library_Theta.shape[1] - 1)
 
-            #sindy_update = library_Theta @ self.coefficients[i]
             # Reshape update back to (batch_size, seq_len, hidden_size)
             rollout = einops.rearrange(rollout, 'n (b s) h -> b n s h', n=self.forecast_length, b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
             sindy_attn_output.append(rollout)
@@ -181,179 +191,40 @@ class MultiHeadSindyAttention(nn.Module):
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class TransformerSindyEncoderLayer(nn.Module):
+class SindyAttentionTransformerRollout(Transformer):
     def __init__(
         self,
-        d_model,
-        nhead,
-        forecast_length=1,
-        dim_feedforward=2048,
-        dropout=0.1,
-        activation : nn.Module = torch.nn.functional.relu,
-        layer_norm_eps=1e-5,
-        norm_first=True,
-        bias=True,
-        poly_order=2,
-        include_sine=False,
-        device=None,
-        dtype=None,
+        d_model: int,
+        nhead: int,
+        forecast_length: int,
+        num_encoder_layers: int,
+        dim_feedforward: int,
+        dropout: float,
+        activation: nn.Module,
+        layer_norm_eps: float,
+        norm_first: bool,
+        bias: bool,
+        input_length: int,
+        hidden_size: int,
+        poly_order: int,
+        device: str = 'cpu',
     ):
-        factory_kwargs = {"device": device, "dtype": dtype}
-        super().__init__()
-        self.self_attn = MultiHeadSindyAttention(
-            d_model,
-            d_model,
-            d_model,
-            d_model,
-            nhead,
-            forecast_length=forecast_length,
-            dropout=dropout,
-            bias=bias,
-            poly_order=poly_order,
-            include_sine=include_sine,
-            **factory_kwargs,
-        )
-        self.linear1 = nn.Linear(d_model, dim_feedforward, bias=bias, **factory_kwargs)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model, bias=bias, **factory_kwargs)
+        super().__init__(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers, dim_feedforward=dim_feedforward, dropout=dropout, activation=activation, layer_norm_eps=layer_norm_eps, norm_first=norm_first, bias=bias, input_length=input_length, hidden_size=hidden_size, device=device)
 
-        self.norm_first = norm_first
-        self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        self.activation = activation
-        
-
-    def _sa_block(self, x, attn_mask, is_causal):
-        x = self.self_attn(x, x, x, is_causal=is_causal)
-        return self.dropout1(x)
-
-    def _ff_block(self, x):
-        x = self.linear2(self.dropout(self.activation(self.linear1(x))))
-        return self.dropout2(x)
-
-    def forward(self, src, src_mask=None, is_causal=False):
-        '''
-        Arguments:
-            src: (batch_size, seq_len, d_model)
-            src_mask: (batch_size, seq_len, seq_len)
-            is_causal: bool
-        '''
-        x = src
-        if self.norm_first:
-            x = x + self._sa_block(self.norm1(x), src_mask, is_causal)
-            x = x + self._ff_block(self.norm2(x))
-        else:
-            out_1 = self._sa_block(x, src_mask, is_causal)
-            out_2 = out_1 + x.unsqueeze(1).expand_as(out_1)
-            x = self.norm1(out_2)
-            x = self.norm2(x + self._ff_block(x))
-        return x
-
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class TransformerSindyEncoder(nn.Module):
-    def __init__(
-        self,
-        encoder_layer: "TransformerSindyEncoderLayer",
-        num_layers: int,
-        norm: Optional[nn.Module] = None,
-        device=None,
-        dtype=None,
-    ):
-        factory_kwargs = {"device": device, "dtype": dtype}
-        super().__init__()
-        self.layers = _get_clones(encoder_layer, num_layers)
-        self.num_layers = num_layers
-        self.norm = norm
-
-    def forward(self, src: torch.Tensor, mask: Optional[torch.Tensor] = None, is_causal=False):
-        output = src
-        for mod in self.layers:
-            output = mod(output, mask, is_causal)
-        if self.norm is not None:
-            output = self.norm(output)
-        return output
-
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class SindyAttentionTransformerRollout(nn.Module):
-    def __init__(
-        self,
-        d_model,
-        nhead,
-        forecast_length=1,
-        num_encoder_layers=1,
-        dim_feedforward=2048,
-        dropout=0.1,
-        activation : nn.Module = torch.nn.functional.relu,
-        layer_norm_eps=1e-5,
-        norm_first=False,
-        bias=True,
-        input_length=10,
-        hidden_size=10,
-        poly_order=2,
-        include_sine=False,
-        sindy_loss=False,
-        dt=1.0,
-        device='cpu',
-    ):
-        super().__init__()
-
-        self.sindy_loss = sindy_loss
-        self.dt = dt
-        self.poly_order = poly_order
-        self.include_sine = include_sine
-
-        if num_encoder_layers > 1:
-            raise ValueError("num_encoder_layers must be 1 for SindyAttentionTransformerRollout")
-
-        encoder_layer = TransformerSindyEncoderLayer(
-            hidden_size,
-            nhead,
-            forecast_length,
-            dim_feedforward,
-            dropout,
-            activation,
-            layer_norm_eps,
-            norm_first=norm_first,
-            bias=bias,
-            device=device,
-            poly_order=poly_order,
-            include_sine=include_sine,
-        )
-
-        encoder_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps, bias=bias, device=device)
-        self.encoder = TransformerSindyEncoder(
-            encoder_layer, num_encoder_layers, encoder_norm
-        )
-
-        self.pos_encoder = PositionalEncoding(
-            d_model=hidden_size,
-            sequence_length=input_length + 10, # Provide some buffer
-            dropout=dropout
-        )
-
-        self.input_embedding = nn.GRU(
-            input_size=d_model,
-            hidden_size=hidden_size, # GRU output matches d_model
-            num_layers=2,                 # Example: 2 GRU layers for embedding
-            batch_first=True,
-            dropout=dropout if num_encoder_layers > 1 else 0.0 # Dropout between GRU layers
-        )
-        
-        if self.sindy_loss:
-            # SINDy components
-            self.library_dim = calculate_library_dim(hidden_size, poly_order, include_sine)
-            
-            # SINDy coefficients (learnable parameters)
-            self.coefficients = nn.Parameter(torch.Tensor(self.library_dim, hidden_size))
-            nn.init.xavier_uniform_(self.coefficients, gain=0.0000000)  # Initialize with small values
-            
-            # Coefficient mask for thresholding (not learnable, used for sparsification)
-            self.register_buffer('coefficient_mask', torch.ones(self.library_dim, hidden_size))
+        for layer in self.encoder.layers:
+            layer.self_attn = MultiHeadSindyAttentionRollout(
+                hidden_size,
+                hidden_size,
+                hidden_size,
+                hidden_size,
+                nhead,
+                forecast_length=forecast_length,
+                dropout=dropout,
+                bias=bias,
+                poly_order=poly_order,
+                device=device,
+                dtype=None
+            )
 
     def forward(
         self,
@@ -371,120 +242,9 @@ class SindyAttentionTransformerRollout(nn.Module):
             is_causal=src_is_causal,
         )
 
-        sindy_loss = self.compute_sindy_loss(transformer_output) if self.sindy_loss else None
-
         return {
             "sequence_output": transformer_output, # [rollout, batch_size, sequence_length, d_model]
             "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
-            "sindy_loss": sindy_loss
+            "sindy_loss": None
         }
     
-    def compute_sindy_loss(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate SINDy loss based on derivatives with a midpoint integration method.
-        For each time step (t0 to t1), we integrate in two steps (t0 to t0.5, then t0.5 to t1).
-        
-        Args:
-            x: Transformed sequence of shape (batch_size, sequence_length, hidden_size)
-            
-        Returns:
-            torch.Tensor: SINDy regularization loss
-        """
-        rollout_size, batch_size, seq_len, hidden_size = x.shape
-        
-        # We need to compare: h_t -> h_{t+1} and h_{t+1} -> h_{t+2}
-        h_t = x[:, :, :-2, :]          # (rollout_size, batch_size, seq_len-2, hidden_size)
-        h_t_next = x[:, :, 1:-1, :]    # (rollout_size, batch_size, seq_len-2, hidden_size)
-        h_t_next2 = x[:, :, 2:, :]     # (rollout_size, batch_size, seq_len-2, hidden_size)
-        
-        # Compute observed derivatives using explicit dt
-        h_dot_observed = (h_t_next - h_t) / self.dt  # (rollout_size, batch_size, seq_len-2, hidden_size)
-        
-        # Reshape for SINDy library computation
-        h_t_flat = h_t.reshape(-1, hidden_size)  # (rollout_size*batch_size*(seq_len-2), hidden_size)
-        
-        # Compute SINDy library features for h_t
-        library_theta_t = sindy_library_torch(h_t_flat, hidden_size, self.poly_order, self.include_sine)
-        
-        # Apply coefficient mask (for sparsity)
-        effective_coefficients = self.coefficients * self.coefficient_mask
-        
-        # Calculate SINDy derivative predictions for h_t
-        h_dot_pred = library_theta_t @ effective_coefficients
-        h_dot_pred = h_dot_pred.reshape(rollout_size, batch_size, seq_len-2, hidden_size)
-        
-        # Calculate loss between SINDy derivative predictions and observed derivatives
-        derivative_loss = torch.mean((h_dot_pred - h_dot_observed) ** 2)
-        
-        # ---------- Two-step integration within one time step (midpoint method) ----------
-        
-        # Step 1: First half-step - predict h_{t+0.5} using Euler forward
-        half_dt = self.dt / 2.0
-        h_t_mid_pred = h_t + h_dot_pred * half_dt
-        
-        # Step 2: Compute derivatives at the midpoint h_{t+0.5}
-        h_t_mid_flat = h_t_mid_pred.reshape(-1, hidden_size)
-        library_theta_mid = sindy_library_torch(h_t_mid_flat, hidden_size, self.poly_order, self.include_sine)
-        h_dot_mid_pred = library_theta_mid @ effective_coefficients
-        h_dot_mid_pred = h_dot_mid_pred.reshape(rollout_size, batch_size, seq_len-2, hidden_size)
-        
-        # Step 3: Second half-step - use midpoint derivatives to predict h_{t+1}
-        h_t_next_pred = h_t_mid_pred + h_dot_mid_pred * half_dt  # Use full dt but with midpoint derivatives
-        
-        # Step 4: Compute prediction loss for first time step
-        first_step_loss = torch.mean((h_t_next_pred - h_t_next) ** 2)
-        
-        # ---------- Repeat the process for the next time step (t+1 to t+2) ----------
-        
-        # Step 5: Compute derivatives at predicted h_{t+1}
-        h_t_next_flat = h_t_next_pred.reshape(-1, hidden_size)
-        library_theta_next = sindy_library_torch(h_t_next_flat, hidden_size, self.poly_order, self.include_sine)
-        h_dot_next_pred = library_theta_next @ effective_coefficients
-        h_dot_next_pred = h_dot_next_pred.reshape(rollout_size, batch_size, seq_len-2, hidden_size)
-        
-        # Step 6: First half-step from h_{t+1} - predict h_{t+1.5}
-        h_t_next_mid_pred = h_t_next_pred + h_dot_next_pred * half_dt
-        
-        # Step 7: Compute derivatives at the midpoint h_{t+1.5}
-        h_t_next_mid_flat = h_t_next_mid_pred.reshape(-1, hidden_size)
-        library_theta_next_mid = sindy_library_torch(h_t_next_mid_flat, hidden_size, self.poly_order, self.include_sine)
-        h_dot_next_mid_pred = library_theta_next_mid @ effective_coefficients
-        h_dot_next_mid_pred = h_dot_next_mid_pred.reshape(rollout_size, batch_size, seq_len-2, hidden_size)
-        
-        # Step 8: Second half-step - use midpoint derivatives to predict h_{t+2}
-        h_t_next2_pred = h_t_next_mid_pred + h_dot_next_mid_pred * half_dt  # Use full dt but with midpoint derivatives
-        
-        # Step 9: Compute prediction loss for second time step
-        second_step_loss = torch.mean((h_t_next2_pred - h_t_next2) ** 2)
-        
-        # Add L1 regularization for sparsity
-        l2_loss = torch.mean(torch.square(effective_coefficients))
-        
-        # Combine all losses
-        total_loss = derivative_loss + first_step_loss + second_step_loss + 0.001*l2_loss
-
-        return total_loss
-
-    def get_SINDy_coefficients_sum(self):
-        """
-        Sum of all SINDy coefficients in all heads of all layers.
-        """
-        with torch.no_grad():
-            sindy_sum = 0.
-            for i, layer in enumerate(self.encoder.layers):
-                for i in range(layer.self_attn.nheads):
-                    sindy_sum += torch.sqrt((torch.abs(layer.self_attn.coefficients[i].data)**2).sum())
-        return sindy_sum
-
-    def threshold_all_layers(self, threshold):
-        """
-        Threshold all SINDy coefficients in all heads of all layers.
-        """
-        for i, layer in enumerate(self.encoder.layers):
-            print(f"Layer {i}")
-            with torch.no_grad():
-                for i in range(layer.self_attn.nheads):
-                    mask = torch.abs(layer.self_attn.coefficients[i].data) > threshold
-                    layer.self_attn.coefficients[i].data *= mask
-                    print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
-            print()

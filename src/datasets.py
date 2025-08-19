@@ -32,7 +32,12 @@ fig_dir = top_dir / 'figures'
 #############
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, input_tensors, input_length, device='cpu', output_tensors=None, output_length=1):
+    def __init__(self,
+                 input_tensors: list[torch.Tensor],
+                 input_length: int,
+                 output_tensors: list[torch.Tensor] = None,
+                 output_length: int = 1,
+                 device: str = 'cpu'):
         """
         Args:
             input_tensors (list of torch.Tensor): List of input tensors where each tensor is

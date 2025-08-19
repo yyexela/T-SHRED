@@ -6,7 +6,11 @@ class PositionalEncoding(nn.Module):
     """
     source: https://stackoverflow.com/questions/77444485/using-positional-encoding-in-pytorch
     """
-    def __init__(self, d_model: int, sequence_length: int = 5400, dropout: float = 0.1, device: str = 'cpu'):
+    def __init__(self,
+                 d_model: int,
+                 sequence_length: int,
+                 dropout: float,
+                 device: str = 'cpu'):
         super().__init__()
         self.device = device
         self.dropout = nn.Dropout(dropout)

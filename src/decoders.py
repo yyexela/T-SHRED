@@ -10,7 +10,12 @@ class MLP(nn.Module):
     `width`: width of model   
     `device`: which device to use   
     """
-    def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
+    def __init__(self,
+                 in_dim: int,
+                 out_dim: int,
+                 n_layers: int,
+                 dropout: float,
+                 device: str = 'cpu'):
         super(MLP, self).__init__()
         # Class variables
         self.in_dim = in_dim
@@ -47,7 +52,12 @@ class MLP(nn.Module):
         }
 
 class CNN(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, n_layers: int, dropout: float, device: str = 'cpu'):
+    def __init__(self,
+                 in_dim: int,
+                 out_dim: int,
+                 n_layers: int,
+                 dropout: float,
+                 device: str = 'cpu'):
         super().__init__()
         # Class variables
         self.in_dim = in_dim

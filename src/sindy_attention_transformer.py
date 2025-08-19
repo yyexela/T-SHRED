@@ -33,11 +33,11 @@ class MultiHeadSindyAttention(nn.Module):
         E_v: int,
         E_total: int,
         nheads: int,
-        dropout: float = 0.0,
-        bias=True,
-        poly_order=2,
-        device=None,
-        dtype=None,
+        dropout: float,
+        bias: bool,
+        poly_order: int,
+        dtype: torch.dtype,
+        device: str ='cpu',
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -165,10 +165,6 @@ class MultiHeadSindyAttention(nn.Module):
 
         attn_output = sindy_attn_output.transpose(1, 2).flatten(-2)
 
-        # Step 5. Apply output projection (ff network)
-        # (N, L_t, E_total) -> (N, L_t, E_q)
-        attn_output = self.out_proj(attn_output)
-
         return attn_output
 
 # Copied from pytorch:
@@ -188,7 +184,7 @@ class SindyAttentionTransformer(Transformer):
         input_length: int,
         hidden_size: int,
         poly_order: int,
-        device='cpu',
+        device: str = 'cpu',
     ):
         super().__init__(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers, dim_feedforward=dim_feedforward, dropout=dropout, activation=activation, layer_norm_eps=layer_norm_eps, norm_first=norm_first, bias=bias, input_length=input_length, hidden_size=hidden_size, device=device)
 
@@ -201,6 +197,7 @@ class SindyAttentionTransformer(Transformer):
                 nhead,
                 dropout=dropout,
                 bias=bias,
+                poly_order=poly_order,
                 device=device,
                 dtype=None
             )
@@ -229,31 +226,6 @@ class SindyAttentionTransformer(Transformer):
             "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
             "sindy_loss": None
         }
-
-    def get_SINDy_coefficients_sum(self):
-        """
-        Sum of all SINDy coefficients in all heads of all layers.
-        """
-        with torch.no_grad():
-            sindy_sum = 0.
-            for i, layer in enumerate(self.encoder.layers):
-                for i in range(layer.self_attn.nheads):
-                    sindy_sum += torch.sqrt((torch.abs(layer.self_attn.coefficients[i].data)**2).sum())
-        return sindy_sum
-
-    def threshold_all_layers(self, threshold):
-        """
-        Threshold all SINDy coefficients in all heads of all layers.
-        """
-        for i, layer in enumerate(self.encoder.layers):
-            print(f"Layer {i}")
-            with torch.no_grad():
-                for i in range(layer.self_attn.nheads):
-                    mask = torch.abs(layer.self_attn.coefficients[i].data) > threshold
-                    layer.self_attn.coefficients[i].data *= mask
-                    print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
-            print()
-
 class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
     def __init__(
         self,
@@ -271,7 +243,7 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
         poly_order: int,
         sindy_loss_threshold: float,
         dt: float,
-        device='cpu',
+        device: str = 'cpu',
     ):
         super().__init__(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers, dim_feedforward=dim_feedforward, dropout=dropout, activation=activation, layer_norm_eps=layer_norm_eps, norm_first=norm_first, bias=bias, input_length=input_length, hidden_size=hidden_size, poly_order=poly_order, dt=dt, sindy_loss_threshold=sindy_loss_threshold, device=device)
 
