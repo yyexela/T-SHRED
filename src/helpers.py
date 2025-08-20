@@ -312,12 +312,15 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
 
-            if use_sindy_loss and sindy_loss_batch is not None:
+            # Add other losses if available
+            loss_batch = reconstruction_loss
+            if sindy_loss_batch is not None:
                 sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
-                loss_batch = reconstruction_loss + sindy_loss_batch
-
-            else:
-                loss_batch = reconstruction_loss
+                loss_batch += sindy_loss_batch
+            if "sindy_attention" in args.encoder:
+                if args.sindy_attention_weight > 0.0:
+                    sindy_sum = args.sindy_attention_weight * get_SINDy_coefficients_sum(model.encoder)
+                    loss_batch += sindy_sum
 
             dl_loss += loss_batch.item()
 
@@ -571,7 +574,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             if sindy_loss_batch is not None:
                 sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
                 loss += sindy_loss_batch
-            if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
+            if "sindy_attention" in args.encoder:
                 if args.sindy_attention_weight > 0.0:
                     sindy_sum = args.sindy_attention_weight * get_SINDy_coefficients_sum(model.encoder)
                     loss += sindy_sum
