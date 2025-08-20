@@ -3,6 +3,8 @@ import kaleido
 import palettable
 import numpy as np
 from pathlib import Path
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from matplotlib.gridspec import GridSpec

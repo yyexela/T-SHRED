@@ -4,10 +4,12 @@
 
 import sys
 import time
+import yaml
 import torch
 import pickle
 import einops
 import random
+import argparse
 import numpy as np
 from pathlib import Path
 from torch.utils.data import DataLoader
@@ -148,6 +150,16 @@ def main(args=None):
     with open(pickle_dir / f'{args.identifier}.pkl', 'wb') as f:
         save_dict['hyperparameters'] = vars(args)
         pickle.dump(save_dict, f)
+
+def config_main(config_str: str):
+    """
+    Helper for hyperparameter tuning, just takes in path to config file
+    """
+    with open(config_str, 'r') as f:
+        config = yaml.safe_load(f)
+    model_config = config['model']
+    args = argparse.Namespace(**model_config)
+    main(args)
 
 if __name__ == '__main__':
     args = helpers.parse_args()

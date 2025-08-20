@@ -1,5 +1,6 @@
 import os
 import copy
+import yaml
 import torch
 import einops
 import random
@@ -16,9 +17,10 @@ def parse_args():
     Returns:
         argparse.Namespace: Parsed arguments
     """
-    # To allow CLIs
+    # To allow CLAs
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
+    parser.add_argument("--config", type=str, default=None, help="Path to config file for model parameters, overwrites other CLAs")
     parser.add_argument('--coord_descent', action='store_true', help="Use coordinate descent to train SINDy-Attention model")
     parser.add_argument('--coord_descent_model_n_epochs', type=int, default=10, help="Number of epochs to train model except for SINDy-Attention coefficients during coordinate descent")
     parser.add_argument('--coord_descent_sindy_attention_n_epochs', type=int, default=10, help="Number of epochs to train SINDy-Attention coefficients during coordinate descent")
@@ -38,7 +40,7 @@ def parse_args():
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
     parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
     parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
-    parser.add_argument('--identifier', type=str, required=True, help="Identifier for logging")
+    parser.add_argument('--identifier', type=str, default=None, help="Identifier for logging")
     parser.add_argument('--input_length', type=int, default=10, help="Dataset window length")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
     parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
@@ -56,23 +58,29 @@ def parse_args():
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     args = parser.parse_args()
 
+    if args.config is not None:
+        with open(args.config, 'r') as f:
+            config = yaml.safe_load(f)
+        model_config = config['model']
+        args = argparse.Namespace(**model_config)
+
     return args
 
 def verify_args(args):
     """
-    Ensure CLIs make sense
+    Ensure model parameters make sense
     """
     if args.batch_size <= 0:
         raise ValueError(f"batch_size {args.batch_size} must be greater than 0")
     if args.coord_descent and not ('sindy_attention' in args.encoder):
         raise ValueError(f"coord_descent is only supported for SINDy-Attention encoders, not for {args.encoder}")
-    if args.coord_descent_model_n_epochs <= 0:
+    if args.coord_descent and args.coord_descent_model_n_epochs <= 0:
         raise ValueError(f"coord_descent_model_n_epochs {args.coord_descent_model_n_epochs} must be greater than 0")
-    if args.coord_descent_sindy_attention_n_epochs <= 0:
+    if args.coord_descent and args.coord_descent_sindy_attention_n_epochs <= 0:
         raise ValueError(f"coord_descent_sindy_attention_n_epochs {args.coord_descent_sindy_attention_n_epochs} must be greater than 0")
-    if args.coord_descent_model_lr <= 0:
+    if args.coord_descent and args.coord_descent_model_lr <= 0:
         raise ValueError(f"coord_descent_model_lr {args.coord_descent_model_lr} must be greater than 0")
-    if args.coord_descent_sindy_attention_lr <= 0:
+    if args.coord_descent and args.coord_descent_sindy_attention_lr <= 0:
         raise ValueError(f"coord_descent_sindy_attention_lr {args.coord_descent_sindy_attention_lr} must be greater than 0")
     if args.dataset not in ["planetswe", "sst", "plasma", "sst_demo"]:
         raise ValueError(f"dataset {args.dataset} not supported, choose one of: planetswe, sst, plasma, sst_demo")
@@ -82,7 +90,7 @@ def verify_args(args):
         raise ValueError(f"decoder_depth {args.decoder_depth} must be greater than 0")
     if args.dropout < 0 or args.dropout > 1:
         raise ValueError(f"dropout {args.dropout} must be between 0 and 1")
-    if args.dt < 0:
+    if "sindy_loss" in args.encoder and args.dt < 0:
         raise ValueError(f"dt {args.dt} must be non-negative")
     if args.early_stop not in [0, 1]:
         raise ValueError(f"early_stop {args.early_stop} must be 0 or 1")
@@ -100,29 +108,31 @@ def verify_args(args):
         raise ValueError(f"hidden_size {args.hidden_size} must be greater than 0")
     if args.input_length <= 0:
         raise ValueError(f"input_length {args.input_length} must be greater than 0")
-    if args.lr <= 0:
+    if args.identifier is None:
+        raise ValueError(f"identifier {args.identifier} must be provided")
+    if not args.coord_descent and args.lr <= 0:
         raise ValueError(f"lr {args.lr} must be greater than 0")
-    if args.n_heads <= 0:
+    if 'transformer' in args.encoder and args.n_heads <= 0:
         raise ValueError(f"n_heads {args.n_heads} must be greater than 0")
     if args.n_sensors <= 0:
         raise ValueError(f"n_sensors {args.n_sensors} must be greater than 0")
-    if args.n_well_tracks <= 0:
+    if args.dataset in ['planetswe'] and args.n_well_tracks <= 0:
         raise ValueError(f"n_well_tracks {args.n_well_tracks} must be greater than 0")
-    if args.poly_order <= 0:
+    if 'sindy' in args.encoder and args.poly_order <= 0:
         raise ValueError(f"poly_order {args.poly_order} must be greater than 0")
     if args.save_every_n_epochs <= 0:
         raise ValueError(f"save_every_n_epochs {args.save_every_n_epochs} must be greater than 0")
     if args.seed < 0:
         raise ValueError(f"seed {args.seed} must be non-negative")
-    if args.sindy_attention_threshold < 0:
+    if 'sindy_attention' in args.encoder and args.sindy_attention_threshold < 0:
         raise ValueError(f"sindy_attention_threshold {args.sindy_attention_threshold} must be non-negative")
-    if args.sindy_attention_threshold_n_epochs <= 0:
+    if 'sindy_attention' in args.encoder and args.sindy_attention_threshold_n_epochs <= 0:
         raise ValueError(f"sindy_attention_threshold_n_epochs {args.sindy_attention_threshold_n_epochs} must be greater than 0")
-    if args.sindy_attention_weight < 0:
+    if 'sindy_attention' in args.encoder and args.sindy_attention_weight < 0:
         raise ValueError(f"sindy_attention_weight {args.sindy_attention_weight} must be non-negative")
-    if args.sindy_loss_threshold < 0:
+    if 'sindy_loss' in args.encoder and args.sindy_loss_threshold < 0:
         raise ValueError(f"sindy_loss_threshold {args.sindy_loss_threshold} must be non-negative")
-    if args.sindy_loss_weight < 0:
+    if 'sindy_loss' in args.encoder and args.sindy_loss_weight < 0:
         raise ValueError(f"sindy_loss_weight {args.sindy_loss_weight} must be non-negative")
 
     return
