@@ -33,55 +33,38 @@ fig_dir = top_dir / 'figures'
 
 class TimeSeriesDataset(Dataset):
     def __init__(self,
-                 input_tensors: list[torch.Tensor],
-                 input_length: int,
-                 output_tensors: list[torch.Tensor] = None,
-                 output_length: int = 1,
+                 tensors: list[torch.Tensor],
+                 length: int,
                  device: str = 'cpu'):
         """
         Args:
-            input_tensors (list of torch.Tensor): List of input tensors where each tensor is
+            tensors (list of torch.Tensor): List of tensors where each tensor is
                 a time series of shape (time_steps, features)
-            output_tensors (list of torch.Tensor): List of output tensors where each tensor is
-                a time series of shape (time_steps, features). When None, use input_tensors as output_tensors.
-            input_length (int): Length of the input sliding window
+            length (int): Length of the sliding window
             device (str): Device to move the tensors to
-            output_length (int): Length of the output sliding window (default: 1)
         """
         super().__init__()
-        self.input_length = input_length
-        self.output_length = output_length
+        self.length = length
 
-        self.input_tensors = input_tensors
-        if output_tensors is not None:
-            self.output_tensors = output_tensors
-        else:
-            self.output_tensors = None
+        self.tensors = tensors
 
         # Convert tensors to torch
-        if isinstance(self.input_tensors[0], np.ndarray):
-            self.input_tensors = [torch.from_numpy(tensor) for tensor in self.input_tensors]
-        if self.output_tensors is not None:
-            if isinstance(self.output_tensors[0], np.ndarray):
-                self.output_tensors = [torch.from_numpy(tensor) for tensor in self.output_tensors]
+        if isinstance(self.tensors[0], np.ndarray):
+            self.tensors = [torch.from_numpy(tensor) for tensor in self.tensors]
 
         # Float32 for both sensors and tensors
-        self.input_tensors = [tensor.float() for tensor in self.input_tensors]
-        if self.output_tensors is not None:
-            self.output_tensors = [tensor.float() for tensor in self.output_tensors]
+        self.tensors = [tensor.float() for tensor in self.tensors]
 
         # Move to GPU
-        self.input_tensors = [tensor.to(device) for tensor in self.input_tensors]
-        if self.output_tensors is not None:
-            self.output_tensors = [tensor.to(device) for tensor in self.output_tensors]
+        self.tensors = [tensor.to(device) for tensor in self.tensors]
 
         # Calculate cumulative window counts for index mapping
         self.cumulative_offsets = [0]
         current = 0
-        for tensor in self.input_tensors:
+        for tensor in self.tensors:
             L = tensor.size(0)
-            # Need enough data for input window + output window
-            n_windows = (L - input_length - output_length) + 1
+            # Need enough data for window
+            n_windows = (L - length) + 1
             n_windows = max(n_windows, 0)  # Ensure non-negative
             current += n_windows
             self.cumulative_offsets.append(current)
@@ -101,22 +84,14 @@ class TimeSeriesDataset(Dataset):
         local_idx = idx - start_idx
         
         # Get corresponding tensor and calculate input window
-        input_start = local_idx
-        input_end = input_start + self.input_length
-        output_start = input_end
-        output_end = output_start + self.output_length
+        start = local_idx
+        end = start + self.length
 
-        input_tensor = self.input_tensors[tensor_idx]
+        tensor = self.tensors[tensor_idx]
 
-        if self.output_tensors is not None:
-            output_tensor = self.output_tensors[tensor_idx]
-        else:
-            output_tensor = input_tensor
+        window = tensor[start:end]
 
-        window = input_tensor[input_start:input_end]
-        target = output_tensor[output_start:output_end]
-
-        return {"input_fields": window, "output_fields": target}
+        return window
 
 def load_dataset(args):
     if args.dataset == 'sst':
@@ -162,9 +137,9 @@ def load_well_data(args):
         scalers = pickle.load(f)
 
     # Create torch datasets
-    train_full_ds = TimeSeriesDataset(input_tensors=train_fulls, input_length=args.input_length, output_length=args.forecast_length, device=args.device)
-    valid_full_ds = TimeSeriesDataset(input_tensors=val_fulls, input_length=args.input_length, output_length=args.forecast_length, device=args.device)
-    test_full_ds = TimeSeriesDataset(input_tensors=test_fulls, input_length=args.input_length, output_length=args.forecast_length, device=args.device)
+    train_full_ds = TimeSeriesDataset(tensors=train_fulls, length=args.input_length + args.forecast_length, device=args.device)
+    valid_full_ds = TimeSeriesDataset(tensors=val_fulls, length=args.input_length + args.forecast_length, device=args.device)
+    test_full_ds = TimeSeriesDataset(tensors=test_fulls, length=args.input_length + args.forecast_length, device=args.device)
 
     return train_full_ds, valid_full_ds, test_full_ds, {'scalers': scalers}
 
@@ -193,7 +168,7 @@ def load_sst_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(input_tensors=[split], input_length=args.input_length, output_length=args.forecast_length, device=args.device)
+        sst_ds = TimeSeriesDataset(tensors=[split], length=args.input_length + args.forecast_length, device=args.device)
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
@@ -227,7 +202,7 @@ def load_sst_demo_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(input_tensors=[split], input_length=args.input_length, output_length=args.forecast_length, device=args.device)
+        sst_ds = TimeSeriesDataset(tensors=[split], length=args.input_length + args.forecast_length, device=args.device)
         datasets.append(sst_ds)
 
     train_ds = datasets[0]

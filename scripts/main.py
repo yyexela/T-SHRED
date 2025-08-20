@@ -60,12 +60,12 @@ def main(args=None):
 
     # Load dataset
     train_ds, val_ds, test_ds, metadata = datasets.load_dataset(args)
-    args.d_data_in = train_ds[0]['input_fields'].shape[-1]
-    args.data_rows_in, args.data_cols_in = (train_ds[0]['input_fields'].shape[-3],
-                                      train_ds[0]['input_fields'].shape[-2])
-    args.d_data_out = train_ds[0]['output_fields'].shape[-1]
-    args.data_rows_out, args.data_cols_out = (train_ds[0]['output_fields'].shape[-3],
-                                      train_ds[0]['output_fields'].shape[-2])
+    args.d_data_in = train_ds[0].shape[-1]
+    args.data_rows_in, args.data_cols_in = (train_ds[0].shape[-3],
+                                      train_ds[0].shape[-2])
+    args.d_data_out = train_ds[0].shape[-1]
+    args.data_rows_out, args.data_cols_out = (train_ds[0].shape[-3],
+                                      train_ds[0].shape[-2])
     args.d_model = args.n_sensors * args.d_data_in
     args.dim_feedforward = args.hidden_size * 4
     args.output_size = args.data_rows_out*args.data_cols_out*args.d_data_out
@@ -135,7 +135,7 @@ def main(args=None):
 
     # Create plots
     if args.generate_test_plots:
-        if not args.encoder in ["sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
+        if "rollout" not in args.encoder:
             helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
         else:
             model_eigvs = np.asarray(model_eigvs)

@@ -60,7 +60,7 @@ class MultiHeadAttention(nn.Module):
         key: torch.Tensor,
         value: torch.Tensor,
         attn_mask=None,
-        is_causal=False,
+        is_causal=True,
     ) -> torch.Tensor:
         """
         Forward pass; runs the following process:
@@ -177,7 +177,7 @@ class TransformerEncoderLayer(nn.Module):
         x = self.linear2(self.dropout(self.activation(self.linear1(x))))
         return self.dropout2(x)
 
-    def forward(self, src, src_mask=None, is_causal=False):
+    def forward(self, src, src_mask=None, is_causal=True):
         '''
         Arguments:
             src: (batch_size, seq_len, d_model)
@@ -217,7 +217,7 @@ class TransformerEncoder(nn.Module):
         self.num_layers = num_layers
         self.norm = norm
 
-    def forward(self, src: torch.Tensor, mask: Optional[torch.Tensor] = None, is_causal=False):
+    def forward(self, src: torch.Tensor, mask: Optional[torch.Tensor] = None, is_causal=True):
         output = src
         for mod in self.layers:
             output = mod(output, mask, is_causal)
@@ -245,8 +245,8 @@ class TransformerDecoder(nn.Module):
         memory: Tensor,
         tgt_mask: Optional[Tensor] = None,
         memory_mask: Optional[Tensor] = None,
-        tgt_is_causal=False,
-        memory_is_causal=False
+        tgt_is_causal=True,
+        memory_is_causal=True
     ):
         output = tgt
         for mod in self.layers:
@@ -324,7 +324,7 @@ class Transformer(nn.Module):
         self,
         src,
         src_mask=None,
-        src_is_causal=False,
+        is_causal=True,
     ):
         x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
 
@@ -333,7 +333,7 @@ class Transformer(nn.Module):
         transformer_output = self.encoder(
             x_pos_encoded,
             mask=src_mask,
-            is_causal=src_is_causal,
+            is_causal=is_causal,
         )
 
         transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
@@ -341,6 +341,7 @@ class Transformer(nn.Module):
         return {
             "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
+            "output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "sindy_loss": None
         }
         
@@ -402,7 +403,7 @@ class TransformerDecoderLayer(nn.Module):
         self,
         x: Tensor,
         attn_mask: Optional[Tensor],
-        is_causal: bool = False,
+        is_causal: bool = True,
     ) -> Tensor:
         x = self.self_attn(
             x,
@@ -419,7 +420,7 @@ class TransformerDecoderLayer(nn.Module):
         x: Tensor,
         mem: Tensor,
         attn_mask: Optional[Tensor],
-        is_causal: bool = False,
+        is_causal: bool = True,
     ) -> Tensor:
         x = self.multihead_attn(
             x,
@@ -441,8 +442,8 @@ class TransformerDecoderLayer(nn.Module):
         memory: Tensor,
         tgt_mask: Optional[Tensor] = None,
         memory_mask: Optional[Tensor] = None,
-        tgt_is_causal=False,
-        memory_is_causal=False,
+        tgt_is_causal=True,
+        memory_is_causal=True,
     ):
         x = tgt
         if self.norm_first:

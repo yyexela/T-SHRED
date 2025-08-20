@@ -31,7 +31,7 @@ class SindyAttentionSindyLossTransformerRollout(SINDyLoss, SindyAttentionTransfo
         self,
         src,
         src_mask=None,
-        src_is_causal=False,
+        is_causal=True,
     ):
         x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
 
@@ -40,7 +40,7 @@ class SindyAttentionSindyLossTransformerRollout(SINDyLoss, SindyAttentionTransfo
         transformer_output = self.encoder(
             x_pos_encoded,
             mask=src_mask,
-            is_causal=src_is_causal,
+            is_causal=is_causal,
         )
 
         # Compute SINDy Loss, put rollout dimension into batch dimension
@@ -48,8 +48,9 @@ class SindyAttentionSindyLossTransformerRollout(SINDyLoss, SindyAttentionTransfo
         sindy_loss = self.compute_sindy_loss(transformer_output_3d)
 
         return {
-            "sequence_output": transformer_output, # [rollout, batch_size, sequence_length, d_model]
+            "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
+            "output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "sindy_loss": sindy_loss
         }
     

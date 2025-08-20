@@ -36,7 +36,7 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
         self,
         src: torch.Tensor,
         src_mask: Optional[torch.Tensor] = None,
-        src_is_causal: bool = False,
+        is_causal: bool = True,
     ) -> dict:
         """
         Args:
@@ -54,7 +54,7 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
         transformer_output = self.encoder(
             x_pos_encoded,
             mask=src_mask,
-            is_causal=src_is_causal,
+            is_causal=is_causal,
         )
 
         sindy_loss = self.compute_sindy_loss(transformer_output)
@@ -64,5 +64,6 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
         return {
             "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
+            "output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "sindy_loss": sindy_loss
         }

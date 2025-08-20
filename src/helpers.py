@@ -10,6 +10,12 @@ from pathlib import Path
 from src.plots import plot_losses, plot_field_comparison
 
 def parse_args():
+    """
+    Parse command line arguments
+
+    Returns:
+        argparse.Namespace: Parsed arguments
+    """
     # To allow CLIs
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
@@ -51,82 +57,56 @@ def verify_args(args):
     """
     Ensure CLIs make sense
     """
-
     if args.batch_size <= 0:
         raise ValueError(f"batch_size {args.batch_size} must be greater than 0")
-
     if args.dataset not in ["planetswe", "sst", "plasma", "sst_demo"]:
         raise ValueError(f"dataset {args.dataset} not supported, choose one of: planetswe, sst, plasma, sst_demo")
-
     if args.decoder not in ["mlp", "cnn"]:
         raise ValueError(f"decoder {args.decoder} not supported, choose one of: mlp, cnn")
-
     if args.decoder_depth <= 0:
         raise ValueError(f"decoder_depth {args.decoder_depth} must be greater than 0")
-
     if args.dropout < 0 or args.dropout > 1:
         raise ValueError(f"dropout {args.dropout} must be between 0 and 1")
-
     if args.dt < 0:
         raise ValueError(f"dt {args.dt} must be non-negative")
-
     if args.early_stop not in [0, 1]:
         raise ValueError(f"early_stop {args.early_stop} must be 0 or 1")
-
-    if args.encoder not in ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
+    if args.encoder not in ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
         raise ValueError(f"encoder {args.encoder} not supported, choose one of: gru, lstm, sindy_loss_gru, sindy_loss_lstm, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer, sindy_attention_transformer_rollout, sindy_attention_sindy_loss_transformer_rollout")
-    
     if args.encoder_depth <= 0:
         raise ValueError(f"encoder_depth {args.encoder_depth} must be greater than 0")
-
     if args.epochs <= 0:
         raise ValueError(f"epochs {args.epochs} must be greater than 0")
-
     if args.forecast_length <= 0:
         raise ValueError(f"forecast_length {args.forecast_length} must be greater than 0")
-
     if args.forecast_length > 1 and args.encoder not in ["sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
         raise ValueError(f"forecast_length {args.forecast_length} must be 1 for non-rollout encoders")
-
     if args.hidden_size <= 0:
         raise ValueError(f"hidden_size {args.hidden_size} must be greater than 0")
-
     if args.input_length <= 0:
         raise ValueError(f"input_length {args.input_length} must be greater than 0")
-
     if args.lr <= 0:
         raise ValueError(f"lr {args.lr} must be greater than 0")
-
     if args.n_heads <= 0:
         raise ValueError(f"n_heads {args.n_heads} must be greater than 0")
-
     if args.n_sensors <= 0:
         raise ValueError(f"n_sensors {args.n_sensors} must be greater than 0")
-
     if args.n_well_tracks <= 0:
         raise ValueError(f"n_well_tracks {args.n_well_tracks} must be greater than 0")
-
     if args.poly_order <= 0:
         raise ValueError(f"poly_order {args.poly_order} must be greater than 0")
-
     if args.save_every_n_epochs <= 0:
         raise ValueError(f"save_every_n_epochs {args.save_every_n_epochs} must be greater than 0")
-
     if args.seed < 0:
         raise ValueError(f"seed {args.seed} must be non-negative")
-        
     if args.sindy_attention_threshold < 0:
         raise ValueError(f"sindy_attention_threshold {args.sindy_attention_threshold} must be non-negative")
-
     if args.sindy_attention_threshold_n_epochs <= 0:
         raise ValueError(f"sindy_attention_threshold_n_epochs {args.sindy_attention_threshold_n_epochs} must be greater than 0")
-
     if args.sindy_attention_weight < 0:
         raise ValueError(f"sindy_attention_weight {args.sindy_attention_weight} must be non-negative")
-
     if args.sindy_loss_threshold < 0:
         raise ValueError(f"sindy_loss_threshold {args.sindy_loss_threshold} must be non-negative")
-
     if args.sindy_loss_weight < 0:
         raise ValueError(f"sindy_loss_weight {args.sindy_loss_weight} must be non-negative")
 
@@ -287,9 +267,27 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
     with torch.no_grad():
         for i, batch in enumerate(dl):
             # Get raw data
-            inputs, labels = batch["input_fields"], batch["output_fields"]
-            if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
-                inputs, labels = inputs.to(args.device), labels.to(args.device)
+            batch = batch.to(args.device)
+
+            # Create inputs and outputs based on model
+            if "transformer" in args.encoder:
+                # Transformers are causal (masked self-attention)
+                inputs = batch[:,:args.input_length,:,:,:]
+                labels = batch[:,1:,:,:,:]
+
+                if "rollout" in args.encoder:
+                    # Create array of labels for each rollout
+                    labels = torch.stack([labels[:,i:i+args.forecast_length,:,:,:] for i in range(args.input_length)], dim=2)
+                else:
+                    # Set rollout to 1
+                    labels = labels.unsqueeze(1)
+            else:
+                # LSTMs and GRUs are not causal, so we use the last timestep as the label
+                inputs = batch[:,:args.input_length,:,:,:]
+                labels = batch[:,-1:,:,:,:]
+
+                # Set rollout to 1
+                labels = labels.unsqueeze(1)
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -298,16 +296,18 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
             input_sensors = torch.stack(input_sensors, dim=2)
 
             # Prepare input for model
+            # n is number of sensors
             input_sensors = einops.rearrange(input_sensors, 'b w n d -> b w (n d)')
 
             # Pass data through model
             output = model(input_sensors)
 
-            outputs = output["output"]
+            outputs = output["output"] # [batch, rollout, sequence_length, (rows x cols x dim)]
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
-            outputs = einops.rearrange(outputs, 'b n (r w d) -> b n r w d', n=outputs.shape[1], b=outputs.shape[0], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+            expected_seq_len = args.input_length if "transformer" in args.encoder else 1
+            outputs = einops.rearrange(outputs, 'batch rollouts seq_len (rows cols dim) -> batch rollouts seq_len rows cols dim', batch=batch.shape[0], rollouts=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
@@ -353,20 +353,25 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
     # Which timesteps to evaluate
     if args.dataset == "plasma":
         ds_iter = [0]
-        forecast_length_plot = 50
+        forecast_length_plot = 5
     elif args.dataset == "planetswe":
         ds_iter = [0]
-        forecast_length_plot = 50
+        forecast_length_plot = 5
     elif args.dataset == "sst":
         ds_iter = [0]
-        forecast_length_plot = 50
+        forecast_length_plot = 5
 
     with torch.no_grad():
         for i in ds_iter:
             # Get raw data
-            inputs, labels = ds[i]["input_fields"], ds[i]["output_fields"]
+            data = ds[i]
             if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
-                inputs, labels = inputs.to(args.device), labels.to(args.device)
+                data = data.to(args.device)
+
+            # Create inputs and outputs based on model, assuming transformer rollout type
+            # Transformers are causal (masked self-attention)
+            inputs = data[:args.input_length,:,:,:]
+            labels = data[1:,:,:,:]
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -385,7 +390,10 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
             outputs = output["output"]
 
             # Reshape output
-            outputs = einops.rearrange(outputs, '1 n (r w d) -> n r w d', n = outputs.shape[1], r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+            outputs = einops.rearrange(outputs, '1 rollout seq_len (r c d) -> rollout seq_len r c d', rollout=forecast_length_plot, seq_len=args.input_length, r=args.data_rows_out, c=args.data_cols_out, d=args.d_data_out)
+
+            # Extract only last column of forecast corresponding to full input and predicting all unseen states
+            outputs = outputs[:, -1, :, :, :]
 
             # Convert back to original scale (except for plasma)
             if args.dataset not in ['plasma']:
@@ -393,7 +401,7 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
                     outputs[...,j] = inverse_min_max_scale(outputs[...,j], metadata['scalers'][j])
 
                 for j in range(outputs.shape[0]):
-                    tmp_label = ds[i + j]['output_fields'][0, :, :, :]
+                    tmp_label = ds[i + args.input_length + j][0, :, :, :]
                     tmp_label.to(outputs[j].device)
 
                     for k in range(outputs.shape[3]):
@@ -430,9 +438,13 @@ def create_next_step_plots(model, ds, sensors, metadata, args=None):
     with torch.no_grad():
         for i in ds_iter:
             # Get raw data
-            inputs, labels = ds[i]["input_fields"], ds[i]["output_fields"][0,:,:,:]
+            data = ds[i]
             if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
-                inputs, labels = inputs.to(args.device), labels.to(args.device)
+                data = data.to(args.device)
+
+            # Create inputs and outputs, not causal
+            inputs = data[:args.input_length,:,:,:]
+            labels = data[-1,:,:,:]
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -449,7 +461,10 @@ def create_next_step_plots(model, ds, sensors, metadata, args=None):
             outputs = output["output"]
 
             # Reshape output
-            outputs = einops.rearrange(outputs, '1 1 (r w d) -> r w d', r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+            expected_seq_len = args.input_length if "transformer" in args.encoder else 1
+            outputs = einops.rearrange(outputs, '1 1 seq_len (r w d) -> seq_len r w d', seq_len=expected_seq_len, r=args.data_rows_out, w=args.data_cols_out, d=args.d_data_out)
+
+            outputs = outputs[0]
 
             # Convert back to original scale (except for plasma)
             if args.dataset not in ['plasma']:
@@ -505,9 +520,27 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
         for i, batch in enumerate(train_dl):
             # Get raw data
-            inputs, labels = batch["input_fields"], batch["output_fields"]
-            if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
-                inputs, labels = inputs.to(args.device), labels.to(args.device)
+            batch = batch.to(args.device)
+
+            # Create inputs and outputs based on model
+            if "transformer" in args.encoder:
+                # Transformers are causal (masked self-attention)
+                inputs = batch[:,:args.input_length,:,:,:]
+                labels = batch[:,1:,:,:,:]
+
+                if "rollout" in args.encoder:
+                    # Create array of labels for each rollout
+                    labels = torch.stack([labels[:,i:i+args.forecast_length,:,:,:] for i in range(args.input_length)], dim=2)
+                else:
+                    # Set rollout to 1
+                    labels = labels.unsqueeze(1)
+            else:
+                # LSTMs and GRUs are not causal, so we use the last timestep as the label
+                inputs = batch[:,:args.input_length,:,:,:]
+                labels = batch[:,-1:,:,:,:]
+
+                # Set rollout to 1
+                labels = labels.unsqueeze(1)
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -523,12 +556,12 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             optimizer.zero_grad()
             output = model(input_sensors)
 
-            outputs = output["output"]
+            outputs = output["output"] # [batch, rollout, sequence_length, (rows x cols x dim)]
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
-            # n is number of rollout steps
-            outputs = einops.rearrange(outputs, 'batch rollouts (rows cols dim) -> batch rollouts rows cols dim', rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
+            expected_seq_len = args.input_length if "transformer" in args.encoder else 1
+            outputs = einops.rearrange(outputs, 'batch rollouts seq_len (rows cols dim) -> batch rollouts seq_len rows cols dim', batch=batch.shape[0], rollouts=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)

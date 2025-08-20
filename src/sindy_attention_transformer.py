@@ -82,7 +82,7 @@ class MultiHeadSindyAttention(nn.Module):
         key: torch.Tensor,
         value: torch.Tensor,
         attn_mask=None,
-        is_causal=False,
+        is_causal=True,
     ) -> torch.Tensor:
         """
         Forward pass; runs the following process:
@@ -206,7 +206,7 @@ class SindyAttentionTransformer(Transformer):
         self,
         src,
         src_mask=None,
-        src_is_causal=False,
+        is_causal=True,
     ):
         x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
 
@@ -215,7 +215,7 @@ class SindyAttentionTransformer(Transformer):
         transformer_output = self.encoder(
             x_pos_encoded,
             mask=src_mask,
-            is_causal=src_is_causal,
+            is_causal=is_causal,
         )
 
         # reshape output
@@ -224,6 +224,7 @@ class SindyAttentionTransformer(Transformer):
         return {
             "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
+            "output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "sindy_loss": None
         }
 class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
@@ -251,7 +252,7 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
         self,
         src,
         src_mask=None,
-        src_is_causal=False,
+        src_is_causal=True,
     ):
         x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
 
@@ -272,5 +273,6 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
         return {
             "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
+            "output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
             "sindy_loss": sindy_loss
         }

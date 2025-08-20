@@ -22,19 +22,19 @@ class SINDyLossGRU(SINDyLoss, GRU):
         """
         Forward pass through the GRU model.
         """
-        # Initialize hidden and cell
-        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=self.device)
-        out, h_out = self.gru(x, h_0)
+        out, h_out = self.gru(x)
 
         sindy_loss = self.compute_sindy_loss(out)
 
         out = self.dropout(out)
         h_out = self.dropout(h_out)
-        h_out = einops.rearrange(h_out, 'r b d -> b r d')
+        out = einops.rearrange(out, 'b s d -> b 1 s d')
+        h_out = einops.rearrange(h_out, 's b d -> b 1 s d')
 
         return {
-            "sequence_output": out, # [batch_size, sequence_length, d_model]
-            "final_hidden_state": h_out, # [batch_size, rollout, d_model]
+            "sequence_output": out, # [batch_size, rollout, sequence_length, d_model]
+            "final_hidden_state": h_out, # [batch_size, sequence_length, d_model]
+            "output": h_out,
             "sindy_loss": sindy_loss
         }
 
@@ -57,18 +57,18 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
         Forward pass through the LSTM model.
         """
         # Initialize hidden and cell
-        h_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=self.device)
-        c_0 = torch.zeros((self.num_layers, x.size(0), self.hidden_size), device=self.device)
-        out, (h_out, c_out) = self.lstm(x, (h_0, c_0))
+        out, (h_out, c_out) = self.lstm(x)
 
         sindy_loss = self.compute_sindy_loss(out)
 
         out = self.dropout(out)
         h_out = self.dropout(h_out)
-        h_out = einops.rearrange(h_out, 'r b d -> b r d')
+        out = einops.rearrange(out, 'b s d -> b 1 s d')
+        h_out = einops.rearrange(h_out, 's b d -> b 1 s d')
 
         return {
             "sequence_output": out,
             "final_hidden_state": h_out,
+            "output": h_out,
             "sindy_loss": sindy_loss
         }

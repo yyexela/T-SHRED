@@ -43,7 +43,7 @@ class MLP(nn.Module):
 
     def forward(self, x):
         sindy_loss = x.get("sindy_loss", None)
-        x = x["final_hidden_state"]
+        x = x["output"]
         out = self.model(x)
         out = self.dropout(out)
         return {
@@ -85,7 +85,7 @@ class CNN(nn.Module):
 
     def forward(self, x):
         sindy_loss = x.get("sindy_loss", None)
-        x = x["final_hidden_state"] # 128 x 8 
+        x = x["sequence_output"] # 128 x 8 
         x = x.unsqueeze(-1)
         out = self.model(x) 
         out = self.dropout(out)
