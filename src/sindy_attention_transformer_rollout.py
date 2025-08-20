@@ -176,7 +176,7 @@ class MultiHeadSindyAttentionRollout(nn.Module):
             rollout = odeint(f, library_Theta_flat, t_eval, method='rk4')
             rollout = rollout.reshape(self.forecast_length, library_Theta.shape[0], library_Theta.shape[1] - 1)
 
-            # Reshape update back to (batch_size, seq_len, hidden_size)
+            # Reshape update back to (forecast, batch_size, seq_len, hidden_size)
             rollout = einops.rearrange(rollout, 'n (b s) h -> b n s h', n=self.forecast_length, b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
             sindy_attn_output.append(rollout)
         sindy_attn_output = torch.stack(sindy_attn_output, dim=2)
@@ -243,9 +243,9 @@ class SindyAttentionTransformerRollout(Transformer):
         )
 
         return {
-            "sequence_output": transformer_output, # [rollout, batch_size, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
-            "output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
+            "sequence_output": transformer_output, # [forecast_length, batch_size, sequence_length, d_model]
+            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, forecast_length, d_model]
+            "output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
             "sindy_loss": None
         }
     

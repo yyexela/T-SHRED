@@ -13,7 +13,7 @@ model:
   early_stop: 0
   encoder: sindy_attention_transformer
   encoder_depth: 1
-  epochs: 2
+  epochs: 20
   forecast_length: 1
   generate_test_plots: false
   generate_training_plots: false

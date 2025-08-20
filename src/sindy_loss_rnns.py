@@ -32,7 +32,7 @@ class SINDyLossGRU(SINDyLoss, GRU):
         h_out = einops.rearrange(h_out, 's b d -> b 1 s d')
 
         return {
-            "sequence_output": out, # [batch_size, rollout, sequence_length, d_model]
+            "sequence_output": out, # [batch_size, forecast_length, sequence_length, d_model]
             "final_hidden_state": h_out, # [batch_size, sequence_length, d_model]
             "output": h_out,
             "sindy_loss": sindy_loss

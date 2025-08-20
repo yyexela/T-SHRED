@@ -130,7 +130,7 @@ def main(args=None):
         helpers.print_model_coefficients(best_model, args)
 
     # Calculate loss
-    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata['scalers'], args=args, use_sindy_loss=False)
+    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata['scalers'], args=args)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
     save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'model_eigvs': model_eigvs, 'sensors': sensors}

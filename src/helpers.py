@@ -280,9 +280,9 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_loss=False):
+def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None):
     """
-    Evaluate a PyTorch model.
+    Evaluate a PyTorch model. Returns reconstruction loss only. 
     """
     model.to(args.device)
     loss_fn = torch.nn.MSELoss()
@@ -295,24 +295,9 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
             batch = batch.to(args.device)
 
             # Create inputs and outputs based on model
-            if "transformer" in args.encoder:
-                # Transformers are causal (masked self-attention)
-                inputs = batch[:,:args.input_length,:,:,:]
-                labels = batch[:,1:,:,:,:]
-
-                if "rollout" in args.encoder:
-                    # Create array of labels for each rollout
-                    labels = torch.stack([labels[:,i:i+args.forecast_length,:,:,:] for i in range(args.input_length)], dim=2)
-                else:
-                    # Set rollout to 1
-                    labels = labels.unsqueeze(1)
-            else:
-                # LSTMs and GRUs are not causal, so we use the last timestep as the label
-                inputs = batch[:,:args.input_length,:,:,:]
-                labels = batch[:,-1:,:,:,:]
-
-                # Set rollout to 1
-                labels = labels.unsqueeze(1)
+            inputs = batch[:,:args.input_length,:,:,:]
+            expected_out = args.forecast_length if "rollout" in args.encoder else 1
+            labels = batch[:,-expected_out:,:,:,:]
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -327,29 +312,29 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
             # Pass data through model
             output = model(input_sensors)
 
-            outputs = output["output"] # [batch, rollout, sequence_length, (rows x cols x dim)]
+            outputs = output["output"] # [batch, forecast_length, sequence_length, (rows x cols x dim)]
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
-            outputs = einops.rearrange(outputs, 'batch rollouts seq_len (rows cols dim) -> batch rollouts seq_len rows cols dim', batch=batch.shape[0], rollouts=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
+            outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch.shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
+
+            # Take only the last output from transformers
+            if "transformer" in args.encoder:
+                outputs = outputs[:,-1:,-1,:,:,:]
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
 
-            # Add other losses if available
-            loss_batch = reconstruction_loss
             if sindy_loss_batch is not None:
                 sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
-                loss_batch += sindy_loss_batch
             if "sindy_attention" in args.encoder:
                 if args.sindy_attention_weight > 0.0:
                     sindy_sum = args.sindy_attention_weight * get_SINDy_coefficients_sum(model.encoder)
-                    loss_batch += sindy_sum
 
-            dl_loss += loss_batch.item()
+            dl_loss += reconstruction_loss.item()
 
-            if use_sindy_loss and sindy_loss_batch is not None:
+            if sindy_loss_batch is not None:
                 sindy_loss += sindy_loss_batch.item()
 
             # Plot
@@ -361,16 +346,11 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None, use_sindy_lo
                     outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], scalers[j])
                     labels[:,:,j] = inverse_min_max_scale(labels[:,:,j], scalers[j])
 
-                if use_sindy_loss:
-                    ident = "val"
-                else:
-                    ident = "test"
-
-                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_epoch{epoch}_{ident}")
+                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_epoch{epoch}")
 
         # Average loss
         dl_loss /= len(dl)
-        if use_sindy_loss and sindy_loss_batch is not None:
+        if sindy_loss_batch is not None:
             sindy_loss /= len(dl)
 
     return dl_loss, sindy_loss
@@ -418,7 +398,7 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
             outputs = output["output"]
 
             # Reshape output
-            outputs = einops.rearrange(outputs, '1 rollout seq_len (r c d) -> rollout seq_len r c d', rollout=forecast_length_plot, seq_len=args.input_length, r=args.data_rows_out, c=args.data_cols_out, d=args.d_data_out)
+            outputs = einops.rearrange(outputs, '1 forecast seq_len (r c d) -> forecast seq_len r c d', forecast=forecast_length_plot, seq_len=args.input_length, r=args.data_rows_out, c=args.data_cols_out, d=args.d_data_out)
 
             # Extract only last column of forecast corresponding to full input and predicting all unseen states
             outputs = outputs[:, -1, :, :, :]
@@ -572,17 +552,17 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 labels = batch[:,1:,:,:,:]
 
                 if "rollout" in args.encoder:
-                    # Create array of labels for each rollout
+                    # Create array of labels for each forecast
                     labels = torch.stack([labels[:,i:i+args.forecast_length,:,:,:] for i in range(args.input_length)], dim=2)
                 else:
-                    # Set rollout to 1
+                    # Set forecast length to 1
                     labels = labels.unsqueeze(1)
             else:
                 # LSTMs and GRUs are not causal, so we use the last timestep as the label
                 inputs = batch[:,:args.input_length,:,:,:]
                 labels = batch[:,-1:,:,:,:]
 
-                # Set rollout to 1
+                # Set forecast length to 1
                 labels = labels.unsqueeze(1)
 
             # Extract sensors per input tensor
@@ -600,12 +580,12 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             # Pass data through model
             output = model(input_sensors)
 
-            outputs = output["output"] # [batch, rollout, sequence_length, (rows x cols x dim)]
+            outputs = output["output"] # [batch, forecast_length, sequence_length, (rows x cols x dim)]
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
-            outputs = einops.rearrange(outputs, 'batch rollouts seq_len (rows cols dim) -> batch rollouts seq_len rows cols dim', batch=batch.shape[0], rollouts=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
+            outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch.shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
@@ -652,7 +632,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses.append(train_loss)
 
         # Calculate validation loss
-        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, scalers=scalers, args=args, use_sindy_loss=True)
+        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, scalers=scalers, args=args)
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss

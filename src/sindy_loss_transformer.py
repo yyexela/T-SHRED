@@ -62,8 +62,8 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
         transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
 
         return {
-            "sequence_output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, rollout, d_model]
-            "output": transformer_output, # [batch_size, rollout, sequence_length, d_model]
+            "sequence_output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
+            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, forecast_length, d_model]
+            "output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
             "sindy_loss": sindy_loss
         }

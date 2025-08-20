@@ -243,17 +243,17 @@ class TuningRunner:
             Dict[str, float]: Dictionary containing the optimization metric (score).
         """
         try:
-            # Get batch_id
-            batch_id = str(tune.get_context().get_trial_id())
+            # Get identifier 
+            identifier = str(tune.get_context().get_trial_id())
             
             # Create a copy of the blank config to avoid modifying the original
             trial_config = self.blank_config.copy()
             
-            # Add batch_id to model config
-            trial_config['model']['batch_id'] = batch_id
+            # Add identifier to model config
+            trial_config['model']['identifier'] = identifier
             
             # Create config file
-            config_path = self._generate_config(config, trial_config, f'hp_config_{batch_id}')
+            config_path = self._generate_config(config, trial_config, f'hp_config_{identifier}')
             
             # Run model
             try:
@@ -268,6 +268,7 @@ class TuningRunner:
             # Get the directory where run_opt.py is located
             run_opt_dir = Path(training_main.__code__.co_filename).parent.parent
             results_path = run_opt_dir / 'pickles' / f'{trial_config["model"]["identifier"]}.pkl'
+            print("Loading results from:", results_path)
             
             if not results_path.exists():
                 print(f"Results file not found: {results_path}")
@@ -276,7 +277,6 @@ class TuningRunner:
             with open(results_path, 'rb') as f:
                 results = pickle.load(f)
             results_path.unlink(missing_ok=True)
-            #Path(config_path).unlink(missing_ok=True)
             
             score = results['best_val']
             print("Score:", score)
@@ -515,9 +515,7 @@ class TuningRunner:
             # Save results
             if self.save_final_config:  # Only False when unit testing
                 # Save optimal parameters
-                self.blank_config['model'].pop('batch_id', None)
                 self.blank_config['model'].pop('n_trials', None)
-                self.blank_config['model'].pop('train_split', None)
                 config_path = self._generate_config(best_config, self.blank_config, f'optimal_params_{self.blank_config["model"]["dataset"]}')
                 print("Optimal parameters saved to:", config_path)
 
