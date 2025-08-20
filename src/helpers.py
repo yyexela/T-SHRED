@@ -19,15 +19,20 @@ def parse_args():
     # To allow CLIs
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=6, help="Dataset batch size")
+    parser.add_argument('--coord_descent', action='store_true', help="Use coordinate descent to train SINDy-Attention model")
+    parser.add_argument('--coord_descent_model_n_epochs', type=int, default=10, help="Number of epochs to train model except for SINDy-Attention coefficients during coordinate descent")
+    parser.add_argument('--coord_descent_sindy_attention_n_epochs', type=int, default=10, help="Number of epochs to train SINDy-Attention coefficients during coordinate descent")
+    parser.add_argument('--coord_descent_model_lr', type=float, default=1e-3, help="Learning rate for model during coordinate descent")
+    parser.add_argument('--coord_descent_sindy_attention_lr', type=float, default=1e-3, help="Learning rate for SINDy-Attention coefficients during coordinate descent")
     parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (planetswe, sst, sst_demo, plasma)")
     parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (cnn, mlp)")
-    parser.add_argument('--decoder_depth', type=int, default=2, help="Number of decoder layers")
+    parser.add_argument('--decoder_depth', type=int, default=1, help="Number of decoder layers")
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
     parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
     parser.add_argument('--dt', type=float, default=1.0, help="Time step for SINDy derivatives (Euler integration)")
     parser.add_argument('--early_stop', type=int, default=0, help="Train the model for at least this many epochs before saving best validation score")
     parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, gru, sindy_loss_lstm, sindy_loss_gru, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer, sindy_attention_transformer_rollout, sindy_attention_sindy_loss_transformer_rollout)")
-    parser.add_argument('--encoder_depth', type=int, default=3, help="Number of encoder layers")
+    parser.add_argument('--encoder_depth', type=int, default=1, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
     parser.add_argument('--forecast_length', type=int, default=1, help="Number of timesteps to forecast (sindy_attention_transformer_rollout and sindy_attention_sindy_loss_transformer_rollout only)")
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
@@ -59,6 +64,16 @@ def verify_args(args):
     """
     if args.batch_size <= 0:
         raise ValueError(f"batch_size {args.batch_size} must be greater than 0")
+    if args.coord_descent and not ('sindy_attention' in args.encoder):
+        raise ValueError(f"coord_descent is only supported for SINDy-Attention encoders, not for {args.encoder}")
+    if args.coord_descent_model_n_epochs <= 0:
+        raise ValueError(f"coord_descent_model_n_epochs {args.coord_descent_model_n_epochs} must be greater than 0")
+    if args.coord_descent_sindy_attention_n_epochs <= 0:
+        raise ValueError(f"coord_descent_sindy_attention_n_epochs {args.coord_descent_sindy_attention_n_epochs} must be greater than 0")
+    if args.coord_descent_model_lr <= 0:
+        raise ValueError(f"coord_descent_model_lr {args.coord_descent_model_lr} must be greater than 0")
+    if args.coord_descent_sindy_attention_lr <= 0:
+        raise ValueError(f"coord_descent_sindy_attention_lr {args.coord_descent_sindy_attention_lr} must be greater than 0")
     if args.dataset not in ["planetswe", "sst", "plasma", "sst_demo"]:
         raise ValueError(f"dataset {args.dataset} not supported, choose one of: planetswe, sst, plasma, sst_demo")
     if args.decoder not in ["mlp", "cnn"]:
@@ -492,6 +507,17 @@ def create_next_step_plots(model, ds, sensors, metadata, args=None):
 
                     plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_f{k+1}_full_comparison_{i}")
 
+def coord_descent_change_lr(optimizer, epoch, args):
+    remainder = epoch % (args.coord_descent_sindy_attention_n_epochs + args.coord_descent_model_n_epochs)
+    if remainder < args.coord_descent_model_n_epochs:
+        # Train model
+        optimizer.param_groups[0]['lr'] = 0.0
+        optimizer.param_groups[1]['lr'] = args.coord_descent_model_lr
+    else:
+        # Train SINDy-Attention coefficients
+        optimizer.param_groups[0]['lr'] = args.coord_descent_sindy_attention_lr
+        optimizer.param_groups[1]['lr'] = 0.0
+
 def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, optimizer, scalers, args):
     """
     Train a PyTorch model.
@@ -520,6 +546,10 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         # Calculate training loss
         train_loss = 0.0
         sindy_loss = 0.0
+
+        if args.coord_descent:
+            # Change learning rate based on epoch
+            coord_descent_change_lr(optimizer, epoch, args)
 
         for i, batch in enumerate(train_dl):
             # Get raw data
@@ -555,8 +585,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             # n is number of sensors
             input_sensors = einops.rearrange(input_sensors, 'b w n d -> b w (n d)')
 
-            # Pass data through model
             optimizer.zero_grad()
+
+            # Pass data through model
             output = model(input_sensors)
 
             outputs = output["output"] # [batch, rollout, sequence_length, (rows x cols x dim)]
