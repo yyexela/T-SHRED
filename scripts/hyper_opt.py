@@ -848,8 +848,6 @@ class ModelTuner:
         parser = argparse.ArgumentParser(description=description)
         
         # Basic arguments
-        parser.add_argument("--models-dir", default=str(workspace_root / "models"), 
-                          help="Directory containing model directories (default: models)")
         parser.add_argument("--output-dir", help="Directory to save tuning results (optional)")
         parser.add_argument("--config-path", help="Path to the model's config file")
         parser.add_argument("--model-name", help="Specific model to tune (optional, defaults to the model directory containing the script)")
