@@ -41,6 +41,7 @@ def parse_args():
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
     parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
     parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
+    parser.add_argument('--generate_loss_plots', action='store_true', help="Generate loss plots")
     parser.add_argument('--identifier', type=str, default=None, help="Identifier for logging")
     parser.add_argument('--input_length', type=int, default=10, help="Dataset window length")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
@@ -704,7 +705,8 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             model_eigvs.append(model_eigvs_epoch)
 
         # Make plots
-        plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.identifier}_losses")
+        if args.generate_loss_plots:
+            plot_losses(train_losses, val_losses, best_epoch, save=True, fname=f"{args.identifier}_losses")
 
     if args.verbose:
         print(f"Training complete, best validation loss: {best_val:0.4e}")

@@ -12,6 +12,7 @@ model:
   encoder_depth: 1
   epochs: 50
   forecast_length: 5
+  generate_loss_plots: false
   generate_test_plots: false
   generate_training_plots: false
   hidden_size: 20
