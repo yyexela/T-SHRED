@@ -151,6 +151,11 @@ def main(args=None):
         save_dict['hyperparameters'] = vars(args)
         pickle.dump(save_dict, f)
 
+    # Delete checkpoint after training
+    if args.delete_checkpoint:
+        args.latest_checkpoint_path.unlink(missing_ok=True)
+        args.best_checkpoint_path.unlink(missing_ok=True)
+
 def config_main(config_str: str):
     """
     Helper for hyperparameter tuning, just takes in path to config file

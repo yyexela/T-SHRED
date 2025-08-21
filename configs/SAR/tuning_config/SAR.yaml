@@ -6,16 +6,17 @@ model:
   decoder_depth: 1
   device: cuda:0
   dropout: 0.1
-  early_stop: 0
-  encoder: sindy_attention_transformer
+  delete_checkpoint: true
+  early_stop: 10
+  encoder: sindy_attention_transformer_rollout
   encoder_depth: 1
   epochs: 50
-  forecast_length: 10
+  forecast_length: 5
   generate_test_plots: false
   generate_training_plots: false
-  hidden_size: 40
+  hidden_size: 20
   identifier: sst_test_sar
-  input_length: 20
+  input_length: 10
   n_trials: 50
   n_heads: 4
   n_sensors: 5

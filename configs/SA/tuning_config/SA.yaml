@@ -9,6 +9,7 @@ model:
   decoder: mlp
   decoder_depth: 1
   device: cpu
+  delete_checkpoint: true
   dropout: 0.1
   early_stop: 0
   encoder: sindy_attention_transformer

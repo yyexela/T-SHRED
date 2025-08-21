@@ -45,7 +45,8 @@ class PolynomialFeatures(torch.nn.Module):
 
         # Add bias
         if self.include_bias:
-            output = torch.cat([torch.ones(x.shape[0], 1), output], dim=1)
+            bias = torch.ones(x.shape[0], 1, device=x.device)
+            output = torch.cat([bias, output], dim=1)
 
         return output
 

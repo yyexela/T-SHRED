@@ -29,6 +29,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default=None, help="Dataset to run (planetswe, sst, sst_demo, plasma)")
     parser.add_argument('--decoder', type=str, default="mlp", help="Which decoder to use (cnn, mlp)")
     parser.add_argument('--decoder_depth', type=int, default=1, help="Number of decoder layers")
+    parser.add_argument('--delete_checkpoint', action='store_true', help="Delete checkpoint after training")
     parser.add_argument('--device', type=str, default="cuda:2", help="Which device to run on")
     parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
     parser.add_argument('--dt', type=float, default=1.0, help="Time step for SINDy derivatives (Euler integration)")
@@ -92,8 +93,8 @@ def verify_args(args):
         raise ValueError(f"dropout {args.dropout} must be between 0 and 1")
     if "sindy_loss" in args.encoder and args.dt < 0:
         raise ValueError(f"dt {args.dt} must be non-negative")
-    if args.early_stop not in [0, 1]:
-        raise ValueError(f"early_stop {args.early_stop} must be 0 or 1")
+    if args.early_stop < 0:
+        raise ValueError(f"early_stop {args.early_stop} must be non-negative")
     if args.encoder not in ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
         raise ValueError(f"encoder {args.encoder} not supported, choose one of: gru, lstm, sindy_loss_gru, sindy_loss_lstm, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer, sindy_attention_transformer_rollout, sindy_attention_sindy_loss_transformer_rollout")
     if args.encoder_depth <= 0:
