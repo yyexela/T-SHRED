@@ -684,7 +684,7 @@ class ModelTuner:
         time_budget_hours: float = 24.0,
         use_asha: bool = False,
         asha_config: Optional[Dict[str, Any]] = None,
-        mode: str = "max",
+        mode: str = "min",
         metric: str = "score",
         output_dir: Optional[str] = None,
         gpus_per_trial: int = 0
@@ -733,7 +733,7 @@ class ModelTuner:
         time_budget_hours: float = 24.0,
         use_asha: bool = False,
         asha_config: Optional[Dict[str, Any]] = None,
-        mode: str = "max",
+        mode: str = "min",
         metric: str = "score",
         output_dir: Optional[str] = None
     ) -> None:
@@ -862,8 +862,8 @@ class ModelTuner:
         tuning_group.add_argument("--time-budget-hours", type=float, default=24.0, 
                                 help="Maximum time budget for tuning in hours (default: 24.0)")
         tuning_group.add_argument("--metric", default="score", help="Metric to optimize (default: score)")
-        tuning_group.add_argument("--mode", choices=["min", "max"], default="max",
-                                help="Optimization mode: 'min' to minimize or 'max' to maximize the metric (default: max)")
+        tuning_group.add_argument("--mode", choices=["min", "max"], default="min",
+                                help="Optimization mode: 'min' to minimize or 'max' to maximize the metric (default: min)")
         tuning_group.add_argument("--gpus-per-trial", type=int, default=0,
                                 help="Number of GPUs to use per trial (default: 0, meaning use all available GPUs)")
         

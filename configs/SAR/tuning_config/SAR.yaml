@@ -17,7 +17,6 @@ model:
   hidden_size: 20
   identifier: sst_test_sar
   input_length: 10
-  n_trials: 50
   n_heads: 4
   n_sensors: 5
   n_well_tracks: 10
