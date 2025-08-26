@@ -66,15 +66,26 @@ class MultiHeadSindyAttentionRollout(nn.Module):
         self.E_head = E_total // nheads
 
         # Create SINDy Attention library
-        self.pf = PolynomialFeatures(degree=poly_order)
+        self.pf = PolynomialFeatures(degree=poly_order, include_bias=False)
         self.pf.fit(torch.randn(1, self.E_head)) # Necessary for output features
         self.library_dim = self.pf.n_output_features_
-        self.coefficients = nn.ParameterList([torch.Tensor(self.library_dim, self.E_head) for _ in range(nheads)])
+
+        self.tril_indices = torch.tril_indices(self.library_dim, self.library_dim)
+        num_params = (self.library_dim * (self.library_dim + 1)) // 2
+        self.coefficients = nn.ParameterList([torch.Tensor(num_params) for _ in range(nheads)])
+
         self.library_terms = self.pf.get_feature_names_out()
 
         # Initialize SINDy Attention coefficients
         for i in range(nheads):
-            nn.init.xavier_uniform_(self.coefficients[i])
+            nn.init.normal_(self.coefficients[i])
+
+    def matrix_from_params(self, head_idx):
+        terms = torch.zeros(self.library_dim, self.library_dim)
+        terms[self.tril_indices[0], self.tril_indices[1]] = self.coefficients[head_idx]
+        terms = terms + terms.t() - torch.diag(terms.diag())
+        terms = torch.tensor(1j) * terms
+        return terms
 
     def forward(
         self,
@@ -163,18 +174,19 @@ class MultiHeadSindyAttentionRollout(nn.Module):
             # > Initial condition is from library_Theta, propogate forward n steps
             
             def f(t, y):
-                y = y.reshape(library_Theta.shape[0], library_Theta.shape[1] - 1)
-                # add linear term back
-                y = torch.cat([torch.ones(y.shape[0], 1, device=y.device), y], dim=1)
+                y = y.reshape(library_Theta.shape[0], library_Theta.shape[1])
                 y = y.T
-                dy = self.coefficients[i].T @ y
+                terms = self.matrix_from_params(i).to(y.device) 
+                dy = terms @ y
                 dy = dy.T
                 return dy.flatten()
             
             t_eval = torch.arange(1, self.forecast_length+1, 1, device=library_Theta.device).float()
-            library_Theta_flat = library_Theta[:,1:].flatten() # don't include the linear term when passing into odeint
+            library_Theta_flat = library_Theta.flatten()
+            library_Theta_flat = library_Theta_flat.to(torch.cfloat)
             rollout = odeint(f, library_Theta_flat, t_eval, method='rk4')
-            rollout = rollout.reshape(self.forecast_length, library_Theta.shape[0], library_Theta.shape[1] - 1)
+            rollout = rollout.real
+            rollout = rollout.reshape(self.forecast_length, library_Theta.shape[0], library_Theta.shape[1])
 
             # Reshape update back to (forecast, batch_size, seq_len, hidden_size)
             rollout = einops.rearrange(rollout, 'n (b s) h -> b n s h', n=self.forecast_length, b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)

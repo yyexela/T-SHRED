@@ -700,7 +700,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             pass
 
         # Collect model eigenvalues
-        if args.encoder in ['sindy_attention_transformer_rollout', 'sindy_attention_sindy_loss_transformer_rollout']:
+        if "rollout" in args.encoder:
             model_eigvs_epoch = get_model_coefficient_eigenvalues(model, args)
             model_eigvs.append(model_eigvs_epoch)
 
@@ -919,26 +919,48 @@ def get_result_loss(result):
 def print_model_coefficients(model, args):
     # coefficients: n_heads x ((library terms + 1 (for linear) terms) x library_terms equations)
     library = model.encoder.encoder.layers[0].self_attn.library_terms
-    for i in range(args.encoder_depth):
-        print(f"Layer {i}:")
-        for j in range(args.n_heads):
-            print(f"Head {j}:")
-            for k in range(args.hidden_size // args.n_heads):
-                print(f"Hidden layer {k}:")
-                output_str = ""
-                for l in range(len(library)):
-                    output_str += f"{model.encoder.encoder.layers[i].self_attn.coefficients[j][l][k].item():0.3f} \\cdot {library[l]} + "
-                print(output_str[:-3])
-            print()
+    if 'rollout' in args.encoder:
+        for i in range(args.encoder_depth):
+            print(f"Layer {i}:")
+            for j in range(args.n_heads):
+                print(f"Head {j}:")
+                for k in range(args.hidden_size // args.n_heads):
+                    print(f"Hidden layer {k}:")
+                    output_str = ""
+                    for l in range(len(library)):
+                        terms = model.encoder.encoder.layers[i].self_attn.matrix_from_params(j)
+                        output_str += f"{terms[l][k].item():.3f} \\cdot {library[l]} + "
+                    print(output_str[:-3])
+                print()
+    else:
+        for i in range(args.encoder_depth):
+            print(f"Layer {i}:")
+            for j in range(args.n_heads):
+                print(f"Head {j}:")
+                for k in range(args.hidden_size // args.n_heads):
+                    print(f"Hidden layer {k}:")
+                    output_str = ""
+                    for l in range(len(library)):
+                        output_str += f"{model.encoder.encoder.layers[i].self_attn.coefficients[j][l][k].item():0.3f} \\cdot {library[l]} + "
+                    print(output_str[:-3])
+                print()
 
 def get_model_coefficient_eigenvalues(model, args):
     eigvs_l = []
-    for j in range(args.n_heads):
-        # Head j
-        terms_matrix = model.encoder.encoder.layers[0].self_attn.coefficients[j].detach()
-        terms_eigvs = torch.linalg.eigvals(terms_matrix[1:])
-        terms_eigvs = terms_eigvs.cpu()
-        eigvs_l.append(terms_eigvs)
+    if 'rollout' in args.encoder:
+        for j in range(args.n_heads):
+            # Head j
+            terms_matrix = model.encoder.encoder.layers[0].self_attn.matrix_from_params(j).detach()
+            terms_eigvs = torch.linalg.eigvals(terms_matrix)
+            terms_eigvs = terms_eigvs.cpu()
+            eigvs_l.append(terms_eigvs)
+    else:
+        for j in range(args.n_heads):
+            # Head j
+            terms_matrix = model.encoder.encoder.layers[0].self_attn.coefficients[j].detach()
+            terms_eigvs = torch.linalg.eigvals(terms_matrix)
+            terms_eigvs = terms_eigvs.cpu()
+            eigvs_l.append(terms_eigvs)
     return eigvs_l
 
 def get_top_N_models_by_loss(dataset_name, pickle_dir, loss_only=False, N=5):

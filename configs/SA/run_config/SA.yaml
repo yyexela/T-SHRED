@@ -9,12 +9,14 @@ model:
   decoder: mlp
   decoder_depth: 1
   device: cpu
+  delete_checkpoint: false
   dropout: 0.1
   early_stop: 0
   encoder: sindy_attention_transformer
   encoder_depth: 1
   epochs: 2
   forecast_length: 1
+  generate_loss_plots: true
   generate_test_plots: true
   generate_training_plots: false
   hidden_size: 20

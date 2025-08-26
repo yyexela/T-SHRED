@@ -9,12 +9,12 @@ model:
   decoder: mlp
   decoder_depth: 1
   delete_checkpoint: false
-  device: cuda:0
+  device: cpu
   dropout: 0.1
   early_stop: 10
   encoder: sindy_attention_transformer_rollout
   encoder_depth: 1
-  epochs: 50
+  epochs: 5
   forecast_length: 5
   generate_loss_plots: true
   generate_test_plots: true 
@@ -33,4 +33,4 @@ model:
   sindy_attention_threshold_n_epochs: 10
   sindy_attention_weight: 5.716300617934979
   skip_load_checkpoint: true
-  verbose: false
+  verbose: true
