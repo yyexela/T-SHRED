@@ -122,8 +122,9 @@ def main(args=None):
 
     # Threshold
     if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
-        print(f"Thresholding SINDy coefficients")
-        helpers.threshold_all_layers(best_model.encoder, args.sindy_attention_threshold)
+        if args.verbose:
+            print(f"Thresholding SINDy coefficients")
+        helpers.threshold_all_layers(best_model.encoder, args.sindy_attention_threshold, verbose=args.verbose)
 
     # Print model coefficients
     if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_transformer_rollout"]):

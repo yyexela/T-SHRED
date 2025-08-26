@@ -298,8 +298,7 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None):
 
             # Create inputs and outputs based on model
             inputs = batch[:,:args.input_length,:,:,:]
-            expected_out = args.forecast_length if "rollout" in args.encoder else 1
-            labels = batch[:,-expected_out:,:,:,:]
+            labels = batch[:,-1:,:,:,:]
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -363,13 +362,13 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
     # Which timesteps to evaluate
     if args.dataset == "plasma":
         ds_iter = [0]
-        forecast_length_plot = 5
+        forecast_length_plot = 15
     elif args.dataset == "planetswe":
         ds_iter = [0]
-        forecast_length_plot = 5
+        forecast_length_plot = 15
     elif args.dataset == "sst":
         ds_iter = [0]
-        forecast_length_plot = 5
+        forecast_length_plot = 15
 
     with torch.no_grad():
         for i in ds_iter:
@@ -624,8 +623,9 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         # Threshold if necessary
         if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
             if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_n_epochs == 0:
-                print(f"Thresholding SINDy coefficients (epoch {epoch+1})")
-                threshold_all_layers(model.encoder, args.sindy_attention_threshold)
+                if args.verbose:
+                    print(f"Thresholding SINDy coefficients (epoch {epoch+1})")
+                threshold_all_layers(model.encoder, args.sindy_attention_threshold, verbose=args.verbose)
 
         # Average loss
         train_loss /= len(train_dl)
@@ -937,6 +937,7 @@ def get_model_coefficient_eigenvalues(model, args):
         # Head j
         terms_matrix = model.encoder.encoder.layers[0].self_attn.coefficients[j].detach()
         terms_eigvs = torch.linalg.eigvals(terms_matrix[1:])
+        terms_eigvs = terms_eigvs.cpu()
         eigvs_l.append(terms_eigvs)
     return eigvs_l
 
@@ -1018,17 +1019,19 @@ def get_SINDy_coefficients_sum(model):
                 sindy_sum += torch.sqrt((torch.abs(layer.self_attn.coefficients[i].data)**2).sum())
     return sindy_sum
 
-def threshold_all_layers(model, threshold):
+def threshold_all_layers(model, threshold, verbose=False):
     """
     Threshold all SINDy coefficients in all heads of all layers.
     """
     for i, layer in enumerate(model.encoder.layers):
-        print(f"Layer {i}")
+        if verbose:
+            print(f"Layer {i}")
         with torch.no_grad():
             for i in range(layer.self_attn.nheads):
                 mask = torch.abs(layer.self_attn.coefficients[i].data) > threshold
                 layer.self_attn.coefficients[i].data *= mask
-                print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
+                if verbose:
+                    print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
         print()
 
 # We use this for exact parity with the PyTorch implementation, having the same init
