@@ -340,8 +340,8 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None):
 
             # Plot
             if args.generate_training_plots and i == 0:
-                outputs = outputs.detach()[0]
-                labels = labels[0]
+                outputs = outputs.detach()[0][0]
+                labels = labels[0][0]
 
                 for j in range(outputs.shape[2]):
                     outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], scalers[j])
@@ -611,8 +611,8 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
             # Plot
             if args.generate_training_plots and i == 0:
-                outputs = outputs.detach()[0]
-                labels = labels[0]
+                outputs = outputs.detach()[0][-1,-1,:,:,:]
+                labels = labels[0][-1,-1,:,:,:]
 
                 for j in range(outputs.shape[2]):
                     outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], scalers[j])

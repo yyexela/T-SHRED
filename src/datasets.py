@@ -212,7 +212,7 @@ def load_sst_demo_data(args):
     return train_ds, valid_ds, test_ds, {'scalers': [scaler]}
 
 def load_plasma_data(args):
-    # Load data
+    # Load data (14 fields)
     ne_data = sio.loadmat(plasma_dir / 'ne.mat') # (65792, 2000) = (257 * 256, 2000)
     ne_data = ne_data['Data']
 
@@ -223,7 +223,7 @@ def load_plasma_data(args):
     # Switch from ne = U S V to ne * = V* S* U*
     ne_data = ne_data.T # (2000, 257 * 256) = (2000, 65792)
     u_total = u_total.T # (280, 2000)
-    s_total = s_total.T # (20, 14)
+    s_total = s_total.T # (20, 14) # 14 fields, 20 modes each
     v_total = v_total.T # (2000, 280)
 
     # Convert ne_data to image (2000, 257, 256, 1)
