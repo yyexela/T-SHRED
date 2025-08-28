@@ -57,7 +57,7 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
             is_causal=is_causal,
         )
 
-        sindy_loss = self.compute_sindy_loss(transformer_output)
+        sindy_loss = self.compute_sindy_loss(transformer_output[:,-1:,:])
 
         transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
 

@@ -24,7 +24,7 @@ class SINDyLossGRU(SINDyLoss, GRU):
         """
         out, h_out = self.gru(x)
 
-        sindy_loss = self.compute_sindy_loss(out)
+        sindy_loss = self.compute_sindy_loss(out[:,-1:,:])
 
         out = self.dropout(out)
         h_out = self.dropout(h_out)
@@ -59,7 +59,7 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
         # Initialize hidden and cell
         out, (h_out, c_out) = self.lstm(x)
 
-        sindy_loss = self.compute_sindy_loss(out)
+        sindy_loss = self.compute_sindy_loss(out[:,-1:,:])
 
         out = self.dropout(out)
         h_out = self.dropout(h_out)

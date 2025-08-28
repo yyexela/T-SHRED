@@ -1,3 +1,4 @@
+import einops
 import numpy as np
 import torch.nn as nn
 
@@ -85,11 +86,13 @@ class CNN(nn.Module):
 
     def forward(self, x):
         sindy_loss = x.get("sindy_loss", None)
-        x = x["sequence_output"] # 128 x 8 
-        x = x.unsqueeze(-1)
+        x = x["output"]
+
+        batch_size, forecast_length, sequence_length, hidden_dim = x.shape
+        x = einops.rearrange(x, 'b f s d -> b d (f s)', f=forecast_length, s=sequence_length)
         out = self.model(x) 
-        out = self.dropout(out)
-        out = out.squeeze(-1)
+        out = self.dropout(out) # want: batch forecast seq_len (rows cols dim)
+        out = einops.rearrange(out, 'b o (f s) -> b f s o', f=forecast_length, s=sequence_length)
         return {
             "output": out,
             "sindy_loss": sindy_loss

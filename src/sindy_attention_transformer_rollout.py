@@ -163,7 +163,7 @@ class MultiHeadSindyAttentionRollout(nn.Module):
             # Extract head
             head = attn_output[:,i,:,:]
             # Reshape src for sindy_library (batch_size * seq_len, hidden_size/nheads + 1 for linear)
-            head = einops.rearrange(head, 'b s h -> (b s) h', b=attn_output.shape[0], s=attn_output.shape[2],  h=self.E_head)
+            head = einops.rearrange(head, 'b s h -> (b s) h')
             # Calculate SINDy library features
             library_Theta = self.pf.fit_transform(head)
             # Calculate SINDy update (use masked coefficients)

@@ -269,7 +269,7 @@ class MixedModel(nn.Module):
     def forward(self, src: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            src: Input tensor of shape (batch_size, sequence_length, n_sensors, d_model)
+            src: Input tensor of shape (batch_size, sequence_length, n_sensors)
         Returns:
             Output tensor of shape (batch_size, sequence_length, n_sensors, d_model)
         """

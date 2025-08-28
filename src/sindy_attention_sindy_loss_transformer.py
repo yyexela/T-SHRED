@@ -44,7 +44,7 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
         )
 
         # Compute SINDy Loss
-        sindy_loss = self.compute_sindy_loss(transformer_output)
+        sindy_loss = self.compute_sindy_loss(transformer_output[:,-1:,:])
 
         # reshape output
         transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')

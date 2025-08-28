@@ -1,6 +1,7 @@
 import sys
 import ray
 import yaml
+import shutil
 import pickle
 import logging
 import datetime
@@ -140,7 +141,7 @@ class TuningRunner:
         output_dir = Path(__file__).parent.parent / 'results' / self.identifier
 
         # Remove if exists then create
-        output_dir.unlink(missing_ok=True)
+        shutil.rmtree(output_dir, ignore_errors=True)
         output_dir.mkdir(parents=True, exist_ok=True)
         
         return output_dir
@@ -243,7 +244,7 @@ class TuningRunner:
             
             # Add uniquely identifiable identifier to model config
             trial_config['model']['identifier'] = identifier
-            
+
             # Create config file
             config_path = self._generate_config(config, trial_config, f'hp_config_{identifier}')
             
@@ -567,7 +568,7 @@ class ModelTuner:
     """
     def __init__(
         self,
-        config_file: str = None,
+        config_path: str = None,
         log_dir: Optional[str] = None,
         log_to_file: bool = True
     ):
@@ -575,17 +576,17 @@ class ModelTuner:
         Initialize the ModelTuner.
         
         Args:
-            config_file: Path to the configuration file
+            config_path: Path to the configuration file
             log_dir: Directory to save logs. If None and log_to_file is True, logs will be saved to "logs"
             log_to_file: Whether to log to a file in addition to console output
         """
         # Convert configs_dir to absolute path if it's relative
-        self.config_file = config_file
-        if not self.config_file.exists():
-            raise ValueError(f"Configuration file does not exist: {self.config_file}")
+        self.config_path = Path(config_path)
+        if not self.config_path.exists():
+            raise ValueError(f"Configuration file does not exist: {self.config_path}")
 
         # Load config file
-        with open(self.config_file, 'r') as f:
+        with open(self.config_path, 'r') as f:
             self.config = yaml.safe_load(f)
 
         # Set identifier
@@ -747,7 +748,7 @@ class ModelTuner:
         
         # Initialize Tuner
         modelTuner = ModelTuner(
-            config_file=args.config_file,
+            config_path=args.config_path,
             log_dir=args.log_dir,
             log_to_file=args.log_to_file
         )

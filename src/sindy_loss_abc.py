@@ -49,15 +49,15 @@ class SINDyLoss(nn.Module):
         batch_size, seq_len, hidden_size = x.shape
         
         # We need to compare: h_t -> h_{t+1} and h_{t+1} -> h_{t+2}
-        h_t = x[:, :-2, :]          # (batch_size, seq_len-2, hidden_size)
-        h_t_next = x[:, 1:-1, :]    # (batch_size, seq_len-2, hidden_size)
-        h_t_next2 = x[:, 2:, :]     # (batch_size, seq_len-2, hidden_size)
+        h_t = x[:-2, :, :]          # (batch_size-2, 1, hidden_size)
+        h_t_next = x[1:-1, :, :]    # (batch_size-2, 1, hidden_size)
+        h_t_next2 = x[2:, :, :]     # (batch_size-2, 1, hidden_size)
         
         # Compute observed derivatives using explicit dt
-        h_dot_observed = (h_t_next - h_t) / self.dt  # (batch_size, seq_len-2, hidden_size)
+        h_dot_observed = (h_t_next - h_t) / self.dt  # (batch_size-2, 1, hidden_size)
         
         # Reshape for SINDy library computation
-        h_t_flat = h_t.reshape(-1, hidden_size)  # (batch_size*(seq_len-2), hidden_size)
+        h_t_flat = h_t.reshape(-1, hidden_size)  # ((batch_size-2)*(1), hidden_size)
         
         # Compute SINDy library features for h_t
         library_theta_t = self.pf.fit_transform(h_t_flat)
@@ -67,7 +67,7 @@ class SINDyLoss(nn.Module):
         
         # Calculate SINDy derivative predictions for h_t
         h_dot_pred = library_theta_t @ effective_coefficients
-        h_dot_pred = h_dot_pred.reshape(batch_size, seq_len-2, hidden_size)
+        h_dot_pred = h_dot_pred.reshape(batch_size-2, 1, hidden_size)
         
         # Calculate loss between SINDy derivative predictions and observed derivatives
         derivative_loss = torch.mean((h_dot_pred - h_dot_observed) ** 2)
@@ -82,7 +82,7 @@ class SINDyLoss(nn.Module):
         h_t_mid_flat = h_t_mid_pred.reshape(-1, hidden_size)
         library_theta_mid = self.pf.fit_transform(h_t_mid_flat)
         h_dot_mid_pred = library_theta_mid @ effective_coefficients
-        h_dot_mid_pred = h_dot_mid_pred.reshape(batch_size, seq_len-2, hidden_size)
+        h_dot_mid_pred = h_dot_mid_pred.reshape(batch_size-2, 1, hidden_size)
         
         # Step 3: Second half-step - use midpoint derivatives to predict h_{t+1}
         h_t_next_pred = h_t_mid_pred + h_dot_mid_pred * half_dt  # Use full dt but with midpoint derivatives
@@ -96,7 +96,7 @@ class SINDyLoss(nn.Module):
         h_t_next_flat = h_t_next_pred.reshape(-1, hidden_size)
         library_theta_next = self.pf.fit_transform(h_t_next_flat)
         h_dot_next_pred = library_theta_next @ effective_coefficients
-        h_dot_next_pred = h_dot_next_pred.reshape(batch_size, seq_len-2, hidden_size)
+        h_dot_next_pred = h_dot_next_pred.reshape(batch_size-2, 1, hidden_size)
         
         # Step 6: First half-step from h_{t+1} - predict h_{t+1.5}
         h_t_next_mid_pred = h_t_next_pred + h_dot_next_pred * half_dt
@@ -105,7 +105,7 @@ class SINDyLoss(nn.Module):
         h_t_next_mid_flat = h_t_next_mid_pred.reshape(-1, hidden_size)
         library_theta_next_mid = self.pf.fit_transform(h_t_next_mid_flat)
         h_dot_next_mid_pred = library_theta_next_mid @ effective_coefficients
-        h_dot_next_mid_pred = h_dot_next_mid_pred.reshape(batch_size, seq_len-2, hidden_size)
+        h_dot_next_mid_pred = h_dot_next_mid_pred.reshape(batch_size-2, 1, hidden_size)
         
         # Step 8: Second half-step - use midpoint derivatives to predict h_{t+2}
         h_t_next2_pred = h_t_next_mid_pred + h_dot_next_mid_pred * half_dt  # Use full dt but with midpoint derivatives

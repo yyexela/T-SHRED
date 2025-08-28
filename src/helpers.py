@@ -586,8 +586,8 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                     labels = labels.unsqueeze(1)
             else:
                 # LSTMs and GRUs are not causal, so we use the last timestep as the label
-                inputs = batch[:,:args.input_length,:,:,:]
-                labels = batch[:,-1:,:,:,:]
+                inputs = batch[0][:,:args.input_length,:,:,:]
+                labels = batch[1][:,-1:,:,:,:]
 
                 # Set forecast length to 1
                 labels = labels.unsqueeze(1)

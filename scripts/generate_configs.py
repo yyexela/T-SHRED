@@ -2,6 +2,7 @@ import os
 import sys
 import yaml
 import shutil
+import copy
 from pathlib import Path
 
 # The code does the following:
@@ -43,16 +44,16 @@ def main():
     
     config_count = 0
     
-    # 2. Iterate over seeds
+    # Iterate over seeds
     for seed in range(n_seeds):
-        # 3. Iterate over encoder types
+        # Iterate over encoder types
         for encoder in encoders:
-            # 4. Iterate over decoder types
+            # Iterate over decoder types
             for decoder in decoders:
-                # 5. Iterate over datasets
+                # Iterate over datasets
                 for dataset in datasets:
-                    # Create a copy of the template config
-                    config = template_config.copy()
+                    # Create a deep copy of the template config
+                    config = copy.deepcopy(template_config)
                     
                     # Set basic model parameters
                     config['model']['encoder'] = encoder
@@ -60,36 +61,46 @@ def main():
                     config['model']['dataset'] = dataset
                     config['model']['seed'] = seed
                     
-                    # 8. Set identifier
+                    # Set identifier
                     identifier = f"{dataset}_{encoder}_{decoder}_{seed}"
                     config['model']['identifier'] = identifier
+
+                    # Set hyperparameters to remove to empty
+                    hyperparams_to_remove = []
+
+                    # Set coord_descent based on sindy_attention
+                    if "sindy_attention" in encoder:
+                        config['model']['coord_descent'] = True
+                        
+                        hyperparams_to_remove.append("lr")
+                    else:
+                        config['model']['coord_descent'] = False
+
+                        hyperparams_to_remove.append("coord_descent_model_n_epochs")
+                        hyperparams_to_remove.append("coord_descent_model_lr")
+                        hyperparams_to_remove.append("coord_descent_sindy_attention_n_epochs")
+                        hyperparams_to_remove.append("coord_descent_sindy_attention_lr")
+
+                    # SINDy Loss options
+                    if "sindy_loss" not in encoder:
+                        hyperparams_to_remove.append("sindy_loss_weight")
                     
-                    # 7. Set forecast_length and coord_descent based on rollout
+                    # Set forecast_length based on rollout
                     if "rollout" in encoder:
                         config['model']['forecast_length'] = 5
-                        config['model']['coord_descent'] = True
+
+                        # Only 1 encoder depth supported
+                        hyperparams_to_remove.append("encoder_depth")
+                        config['model']['encoder_depth'] = 1
                     else:
                         config['model']['forecast_length'] = 1
-                        config['model']['coord_descent'] = False
                     
-                    # 6. Remove sindy_attention related parameters if encoder doesn't contain "sindy_attention"
-                    if "sindy_attention" not in encoder:
-                        hyperparams_to_remove = [
-                            "sindy_attention_weight",
-                            "coord_descent_model_n_epochs",
-                            "coord_descent_sindy_attention_n_epochs",
-                            "coord_descent_model_lr",
-                            "coord_descent_sindy_attention_lr"
-                        ]
-                    else:
-                        hyperparams_to_remove = [
-                            "lr"
-                        ]
+                    # Remove relevant hyperparameters
                     for param in hyperparams_to_remove:
                         if param in config['hyperparameters']:
                             del config['hyperparameters'][param]
                     
-                    # 9. Create output directory and save config
+                    # Create output directory and save config
                     output_dir = Path(f"configs/{encoder_dict[encoder]}/tuning_config")
                     output_dir.mkdir(parents=True, exist_ok=True)
                     

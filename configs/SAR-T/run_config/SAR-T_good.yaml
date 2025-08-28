@@ -6,7 +6,7 @@ model:
   coord_descent_sindy_attention_lr: 0.1
   coord_descent_sindy_attention_n_epochs: 2
   dataset: sst
-  decoder: mlp
+  decoder: cnn
   decoder_depth: 1
   device: cpu
   delete_checkpoint: false
