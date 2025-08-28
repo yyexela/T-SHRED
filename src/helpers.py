@@ -362,13 +362,13 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
     # Which timesteps to evaluate
     if args.dataset == "plasma":
         ds_iter = [0]
-        forecast_length_plot = 15
+        forecast_length_plot = 50
     elif args.dataset == "planetswe":
         ds_iter = [0]
-        forecast_length_plot = 15
+        forecast_length_plot = 50
     elif args.dataset == "sst":
         ds_iter = [0]
-        forecast_length_plot = 15
+        forecast_length_plot = 50
 
     with torch.no_grad():
         for i in ds_iter:

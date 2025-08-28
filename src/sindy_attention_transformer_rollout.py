@@ -78,10 +78,11 @@ class MultiHeadSindyAttentionRollout(nn.Module):
 
         # Initialize SINDy Attention coefficients
         for i in range(nheads):
-            nn.init.normal_(self.coefficients[i])
+            nn.init.normal_(self.coefficients[i], mean=0.0, std=0.5)
 
     def matrix_from_params(self, head_idx):
-        terms = torch.zeros(self.library_dim, self.library_dim)
+        terms = torch.zeros(self.library_dim, self.library_dim, device=self.coefficients[head_idx].device)
+        self.tril_indices = self.tril_indices.to(terms.device)
         terms[self.tril_indices[0], self.tril_indices[1]] = self.coefficients[head_idx]
         terms = terms + terms.t() - torch.diag(terms.diag())
         terms = torch.tensor(1j) * terms
