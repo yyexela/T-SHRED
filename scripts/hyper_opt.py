@@ -73,7 +73,7 @@ class TuningRunner:
         # Extract parameter space from config
         self.param_space = self.hp_config.get('hyperparameters', {})
         self._validate_param_space(self.param_space)
-        self.model_name = self.hp_config['model']['name']
+        self.identifier = self.hp_config['model']['identifier']
         
         self.save_final_config = save_final_config
         self.metric = metric
@@ -124,10 +124,7 @@ class TuningRunner:
         Construct the output directory path programmatically based on model and dataset information.
 
         The directory structure is:
-        results/tune_results/
-            {model_name}/
-                {dataset_name}/
-                    {timestamp}/
+        results/{identifier}/
 
         Args:
             output_dir: Optional custom output directory. If provided, this will be used instead of constructing a path.
@@ -139,17 +136,12 @@ class TuningRunner:
             # Use the custom output directory if provided
             return Path(output_dir)
         
-        # Get model name
-        model_name = self.model_name
-        
-        # Get dataset name and pair IDs
-        dataset_name = self.hp_config['model']['dataset']
-        
-        # Create timestamp
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        
         # Construct path
-        output_dir = Path(__file__).parent.parent / 'results' / 'tune_results' / model_name / dataset_name / timestamp
+        output_dir = Path(__file__).parent.parent / 'results' / self.identifier
+
+        # Remove if exists then create
+        output_dir.unlink(missing_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         return output_dir
 
@@ -249,7 +241,7 @@ class TuningRunner:
             # Create a copy of the blank config to avoid modifying the original
             trial_config = self.blank_config.copy()
             
-            # Add identifier to model config
+            # Add uniquely identifiable identifier to model config
             trial_config['model']['identifier'] = identifier
             
             # Create config file
@@ -520,7 +512,7 @@ class TuningRunner:
                 print("Optimal parameters saved to:", config_path)
 
                 # Save tuning history
-                history_path = self.output_dir / f"tuning_history_{self.model_name}.yaml"
+                history_path = self.output_dir / f"tuning_history_{self.identifier}.yaml"
                 with open(history_path, 'w') as f:
                     yaml.dump({
                         'best_config': best_config,
@@ -571,17 +563,11 @@ class TuningRunner:
 
 class ModelTuner:
     """
-    Orchestrates hyperparameter tuning for CTF models. Config files are automatically
-    detected in tuning_config/config*.yaml under each model.
-    Supports three modes:
-    1. Single model tuning
-    2. Multiple model tuning (with specified models)
-    3. All models tuning
-    In single model tuning, if no config file is detected, it raises an error.
-    In multiple or all model tuning, if no config files are detected, it logs a warning and skips the model.
+    Orchestrates hyperparameter tuning for models. Config files must be provided.
     """
     def __init__(
         self,
+        config_file: str = None,
         log_dir: Optional[str] = None,
         log_to_file: bool = True
     ):
@@ -589,14 +575,21 @@ class ModelTuner:
         Initialize the ModelTuner.
         
         Args:
+            config_file: Path to the configuration file
             log_dir: Directory to save logs. If None and log_to_file is True, logs will be saved to "logs"
             log_to_file: Whether to log to a file in addition to console output
         """
         # Convert configs_dir to absolute path if it's relative
-        configs_dir = Path(__file__).parent.parent / 'configs'
-        self.configs_dir = Path(configs_dir).resolve()
-        if not self.configs_dir.exists():
-            raise ValueError(f"Configuration directory does not exist: {self.configs_dir}")
+        self.config_file = config_file
+        if not self.config_file.exists():
+            raise ValueError(f"Configuration file does not exist: {self.config_file}")
+
+        # Load config file
+        with open(self.config_file, 'r') as f:
+            self.config = yaml.safe_load(f)
+
+        # Set identifier
+        self.identifier = self.config['model']['identifier']
 
         # Set up logging directory if needed
         if log_to_file:
@@ -636,50 +629,8 @@ class ModelTuner:
         )
         self.logger = logging.getLogger("ModelTuner")
     
-    def _find_tuning_configs(self, model_name: Optional[str] = None) -> List[Path]:
-        """
-        Find tuning configuration files.
-        
-        Args:
-            model_name: Optional specific model to look for. If None, finds all models.
-            
-        Returns:
-            List of paths to tuning configuration files.
-            
-        Note:
-            If model_name is specified and no config files are found, raises FileNotFoundError.
-            If model_name is None (finding all models), returns empty list for models without configs.
-        """
-        if model_name:
-            search_pattern = self.configs_dir / model_name / "tuning_config" / "*.yaml"
-            config_files = list(search_pattern.parent.glob(search_pattern.name))
-            if not config_files:
-                raise FileNotFoundError(f"No tuning config files found for model {model_name}")
-            return config_files
-        else:
-            # Find all model directories
-            model_dirs = [d for d in self.configs_dir.iterdir() if d.is_dir() and not d.name.startswith('.')]
-            config_files = []
-            
-            for model_dir in model_dirs:
-                config_dir = model_dir / "tuning_config"
-                if config_dir.exists():
-                    model_configs = list(config_dir.glob("*.yaml"))
-                    if not model_configs:
-                        self.logger.warning(f"No tuning config files found in {config_dir}, skipping model {model_dir.name}")
-                    else:
-                        config_files.extend(model_configs)
-                else:
-                    self.logger.warning(f"No tuning_config directory found in {model_dir}, skipping model {model_dir.name}")
-            
-            if not config_files:
-                self.logger.warning("No tuning config files found in any model directory")
-            
-            return config_files
-    
     def tune_model(
         self,
-        model_name: str,
         config_path: str,
         time_budget_hours: float = 24.0,
         use_asha: bool = False,
@@ -693,7 +644,6 @@ class ModelTuner:
         Tune a single model.
         
         Args:
-            model_name: Name of the model to tune
             config_path: Path to the model's config file
             time_budget_hours: Maximum time budget for tuning in hours
             use_asha: Whether to use ASHA scheduler for early stopping
@@ -703,7 +653,7 @@ class ModelTuner:
             output_dir: Optional custom output directory
             gpus_per_trial: Number of GPUs to use per trial (default: 0). Set to 0 to use all available GPUs.
         """
-        self.logger.info(f"Starting tuning for model: {model_name}")
+        self.logger.info(f"Starting tuning for model: {self.identifier}")
         
         try:
             # Initialize tuner
@@ -721,110 +671,13 @@ class ModelTuner:
             # Run tuning
             tuner.run_optimization()
             
-            self.logger.info(f"Completed tuning for model: {model_name}")
+            self.logger.info(f"Completed tuning for model: {self.identifier}")
             
         except Exception as e:
-            self.logger.error(f"Error tuning model {model_name}: {str(e)}")
+            self.logger.error(f"Error tuning model {self.identifier}: {str(e)}")
             traceback.print_exc()
             raise
     
-    def tune_all_models_sequential(
-        self,
-        time_budget_hours: float = 24.0,
-        use_asha: bool = False,
-        asha_config: Optional[Dict[str, Any]] = None,
-        mode: str = "min",
-        metric: str = "score",
-        output_dir: Optional[str] = None
-    ) -> None:
-        """
-        Tune all models that have tuning configuration files sequentially.
-        Not used at the moment due to conflicting package requirements among models.
-        
-        Note: This method runs models sequentially on a single node. For parallel execution
-        across multiple nodes, use SLURM bash scripts to submit individual model tuning jobs.
-        Each model will use all available resources on its node (CPUs and GPUs).
-        
-        Future improvements:
-        - Add parallel execution support using SLURM job arrays
-        - Each model would get its own node
-        - Automated resource allocation and result collection
-        
-        Args:
-            time_budget_hours: Maximum time budget for tuning in hours
-            use_asha: Whether to use ASHA scheduler for early stopping
-            asha_config: Optional configuration for ASHA scheduler
-            mode: Optimization mode, "min" to minimize or "max" to maximize the metric
-            metric: Metric to optimize
-            output_dir: Optional custom output directory
-        """
-        self.logger.info("Starting sequential tuning for all models to ensure equal resource allocation")
-        self.logger.info("Note: For parallel execution across multiple nodes, use SLURM bash scripts to submit individual model tuning jobs")
-        
-        # Find all tuning config files
-        config_files = self._find_tuning_configs()
-        
-        if not config_files:
-            self.logger.warning("No models to tune. Please ensure at least one model has tuning config files.")
-            return
-        
-        # Run each model sequentially
-        completed_models = []
-        failed_models = []
-        resource_usage = {}
-        
-        for config_path in config_files:
-            model_name = config_path.parent.parent.name
-            self.logger.info(f"\nStarting tuning for model: {model_name}")
-            
-            try:
-                # Initialize tuner
-                tuner = TuningRunner(
-                    config_path=str(config_path),
-                    time_budget_hours=time_budget_hours,
-                    use_asha=use_asha,
-                    asha_config=asha_config,
-                    mode=mode,
-                    metric=metric,
-                    output_dir=output_dir
-                )
-                
-                # Run tuning
-                tuner.run_optimization()
-                
-                # Get resource usage metrics
-                resource_metrics = {
-                    "cpu_usage": tuner._get_cpu_usage(),
-                    "gpu_usage": tuner._get_gpu_usage(),
-                    "memory_usage": tuner._get_memory_usage()
-                }
-                
-                completed_models.append(model_name)
-                resource_usage[model_name] = resource_metrics
-                self.logger.info(f"Completed tuning for model: {model_name}")
-                
-            except Exception as e:
-                self.logger.error(f"Error tuning model {model_name}: {str(e)}")
-                failed_models.append(model_name)
-                continue
-        
-        # Log results
-        if completed_models:
-            self.logger.info(f"\nSuccessfully tuned {len(completed_models)} models: {', '.join(completed_models)}")
-            
-            # Log resource usage comparison
-            self.logger.info("\nResource Usage Comparison:")
-            self.logger.info("=" * 50)
-            for model in completed_models:
-                self.logger.info(f"\nModel: {model}")
-                for metric, value in resource_usage[model].items():
-                    self.logger.info(f"  {metric}: {value}")
-        
-            if failed_models:
-                self.logger.warning(f"Failed to tune {len(failed_models)} models: {', '.join(failed_models)}")
-        else:
-            self.logger.warning("No models were successfully tuned.")
-
     @staticmethod
     def run_from_cli(description: str = "CTF Model Hyperparameter Tuner") -> None:
         """
@@ -842,15 +695,11 @@ class ModelTuner:
         caller_path = caller_frame.f_code.co_filename
         caller_dir = Path(caller_path).parent
         
-        # Get the workspace root (two levels up from the model directory)
-        workspace_root = caller_dir.parent.parent
-        
         parser = argparse.ArgumentParser(description=description)
         
         # Basic arguments
         parser.add_argument("--output-dir", help="Directory to save tuning results (optional)")
         parser.add_argument("--config-path", help="Path to the model's config file")
-        parser.add_argument("--model-name", help="Specific model to tune (optional, defaults to the model directory containing the script)")
         
         # Logging arguments
         logging_group = parser.add_argument_group('Logging Options')
@@ -898,82 +747,28 @@ class ModelTuner:
         
         # Initialize Tuner
         modelTuner = ModelTuner(
+            config_file=args.config_file,
             log_dir=args.log_dir,
             log_to_file=args.log_to_file
         )
         
-        # If model_name not specified, try to detect it from the file structure
-        if not args.model_name:
-            # Check if we're in a model directory
-            if caller_dir.name in [d.name for d in modelTuner.configs_dir.iterdir() if d.is_dir()]:
-                args.model_name = caller_dir.name
-                modelTuner.logger.info(f"Automatically detected model name: {args.model_name}")
-            else:
-                modelTuner.logger.warning("No model name specified and could not detect from file structure. Will tune all models.")
-        
-        # Run tuning
-        if args.model_name:
-            # Tune single model
-            if args.config_path:
-                # Use provided config path
-                config_path = args.config_path
-                modelTuner.logger.info(f"Using provided config path: {config_path}")
-                modelTuner.tune_model(
-                    model_name=args.model_name,
-                    config_path=config_path,
-                    time_budget_hours=args.time_budget_hours,
-                    use_asha=args.use_asha,
-                    asha_config=asha_config,
-                    mode=args.mode,
-                    metric=args.metric,
-                    output_dir=args.output_dir,
-                    gpus_per_trial=args.gpus_per_trial
-                )
-            else:
-                # Find config files
-                config_files = modelTuner._find_tuning_configs(args.model_name)
-                if not config_files:
-                    raise FileNotFoundError(f"No tuning config files found for model {args.model_name}")
-                
-                modelTuner.logger.info(f"Found {len(config_files)} config files:")
-                for i, cfg in enumerate(config_files, 1):
-                    modelTuner.logger.info(f"  {i}. {cfg}")
-                
-                # Run tuning for each config file
-                for i, config_path in enumerate(config_files, 1):
-                    modelTuner.logger.info(f"\nRunning tuning with config file {i}/{len(config_files)}: {config_path}")
-                    try:
-                        # Load config to get dataset info
-                        with open(config_path, 'r') as f:
-                            config = yaml.safe_load(f)
-                        dataset_name = config['model']['dataset']
-                        modelTuner.logger.info(f"Dataset: {dataset_name}")
-                        
-                        modelTuner.tune_model(
-                            model_name=args.model_name,
-                            config_path=str(config_path),
-                            time_budget_hours=args.time_budget_hours,
-                            use_asha=args.use_asha,
-                            asha_config=asha_config,
-                            mode=args.mode,
-                            metric=args.metric,
-                            output_dir=args.output_dir,
-                            gpus_per_trial=args.gpus_per_trial
-                        )
-                    except Exception as e:
-                        modelTuner.logger.error(f"Error tuning with config file {config_path}: {str(e)}")
-                        modelTuner.logger.info("Continuing with next config file...")
-                        continue
-        else:
-            # Tune all models sequentially
-            modelTuner.tune_all_models_sequential(
+        # Tune single model
+        if args.config_path:
+            # Use provided config path
+            config_path = args.config_path
+            modelTuner.logger.info(f"Using provided config path: {config_path}")
+            modelTuner.tune_model(
+                config_path=config_path,
                 time_budget_hours=args.time_budget_hours,
                 use_asha=args.use_asha,
                 asha_config=asha_config,
                 mode=args.mode,
                 metric=args.metric,
-                output_dir=args.output_dir
+                output_dir=args.output_dir,
+                gpus_per_trial=args.gpus_per_trial
             )
+        else:
+            raise ValueError("No model identifier specified. Please specify a model identifier.")
 
 if __name__ == "__main__":
     ModelTuner.run_from_cli() 
