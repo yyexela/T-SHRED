@@ -37,7 +37,7 @@ hyperparameters:
     type: choice
     choices: [0.0, 0.1]
   lr:
-    lower_bound: 1.0e-03
+    lower_bound: 1.0e-04
     type: loguniform
     upper_bound: 1.0e-01
   sindy_attention_weight:
@@ -57,10 +57,10 @@ hyperparameters:
     type: randint
     upper_bound: 10
   coord_descent_model_lr:
-    lower_bound: 1.0e-03
+    lower_bound: 1.0e-04
     type: loguniform
     upper_bound: 1.0e-01
   coord_descent_sindy_attention_lr:
-    lower_bound: 1.0e-03
+    lower_bound: 1.0e-04
     type: loguniform
     upper_bound: 1.0e-01

@@ -62,12 +62,12 @@ def main(args=None):
 
     # Load dataset
     train_ds, val_ds, test_ds, metadata = datasets.load_dataset(args)
-    args.d_data_in = train_ds[0].shape[-1]
-    args.data_rows_in, args.data_cols_in = (train_ds[0].shape[-3],
-                                      train_ds[0].shape[-2])
-    args.d_data_out = train_ds[0].shape[-1]
-    args.data_rows_out, args.data_cols_out = (train_ds[0].shape[-3],
-                                      train_ds[0].shape[-2])
+    args.d_data_in = train_ds[0][0].shape[-1]
+    args.data_rows_in, args.data_cols_in = (train_ds[0][0].shape[-3],
+                                      train_ds[0][0].shape[-2])
+    args.d_data_out = train_ds[0][1].shape[-1]
+    args.data_rows_out, args.data_cols_out = (train_ds[0][1].shape[-3],
+                                      train_ds[0][1].shape[-2])
     args.d_model = args.n_sensors * args.d_data_in
     args.dim_feedforward = args.hidden_size * 4
     args.output_size = args.data_rows_out*args.data_cols_out*args.d_data_out
@@ -108,7 +108,7 @@ def main(args=None):
         val_losses=val_losses,
         model_eigvs=model_eigvs,
         optimizer=optimizer,
-        scalers=metadata['scalers'],
+        metadata=metadata,
         args=args
     )
 
@@ -131,7 +131,7 @@ def main(args=None):
         helpers.print_model_coefficients(best_model, args)
 
     # Calculate loss
-    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata['scalers'], args=args)
+    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, args=args)
     if args.verbose:
         print(f'Test loss: {test_loss:0.4e}')
     save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'model_eigvs': model_eigvs, 'sensors': sensors}

@@ -33,35 +33,31 @@ fig_dir = top_dir / 'figures'
 
 class TimeSeriesDataset(Dataset):
     def __init__(self,
-                 tensors: list[torch.Tensor],
+                 input_tensors: list[torch.Tensor],
                  length: int,
+                 output_tensors: list[torch.Tensor] = None,
                  device: str = 'cpu'):
         """
         Args:
-            tensors (list of torch.Tensor): List of tensors where each tensor is
+            input_tensors (list of torch.Tensor): List of input tensors where each tensor is
+                a time series of shape (time_steps, features)
+            output_tensors (list of torch.Tensor): List of output tensors where each tensor is
                 a time series of shape (time_steps, features)
             length (int): Length of the sliding window
             device (str): Device to move the tensors to
         """
         super().__init__()
         self.length = length
+        self.device = device
 
-        self.tensors = tensors
-
-        # Convert tensors to torch
-        if isinstance(self.tensors[0], np.ndarray):
-            self.tensors = [torch.from_numpy(tensor) for tensor in self.tensors]
-
-        # Float32 for both sensors and tensors
-        self.tensors = [tensor.float() for tensor in self.tensors]
-
-        # Move to GPU
-        self.tensors = [tensor.to(device) for tensor in self.tensors]
+        # Preprocess
+        self.input_tensors = self.prepare_tensors(input_tensors)
+        self.output_tensors = None if output_tensors is None else self.prepare_tensors(output_tensors)
 
         # Calculate cumulative window counts for index mapping
         self.cumulative_offsets = [0]
         current = 0
-        for tensor in self.tensors:
+        for tensor in self.input_tensors:
             L = tensor.size(0)
             # Need enough data for window
             n_windows = (L - length) + 1
@@ -71,6 +67,19 @@ class TimeSeriesDataset(Dataset):
         
         if self.cumulative_offsets[-1] == 0:
             raise ValueError("No valid windows created. Check input_length, output_length, and tensor lengths.")
+
+    def prepare_tensors(self, tensors):
+        # To torch
+        if isinstance(tensors[0], np.ndarray):
+            tensors = [torch.from_numpy(tensor) for tensor in tensors]
+
+        # To float32
+        tensors = [tensor.float() for tensor in tensors]
+
+        # Move to GPU
+        tensors = [tensor.to(self.device) for tensor in tensors]
+
+        return tensors
 
     def __len__(self):
         return self.cumulative_offsets[-1]
@@ -87,11 +96,13 @@ class TimeSeriesDataset(Dataset):
         start = local_idx
         end = start + self.length
 
-        tensor = self.tensors[tensor_idx]
+        input_tensor = self.input_tensors[tensor_idx]
+        output_tensor = input_tensor if self.output_tensors is None else self.output_tensors[tensor_idx]
 
-        window = tensor[start:end]
+        input_window = input_tensor[start:end]
+        output_window = output_tensor[start:end]
 
-        return window
+        return input_window, output_window
 
 def load_dataset(args):
     if args.dataset == 'sst':
@@ -168,7 +179,7 @@ def load_sst_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(tensors=[split], length=args.input_length + args.forecast_length, device=args.device)
+        sst_ds = TimeSeriesDataset(input_tensors=[split], length=args.input_length + args.forecast_length, device=args.device)
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
@@ -202,7 +213,7 @@ def load_sst_demo_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(tensors=[split], length=args.input_length + args.forecast_length, device=args.device)
+        sst_ds = TimeSeriesDataset(input_tensors=[split], length=args.input_length + args.forecast_length, device=args.device)
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
@@ -259,7 +270,7 @@ def load_plasma_data(args):
     for i, (input_split, output_split) in enumerate([(input_train, output_train),
                                                      (input_val, output_val),
                                                      (input_test, output_test)]):
-        plasma_ds = TimeSeriesDataset(input_tensors=[input_split], output_tensors=[output_split], input_length=args.input_length, output_length=args.forecast_length, device=args.device)
+        plasma_ds = TimeSeriesDataset(input_tensors=[input_split], output_tensors=[output_split], length=args.input_length + args.forecast_length, device=args.device)
         datasets.append(plasma_ds)
 
     train_ds = datasets[0]

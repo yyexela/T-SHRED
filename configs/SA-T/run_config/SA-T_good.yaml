@@ -2,7 +2,7 @@ model:
   batch_size: 128
   coord_descent: false
   lr: 0.001
-  dataset: plasma
+  dataset: sst
   decoder: mlp
   decoder_depth: 1
   device: cpu

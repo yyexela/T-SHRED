@@ -282,11 +282,12 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None):
+def evaluate_model(model, dl, sensors, metadata, epoch=0, args=None):
     """
     Evaluate a PyTorch model. Returns reconstruction loss only. 
     """
     model.to(args.device)
+    scalers = metadata['scalers']
     loss_fn = torch.nn.MSELoss()
     model.eval()
     dl_loss = 0.0
@@ -294,11 +295,12 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None):
     with torch.no_grad():
         for i, batch in enumerate(dl):
             # Get raw data
-            batch = batch.to(args.device)
+            batch[0] = batch[0].to(args.device)
+            batch[1] = batch[1].to(args.device)
 
             # Create inputs and outputs based on model
-            inputs = batch[:,:args.input_length,:,:,:]
-            labels = batch[:,-1:,:,:,:]
+            inputs = batch[0][:,:args.input_length,:,:,:]
+            labels = batch[1][:,-1:,:,:,:]
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -318,7 +320,7 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None):
 
             # Reshape output
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
-            outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch.shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
+            outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch[0].shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
             # Take only the last output from transformers
             if "transformer" in args.encoder:
@@ -340,14 +342,34 @@ def evaluate_model(model, dl, sensors, scalers, epoch=0, args=None):
 
             # Plot
             if args.generate_training_plots and i == 0:
-                outputs = outputs.detach()[0][0]
-                labels = labels[0][0]
+                if args.dataset != "plasma":
+                    outputs = outputs.detach()[0][0]
+                    labels = labels[0][0]
 
-                for j in range(outputs.shape[2]):
-                    outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], scalers[j])
-                    labels[:,:,j] = inverse_min_max_scale(labels[:,:,j], scalers[j])
+                    for j in range(outputs.shape[-1]):
+                        outputs[...,j] = inverse_min_max_scale(outputs[...,j], scalers[j])
+                        labels[...,j] = inverse_min_max_scale(labels[...,j], scalers[j])
 
-                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_epoch{epoch}")
+
+                    plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_epoch{epoch}")
+                else:
+                    outputs = outputs.detach()[0][0]
+                    labels = labels[0][0]
+
+                    # For each feature ...
+                    for k in range(14):
+                        # Convert from V to full space
+                        u = torch.from_numpy(metadata['u_total'][20*k:20*(k+1),:]).float().to(args.device)
+                        s = torch.from_numpy(metadata['s_total'][:,k]).float().to(args.device)
+                        v = torch.from_numpy(metadata['v_total'][:,20*k:20*(k+1)]).float().to(args.device)
+
+                        true_shaped = (labels[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
+                        output_shaped = (outputs[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
+
+                        true_shaped = einops.rearrange(true_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
+                        output_shaped = einops.rearrange(output_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
+
+                        plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_f{k+1}_full_comparison_epoch{epoch}")
 
         # Average loss
         dl_loss /= len(dl)
@@ -379,8 +401,8 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
 
             # Create inputs and outputs based on model, assuming transformer rollout type
             # Transformers are causal (masked self-attention)
-            inputs = data[:args.input_length,:,:,:]
-            labels = data[1:,:,:,:]
+            inputs = data[0][:args.input_length,:,:,:].to(args.device)
+            labels = data[1][-1,:,:,:].to(args.device)
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -410,7 +432,7 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
                     outputs[...,j] = inverse_min_max_scale(outputs[...,j], metadata['scalers'][j])
 
                 for j in range(outputs.shape[0]):
-                    tmp_label = ds[i + args.input_length + j][0, :, :, :]
+                    tmp_label = ds[i + args.input_length + j][1][0, :, :, :]
                     tmp_label.to(outputs[j].device)
 
                     for k in range(outputs.shape[3]):
@@ -418,20 +440,24 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
 
                     plot_field_comparison(outputs[j], tmp_label, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_ds{i}_r{j}")
             elif args.dataset in ['plasma']:
-                # For each feature ...
-                for k in range(14):
-                    # Convert from V to full space
-                    u = torch.from_numpy(metadata['u_total'][20*k:20*(k+1),:]).float().to(args.device)
-                    s = torch.from_numpy(metadata['s_total'][:,k]).float().to(args.device)
-                    v = torch.from_numpy(metadata['v_total'][:,20*k:20*(k+1)]).float().to(args.device)
+                for j in range(outputs.shape[0]):
+                    tmp_label = ds[i + args.input_length + j][1][0, :, :, :]
+                    tmp_label = tmp_label.to(outputs[j].device)
 
-                    true_shaped = (labels[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
-                    output_shaped = (outputs[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
+                    # For each feature ...
+                    for k in range(14):
+                        # Convert from V to full space
+                        u = torch.from_numpy(metadata['u_total'][20*k:20*(k+1),:]).float().to(args.device)
+                        s = torch.from_numpy(metadata['s_total'][:,k]).float().to(args.device)
+                        v = torch.from_numpy(metadata['v_total'][:,20*k:20*(k+1)]).float().to(args.device)
 
-                    true_shaped = einops.rearrange(true_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
-                    output_shaped = einops.rearrange(output_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
+                        true_shaped = (tmp_label[0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
+                        output_shaped = (outputs[j][0,20*k:20*(k+1),0] @ torch.diag(s) @ u)
 
-                    plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_f{k+1}_full_comparison_{i}")
+                        true_shaped = einops.rearrange(true_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
+                        output_shaped = einops.rearrange(output_shaped, '(r c) -> c r ()', r = args.data_rows_in, c = args.data_cols_in)
+
+                        plot_field_comparison(output_shaped, true_shaped, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_f{k+1}_full_comparison_ds{i}_r{j}")
 
 def create_next_step_plots(model, ds, sensors, metadata, args=None):
     model.eval()
@@ -448,12 +474,10 @@ def create_next_step_plots(model, ds, sensors, metadata, args=None):
         for i in ds_iter:
             # Get raw data
             data = ds[i]
-            if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
-                data = data.to(args.device)
 
             # Create inputs and outputs, not causal
-            inputs = data[:args.input_length,:,:,:]
-            labels = data[-1,:,:,:]
+            inputs = data[0][:args.input_length,:,:,:].to(args.device)
+            labels = data[1][-1,:,:,:].to(args.device)
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -509,7 +533,7 @@ def coord_descent_change_lr(optimizer, epoch, args):
         optimizer.param_groups[0]['lr'] = args.coord_descent_sindy_attention_lr
         optimizer.param_groups[1]['lr'] = 0.0
 
-def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, optimizer, scalers, args):
+def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, optimizer, metadata, args):
     """
     Train a PyTorch model.
 
@@ -525,12 +549,13 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         val_losses (list): List of validation losses.
         model_eigvs (list): List of model eigenvalues (SINDy-Attention Transformer w/ Rollout only).
         optimizer (torch.optim.Optimizer): Optimizer to use for training.
-        scalers (list): List of tuples of (min, max) values used for scaling (for inverse transformation) for each dimension
+        metadata (dict): Dictionary of metadata for the dataset
         args (argparse.Namespace): Arguments to use for training.
     """
     # Set up model, optimizer, and loss
     loss_fn = torch.nn.MSELoss()
     model.to(args.device)
+    scalers = metadata['scalers']
 
     for epoch in range(start_epoch, args.epochs):
         model.train()
@@ -544,13 +569,14 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
         for i, batch in enumerate(train_dl):
             # Get raw data
-            batch = batch.to(args.device)
+            batch[0] = batch[0].to(args.device)
+            batch[1] = batch[1].to(args.device)
 
             # Create inputs and outputs based on model
             if "transformer" in args.encoder:
                 # Transformers are causal (masked self-attention)
-                inputs = batch[:,:args.input_length,:,:,:]
-                labels = batch[:,1:,:,:,:]
+                inputs = batch[0][:,:args.input_length,:,:,:]
+                labels = batch[1][:,1:,:,:,:]
 
                 if "rollout" in args.encoder:
                     # Create array of labels for each forecast
@@ -586,7 +612,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
             # Reshape output
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
-            outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch.shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
+            outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch[0].shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
@@ -609,17 +635,6 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             if sindy_loss_batch is not None:
                 sindy_loss += sindy_loss_batch.item()
 
-            # Plot
-            if args.generate_training_plots and i == 0:
-                outputs = outputs.detach()[0][-1,-1,:,:,:]
-                labels = labels[0][-1,-1,:,:,:]
-
-                for j in range(outputs.shape[2]):
-                    outputs[:,:,j] = inverse_min_max_scale(outputs[:,:,j], scalers[j])
-                    labels[:,:,j] = inverse_min_max_scale(labels[:,:,j], scalers[j])
-
-                plot_field_comparison(outputs, labels, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_epoch{epoch}")
-
         # Threshold if necessary
         if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
             if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_n_epochs == 0:
@@ -634,7 +649,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses.append(train_loss)
 
         # Calculate validation loss
-        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, scalers=scalers, args=args)
+        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, metadata=metadata, args=args)
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
