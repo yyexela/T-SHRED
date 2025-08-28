@@ -696,8 +696,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
 
         # Print model coefficients
         if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_transformer_rollout"]):
-            #print_model_coefficients(model, args)
-            pass
+            print_model_coefficients(model, args)
 
         # Collect model eigenvalues
         if "rollout" in args.encoder:
