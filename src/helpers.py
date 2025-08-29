@@ -64,7 +64,9 @@ def parse_args():
         with open(args.config, 'r') as f:
             config = yaml.safe_load(f)
         model_config = config['model']
+        config_path = args.config
         args = argparse.Namespace(**model_config)
+        args.config = config_path
 
     return args
 
@@ -322,9 +324,8 @@ def evaluate_model(model, dl, sensors, metadata, epoch=0, args=None):
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
             outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch[0].shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
-            # Take only the last output from transformers
-            if "transformer" in args.encoder:
-                outputs = outputs[:,-1:,-1,:,:,:]
+            # Take only the last output from all models
+            outputs = outputs[:,-1:,-1,:,:,:]
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)

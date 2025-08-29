@@ -5,20 +5,6 @@ import shutil
 import copy
 from pathlib import Path
 
-# The code does the following:
-# 1. Loads T-SHRED/configs/template/template.yaml
-# 2. Iterates over seeds (provided n_seeds) from 0 to n_seeds-1
-# 3. Iteratres over all encoder types
-#   "gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", or "sindy_attention_sindy_loss_transformer_rollout"
-# 4. Iterates over all decoder types
-#   "mlp", "cnn"
-# 5. Iterates over all datasets
-#   "sst", "planetswe", "plasma"
-# 6. Removes the following if an encoder does not contain "sindy_attention": "sindy_attention_weight", "sindy_attention_loss", "coord_descent_model_n_epochs", "coord_descent_sindy_attention_n_epochs", "coord_descent_model_lr", "coord_descent_sindy_attention_lr"
-# 7. Sets "forecast_length" to 5 and "coord_descent" to true if encoder contains "rollout" and 1 and false otherwise
-# 8. Sets "identifier" to f"{dataset}_{encoder}_{decoder}_{seed}"
-# 9. Saves the config file to T-SHRED/configs/{encoder_dict[encoder]}/tuning_config/{identifier}.yaml
-
 encoder_dict = {
     "gru": "GRU",
     "lstm": "LSTM",

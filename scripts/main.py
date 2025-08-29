@@ -73,7 +73,7 @@ def main(args=None):
     args.output_size = args.data_rows_out*args.data_cols_out*args.d_data_out
 
     # Create dataloader
-    train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
+    train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=False)
     val_dl = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
@@ -165,6 +165,7 @@ def config_main(config_str: str):
         config = yaml.safe_load(f)
     model_config = config['model']
     args = argparse.Namespace(**model_config)
+    args.config = config_str
     main(args)
 
 if __name__ == '__main__':

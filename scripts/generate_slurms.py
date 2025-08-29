@@ -29,7 +29,7 @@ echo "Running Python"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source /mmfs1/home/alexeyy/.virtualenvs/tshred/bin/activate
 mkdir -p $repo/logs/{model_name}
-python -u $repo/scripts/hyper_opt.py --model-name {model_name} --config $repo/configs/{model_name}/tuning_config/{identifier}.yaml --time-budget-hours {hyper_opt_time} --use-asha --gpus-per-trial 1 --log-to-file --log-dir $repo/logs/{model_name}
+python -u $repo/scripts/hyper_opt.py --config-path $repo/configs/{model_name}/tuning_config/{identifier}.yaml --time-budget-hours {hyper_opt_time} --use-asha --gpus-per-trial 1 --log-to-file --log-dir $repo/logs/{model_name}
 
 echo "Finished running Python"\
 """

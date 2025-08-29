@@ -148,9 +148,9 @@ def load_well_data(args):
         scalers = pickle.load(f)
 
     # Create torch datasets
-    train_full_ds = TimeSeriesDataset(tensors=train_fulls, length=args.input_length + args.forecast_length, device=args.device)
-    valid_full_ds = TimeSeriesDataset(tensors=val_fulls, length=args.input_length + args.forecast_length, device=args.device)
-    test_full_ds = TimeSeriesDataset(tensors=test_fulls, length=args.input_length + args.forecast_length, device=args.device)
+    train_full_ds = TimeSeriesDataset(input_tensors=train_fulls, length=args.input_length + args.forecast_length, device=args.device)
+    valid_full_ds = TimeSeriesDataset(input_tensors=val_fulls, length=args.input_length + args.forecast_length, device=args.device)
+    test_full_ds = TimeSeriesDataset(input_tensors=test_fulls, length=args.input_length + args.forecast_length, device=args.device)
 
     return train_full_ds, valid_full_ds, test_full_ds, {'scalers': scalers}
 

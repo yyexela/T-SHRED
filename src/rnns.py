@@ -38,12 +38,12 @@ class GRU(nn.Module):
         out = self.dropout(out)
         h_out = self.dropout(h_out)
         out = einops.rearrange(out, 'b s d -> b 1 s d')
-        h_out = einops.rearrange(h_out, 's b d -> b 1 s d')
+        h_out = einops.rearrange(h_out, 'h b d -> b 1 h d') # encoder_depth
 
         return {
             "sequence_output": out, # [batch_size, forecast_length, sequence_length, d_model]
-            "final_hidden_state": h_out, # [batch_size, sequence_length, d_model]
-            "output": h_out,
+            "final_hidden_state": h_out, # [batch_size, 1, encoder_depth, d_model]
+            "output": h_out[:,:,-1:,:],
         }
 
 class LSTM(nn.Module):
@@ -79,11 +79,10 @@ class LSTM(nn.Module):
         out = self.dropout(out)
         h_out = self.dropout(h_out)
         out = einops.rearrange(out, 'b s d -> b 1 s d')
-        h_out = einops.rearrange(h_out, 's b d -> b 1 s d')
+        h_out = einops.rearrange(h_out, 'h b d -> b 1 h d') # encoder_depth
 
         return {
-            "sequence_output": out,
-            "final_hidden_state": h_out,
-            "output": h_out,
-            "sindy_loss": None
+            "sequence_output": out, # [batch_size, forecast_length, sequence_length, d_model]
+            "final_hidden_state": h_out, # [batch_size, 1, encoder_depth, d_model]
+            "output": h_out[:,:,-1:,:],
         }
