@@ -17,13 +17,13 @@ encoder_dict = {
     "sindy_attention_transformer_rollout": "SAR-T",
     "sindy_attention_sindy_loss_transformer_rollout": "SASLR-T",
 }
-n_seeds = 1
+n_seeds = 20
 encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]
 decoders = ["mlp", "cnn"]
 datasets = ["sst", "planetswe", "plasma"]
 
 def main():
-    # 1. Load template config
+    # Load template config
     template_path = Path("configs/template/template.yaml")
     with open(template_path, 'r') as f:
         template_config = yaml.safe_load(f)

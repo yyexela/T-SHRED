@@ -195,4 +195,6 @@ apptainer/apptainer.sif
 apptainer/*.sif
 datasets
 slurms/
+bash/
+tuning_config/
 .python-version

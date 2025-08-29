@@ -29,6 +29,7 @@ class TuningRunner:
     def __init__(
         self,
         config_path: str,
+        device: str = 'cpu',
         save_final_config: bool = True,
         metric: str = "score",
         mode: str = "min",
@@ -44,6 +45,7 @@ class TuningRunner:
 
         Args:
             config_path: Path to the configuration file containing dataset, model, and hyperparameter specifications.
+            device: Device to use for tuning (default: 'cpu').
             save_final_config: Whether to save the final configuration file to output_dir (default: True).
             metric: Metric to optimize (default: "score").
             mode: Optimization mode, "min" or "max" (default: "min").
@@ -75,7 +77,8 @@ class TuningRunner:
         self.param_space = self.hp_config.get('hyperparameters', {})
         self._validate_param_space(self.param_space)
         self.identifier = self.hp_config['model']['identifier']
-        
+
+        self.device = device
         self.save_final_config = save_final_config
         self.metric = metric
         self.mode = mode
@@ -238,12 +241,15 @@ class TuningRunner:
         try:
             # Get identifier 
             identifier = str(tune.get_context().get_trial_id())
-            
+
             # Create a copy of the blank config to avoid modifying the original
             trial_config = self.blank_config.copy()
             
             # Add uniquely identifiable identifier to model config
             trial_config['model']['identifier'] = identifier
+
+            # Set device
+            trial_config['model']['device'] = self.device
 
             # Create config file
             config_path = self._generate_config(config, trial_config, f'hp_config_{identifier}')
@@ -270,6 +276,7 @@ class TuningRunner:
             with open(results_path, 'rb') as f:
                 results = pickle.load(f)
             results_path.unlink(missing_ok=True)
+            Path(config_path).unlink(missing_ok=True)
             
             score = results['best_val']
             print("Score:", score)
@@ -633,6 +640,7 @@ class ModelTuner:
     def tune_model(
         self,
         config_path: str,
+        device: str = "cpu",
         time_budget_hours: float = 24.0,
         use_asha: bool = False,
         asha_config: Optional[Dict[str, Any]] = None,
@@ -646,6 +654,7 @@ class ModelTuner:
         
         Args:
             config_path: Path to the model's config file
+            device: Device to use for tuning
             time_budget_hours: Maximum time budget for tuning in hours
             use_asha: Whether to use ASHA scheduler for early stopping
             asha_config: Optional configuration for ASHA scheduler
@@ -660,6 +669,7 @@ class ModelTuner:
             # Initialize tuner
             tuner = TuningRunner(
                 config_path=config_path,
+                device=device,
                 time_budget_hours=time_budget_hours,
                 use_asha=use_asha,
                 asha_config=asha_config,
@@ -701,6 +711,7 @@ class ModelTuner:
         # Basic arguments
         parser.add_argument("--output-dir", help="Directory to save tuning results (optional)")
         parser.add_argument("--config-path", help="Path to the model's config file")
+        parser.add_argument("--device", help="Device to use for tuning")
         
         # Logging arguments
         logging_group = parser.add_argument_group('Logging Options')
@@ -760,6 +771,7 @@ class ModelTuner:
             modelTuner.logger.info(f"Using provided config path: {config_path}")
             modelTuner.tune_model(
                 config_path=config_path,
+                device=args.device,
                 time_budget_hours=args.time_budget_hours,
                 use_asha=args.use_asha,
                 asha_config=asha_config,
