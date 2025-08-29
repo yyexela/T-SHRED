@@ -31,7 +31,7 @@ echo "Finished running Python"\
 
 # Parameters
 hyper_opt_time = 9999999.0
-n_parallel = 4
+n_parallel = 2
 
 # Create and clean up bash repo
 bash_dir = top_dir / 'bash'
@@ -47,7 +47,7 @@ for config_file in configs_dir.glob('**/*.yaml'):
         config_files.append(config_file)
 
 device_counter = 0
-devices = ["cuda:2", "cuda:3"]
+devices = ["cuda:0", "cuda:1", "cuda:2", "cuda:3"]
 total_scripts = len(devices) * n_parallel
 
 # Initialize bash scripts for each device and parallel index
