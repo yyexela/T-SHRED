@@ -46,8 +46,23 @@ for config_file in configs_dir.glob('**/*.yaml'):
     if 'tuning_config' in str(config_file):
         config_files.append(config_file)
 
+def extract_seed(config_file):
+    filename = config_file.stem
+    seed_str = filename.split('_')[-1]
+    return int(seed_str)
+
+def extract_identifier(config_file):
+    return config_file.stem
+
+def extract_dataset(config_file):
+    identifier = extract_identifier(config_file)
+    dataset = identifier.split('_')[0]
+    return dataset
+
+config_files.sort(key=extract_seed)
+
 device_counter = 0
-devices = ["cuda:0", "cuda:1", "cuda:2", "cuda:3"]
+devices = ["cuda:0", "cuda:1"]
 total_scripts = len(devices) * n_parallel
 
 # Initialize bash scripts for each device and parallel index
@@ -59,6 +74,21 @@ for device in devices:
         log_filename = f"run_cuda_{device_num}_{parallel_idx}.log"
         bash_scripts[script_key] = bash_template_0.format(log_filename=log_filename)
 
+# Go through config files and removes those which are optimized
+skipped_count = 0
+for config_file in config_files:
+    identifier = extract_identifier(config_file)
+    dataset = extract_dataset(config_file)
+    results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
+    results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
+
+    if results_path.exists():
+        print("Skipping config:", config_file)
+        config_files.remove(config_file)
+        skipped_count += 1
+
+# Write bash scripts for non-optimized configs
+written_count = 0
 for config_file in config_files:
     config_file_name = config_file.name
     model_name = config_file.parent.parent.name
@@ -81,6 +111,7 @@ for config_file in config_files:
     bash_scripts[script_key] += cmd
 
     device_counter += 1
+    written_count += 1
 
 # Add the closing template to each script and write to files
 for script_key, script_content in bash_scripts.items():
@@ -100,6 +131,7 @@ for script_key, script_content in bash_scripts.items():
     
     print(f"Generated bash script: {filepath}")
 
-print(f"Total jobs: {len(config_files)}")
+print(f"Total jobs skipped: {skipped_count}")
+print(f"Total jobs written: {written_count}")
 print(f"Total scripts generated: {total_scripts}")
 print(f"Jobs per script: ~{len(config_files) // total_scripts} (with remainder distributed)")

@@ -1,8 +1,8 @@
 import os
 import sys
+import copy
 import yaml
 import shutil
-import copy
 from pathlib import Path
 
 encoder_dict = {
@@ -17,21 +17,30 @@ encoder_dict = {
     "sindy_attention_transformer_rollout": "SAR-T",
     "sindy_attention_sindy_loss_transformer_rollout": "SASLR-T",
 }
-n_seeds = 20
+n_seeds = 10
 encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]
 decoders = ["mlp", "cnn"]
 datasets = ["sst", "planetswe", "plasma"]
 
 def main():
+    # Create output directory and save config
+    for encoder in encoders:
+        output_dir = Path(f"configs/{encoder_dict[encoder]}/tuning_config")
+        shutil.rmtree(output_dir, ignore_errors=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
     # Load template config
     template_path = Path("configs/template/template.yaml")
     with open(template_path, 'r') as f:
         template_config = yaml.safe_load(f)
     
     config_count = 0
-    
+    skip_count = 0
+
+    seeds = range(n_seeds)
+
     # Iterate over seeds
-    for seed in range(n_seeds):
+    for seed in seeds:
         # Iterate over encoder types
         for encoder in encoders:
             # Iterate over decoder types
@@ -50,6 +59,14 @@ def main():
                     # Set identifier
                     identifier = f"{dataset}_{encoder}_{decoder}_{seed}"
                     config['model']['identifier'] = identifier
+
+
+                    # Check if config has been optimized
+                    results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
+                    results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
+                    if results_path.exists():
+                        skip_count += 1
+                        continue
 
                     # Set hyperparameters to remove to empty
                     hyperparams_to_remove = []
@@ -85,19 +102,15 @@ def main():
                     for param in hyperparams_to_remove:
                         if param in config['hyperparameters']:
                             del config['hyperparameters'][param]
-                    
-                    # Create output directory and save config
-                    output_dir = Path(f"configs/{encoder_dict[encoder]}/tuning_config")
-                    output_dir.mkdir(parents=True, exist_ok=True)
-                    
+                     
                     output_path = output_dir / f"{identifier}.yaml"
                     with open(output_path, 'w') as f:
                         yaml.dump(config, f, default_flow_style=False, indent=2)
                     
-                    print(f"Generated config: {output_path}")
                     config_count += 1
     
-    print(f"\nTotal configs generated: {config_count}")
+    print(f"Total configs generated: {config_count}")
+    print(f"Total configs skipped: {skip_count}")
 
 if __name__ == "__main__":
     main()
