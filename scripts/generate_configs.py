@@ -20,7 +20,7 @@ encoder_dict = {
 n_seeds = 5
 encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]
 decoders = ["mlp", "cnn"]
-datasets = ["planetswe, sst", "plasma"]
+datasets = ["planetswe"]
 
 top_dir = Path(__file__).parent.parent
 
