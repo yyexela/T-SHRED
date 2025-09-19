@@ -17,20 +17,22 @@ encoder_dict = {
     "sindy_attention_transformer_rollout": "SAR-T",
     "sindy_attention_sindy_loss_transformer_rollout": "SASLR-T",
 }
-n_seeds = 10
+n_seeds = 5
 encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]
 decoders = ["mlp", "cnn"]
-datasets = ["sst", "planetswe", "plasma"]
+datasets = ["planetswe, sst", "plasma"]
+
+top_dir = Path(__file__).parent.parent
 
 def main():
     # Create output directory and save config
     for encoder in encoders:
-        output_dir = Path(f"configs/{encoder_dict[encoder]}/tuning_config")
+        output_dir = top_dir / f"configs/{encoder_dict[encoder]}/tuning_config"
         shutil.rmtree(output_dir, ignore_errors=True)
         output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load template config
-    template_path = Path("configs/template/template.yaml")
+    template_path = top_dir / "configs/template/template_planetswe.yaml"
     with open(template_path, 'r') as f:
         template_config = yaml.safe_load(f)
     
@@ -90,7 +92,7 @@ def main():
                     
                     # Set forecast_length based on rollout
                     if "rollout" in encoder:
-                        config['model']['forecast_length'] = 5
+                        config['model']['forecast_length'] = 1
 
                         # Only 1 encoder depth supported
                         hyperparams_to_remove.append("encoder_depth")
@@ -103,6 +105,7 @@ def main():
                         if param in config['hyperparameters']:
                             del config['hyperparameters'][param]
                      
+                    output_dir = top_dir / f"configs/{encoder_dict[encoder]}/tuning_config"
                     output_path = output_dir / f"{identifier}.yaml"
                     with open(output_path, 'w') as f:
                         yaml.dump(config, f, default_flow_style=False, indent=2)

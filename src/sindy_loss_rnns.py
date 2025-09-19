@@ -23,6 +23,7 @@ class SINDyLossGRU(SINDyLoss, GRU):
         Forward pass through the GRU model.
         """
         out, h_out = self.gru(x)
+        h_out = h_out[-1:]
 
         sindy_loss = self.compute_sindy_loss(out[:,-1:,:])
 
@@ -58,6 +59,7 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
         """
         # Initialize hidden and cell
         out, (h_out, c_out) = self.lstm(x)
+        h_out = h_out[-1:]
 
         sindy_loss = self.compute_sindy_loss(out[:,-1:,:])
 

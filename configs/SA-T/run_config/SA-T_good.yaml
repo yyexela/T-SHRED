@@ -2,16 +2,16 @@ model:
   batch_size: 128
   coord_descent: false
   lr: 0.001
-  dataset: sst
+  dataset: plasma
   decoder: mlp
   decoder_depth: 1
-  device: cpu
+  device: cuda:0
   delete_checkpoint: false
   dropout: 0.1
   early_stop: 0
   encoder: sindy_attention_transformer
   encoder_depth: 1
-  epochs: 2
+  epochs: 10
   forecast_length: 1
   generate_loss_plots: true
   generate_test_plots: true

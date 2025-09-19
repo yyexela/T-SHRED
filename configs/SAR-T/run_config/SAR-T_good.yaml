@@ -5,16 +5,16 @@ model:
   coord_descent_model_n_epochs: 5
   coord_descent_sindy_attention_lr: 0.1
   coord_descent_sindy_attention_n_epochs: 2
-  dataset: sst
+  dataset: plasma
   decoder: cnn
   decoder_depth: 1
-  device: cpu
+  device: cuda:0
   delete_checkpoint: false
   dropout: 0.1
   early_stop: 0
   encoder: sindy_attention_transformer_rollout
   encoder_depth: 1
-  epochs: 5
+  epochs: 10
   forecast_length: 5
   generate_loss_plots: true
   generate_test_plots: true

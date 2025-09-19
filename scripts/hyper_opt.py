@@ -103,6 +103,7 @@ class TuningRunner:
         if not ray.is_initialized():
             try:
                 ray.init(
+                    num_cpus=16,
                     ignore_reinit_error=self.ignore_reinit_error,
                     include_dashboard=False,  # Disable dashboard for local runs
                     _system_config={

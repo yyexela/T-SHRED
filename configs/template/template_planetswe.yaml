@@ -9,8 +9,8 @@ model:
   dt: 1.0
   early_stop: 10
   encoder: none # "gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", or "sindy_attention_sindy_loss_transformer_rollout"
-  epochs: 100
-  forecast_length: none # 1 for non rollout, 5 otherwise
+  epochs: 50
+  forecast_length: none # 1 for all
   generate_loss_plots: false
   generate_test_plots: false
   generate_training_plots: false
@@ -20,10 +20,10 @@ model:
   n_heads: 4
   n_sensors: 5
   n_well_tracks: 10
-  n_trials: 100
+  n_trials: 25
   poly_order: 1
   save_every_n_epochs: 10
-  seed: none # 1 to 10
+  seed: none # set in generate_configs.py
   sindy_attention_threshold_n_epochs: 10
   sindy_attention_threshold: 0.1
   sindy_loss_threshold: 0.1

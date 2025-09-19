@@ -8,7 +8,7 @@ repo="/home/alexey/Git/T-SHRED"
 
 # Create logs directory and set up logging
 mkdir -p $repo/logs
-exec > >(tee $repo/logs/{log_filename}) 2>&1
+exec > >(tee -a $repo/logs/{log_filename}) 2>&1
 
 echo "Running Python"
 
@@ -31,7 +31,7 @@ echo "Finished running Python"\
 
 # Parameters
 hyper_opt_time = 9999999.0
-n_parallel = 2
+n_parallel = 1
 
 # Create and clean up bash repo
 bash_dir = top_dir / 'bash'

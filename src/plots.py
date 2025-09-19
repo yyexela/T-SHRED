@@ -196,7 +196,7 @@ def plot_losses(training_loss: list[float], validation_loss: list[float], saved_
     else:
         fig.show()
 
-def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None, title_fontsize: int = 16, axes_fontsize: int = 14, legend_fontsize: int = 12, reverse: bool = False) -> None:
+def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None, title_fontsize: int = 16, axes_fontsize: int = 14, legend_fontsize: int = 12, reverse: bool = False, encoders: list[str] = None) -> None:
     """
     Create a scatter plot of model results using plotly, where:
     - y-axis shows the results (test loss) on a log scale
@@ -216,9 +216,10 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         axes_fontsize (int, optional): Font size for axes titles and tick labels. Defaults to 14.
         legend_fontsize (int, optional): Font size for legend text. Defaults to 12.
         reverse (bool, optional): Whether to reverse the order of the models. Defaults to False.
+        encoders (list[str], optional): List of encoders to include in the plot. Defaults to None, which uses all encoders.
     """
     # Filter results for the specified dataset
-    filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset]
+    filtered_results = [r for r in results if r['final_config']['model']['dataset'] == dataset]
 
     # Filter to only include transformer encoders
     #filtered_results = [r for r in filtered_results if 'transformer' in r['hyperparameters']['encoder']]
@@ -228,20 +229,21 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     model_groups = defaultdict(list)
     
     for r in filtered_results:
+        if encoders is not None and r['final_config']['model']['encoder'] not in encoders:
+            continue
+
         # Create a key from hyperparameters excluding 'seed'
-        hyperparams = r['hyperparameters'].copy()
-        hyperparams.pop('seed', None)  # Remove seed if it exists
+        hyperparams = r['final_config']['model'].copy()
         
         # Convert to a frozenset of items to make it hashable
-        key = f"{hyperparams['encoder']}_{hyperparams['decoder']}_{hyperparams['dataset']}_e{hyperparams['encoder_depth']}_d{hyperparams['decoder_depth']}_lr{hyperparams['lr']:0.2e}_p{hyperparams['poly_order']}"
+        key = f"{hyperparams['encoder']}_{hyperparams['decoder']}_{hyperparams['dataset']}_e{hyperparams['encoder_depth']}_d{hyperparams['decoder_depth']}"
 
-        test_loss = r.get('test_loss', None)
+        test_loss = r['best_value']
         
         if test_loss is not None:
             model_groups[key].append({
                 'test_loss': test_loss,
                 'hyperparameters': hyperparams,
-                'original_result': r
             })
         else:
             raise Exception("Test loss is None for", r)
@@ -252,8 +254,6 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         test_losses = [item['test_loss'] for item in group]
         mean_loss = np.mean(test_losses)
 
-        if i == 0:
-            print("test losses:", test_losses)
         std_loss = np.std(test_losses) if len(test_losses) > 1 else 0.0
         
         # Use the hyperparameters from the first result in the group
@@ -278,8 +278,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         aggregated_results = aggregated_results[::-1]
     
     # Get unique encoders and decoders
-    unique_encoders = ["lstm", "gru", "sindy_loss_lstm", "sindy_loss_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
-    unique_decoders = ["mlp", "cnn"]
+    unique_encoders = list(set([r['hyperparameters']['encoder'] for r in aggregated_results]))
+    unique_decoders = list(set([r['hyperparameters']['decoder'] for r in aggregated_results]))
     
     # Create color mappings
     encoder_colors = palettable.cartocolors.qualitative.Prism_8.hex_colors
@@ -309,6 +309,10 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             encoder_name = "SA-T"
         elif encoder == "sindy_attention_sindy_loss_transformer":
             encoder_name = "SASL-T"
+        elif encoder == "sindy_attention_transformer_rollout":
+            encoder_name = "SAR-T"
+        elif encoder == "sindy_attention_sindy_loss_transformer_rollout":
+            encoder_name = "SASLR-T"
             
             
         fig.add_trace(go.Scatter(
@@ -359,6 +363,28 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         mean_test_loss = r['mean_test_loss']
         std_test_loss = r['std_test_loss']
         n_seeds = r['n_seeds']
+
+        if r['hyperparameters']['coord_descent']:
+            hover_template = (
+                f"Encoder: {encoder} (x{encoder_depth})<br>"
+                f"Decoder: {decoder} (x{decoder_depth})<br>"
+                f"Model LR: {r['hyperparameters']['coord_descent_model_lr']:.2e}<br>"
+                f"SINDy Attention LR: {r['hyperparameters']['coord_descent_sindy_attention_lr']:.2e}<br>"
+                f"Mean Test Loss: {mean_test_loss:.2e}<br>"
+                f"Std Test Loss: {std_test_loss:.2e}<br>"
+                f"Seeds: {n_seeds}<br>"
+                f"<extra></extra>"
+            )
+        else:
+            hover_template = (
+                f"Encoder: {encoder} (x{encoder_depth})<br>"
+                f"Decoder: {decoder} (x{decoder_depth})<br>"
+                f"LR: {r['hyperparameters']['lr']:.2e}<br>"
+                f"Mean Test Loss: {mean_test_loss:.2e}<br>"
+                f"Std Test Loss: {std_test_loss:.2e}<br>"
+                f"Seeds: {n_seeds}<br>"
+                f"<extra></extra>"
+            )
         
         fig.add_trace(go.Scatter(
             x=[i + 1],  # Add 1 to avoid log(0)
@@ -381,15 +407,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
                 ),
                 size=12
             ),
-            hovertemplate=(
-                f"Encoder: {encoder} (x{encoder_depth})<br>"
-                f"Decoder: {decoder} (x{decoder_depth})<br>"
-                f"LR: {r['hyperparameters']['lr']:.2e}<br>"
-                f"Mean Test Loss: {mean_test_loss:.2e}<br>"
-                f"Std Test Loss: {std_test_loss:.2e}<br>"
-                f"Seeds: {n_seeds}<br>"
-                f"<extra></extra>"
-            ),
+            hovertemplate=hover_template,
             showlegend=False  # Don't show these in legend
         ))
     
@@ -464,7 +482,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             raise Exception(f"Filename fname ({fname}) must not be None.")
         fig.write_image(figure_dir / f'{fname}.pdf', engine='kaleido')
         print(f"Saved {figure_dir/fname}.pdf")
-        fig.show()
+        #fig.show()
     else:
         fig.show()
 

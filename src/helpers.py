@@ -907,7 +907,19 @@ def split_mats(data_list):
 
     return train_data, val_data, test_data
 
-
+def get_results_from_hyper_opt(hyper_opt_dir):
+    """
+    Given the top "results" directory for hyperparameter optimization, returns a list of final tuning history dictionaries from the yaml files.
+    """
+    results = []
+    for tune_folder in Path(hyper_opt_dir).iterdir():
+        if tune_folder.is_dir():
+            for tune_file in tune_folder.iterdir():
+                if tune_file.is_file() and tune_file.name.startswith("tuning_history_") and tune_file.name.endswith(".yaml"):
+                    with open(tune_file, 'r') as f:
+                        data = yaml.safe_load(f)
+                        results.append(data)
+    return results
 
 def get_dictionaries_from_pickles(pickle_dir):
     """
@@ -927,9 +939,6 @@ def get_dictionaries_from_pickles(pickle_dir):
             data = pickle.load(f)
             results.append(data)
     return results
-
-def get_result_loss(result):
-    return result.get('test_loss', result.get('test_loss_pod', None))
 
 def print_model_coefficients(model, args):
     # coefficients: n_heads x ((library terms + 1 (for linear) terms) x library_terms equations)
@@ -978,32 +987,36 @@ def get_model_coefficient_eigenvalues(model, args):
             eigvs_l.append(terms_eigvs)
     return eigvs_l
 
-def get_top_N_models_by_loss(dataset_name, pickle_dir, loss_only=False, N=5):
+def get_top_N_models_by_loss(results, dataset_name, loss_only=False, N=5):
     """
-    Returns the top 5 models (filenames) with the lowest test loss for a given dataset.
+    Returns the top 5 models with the lowest test loss for a given dataset.
     
     Args:
+        results (list): List of dictionaries containing the results.
         dataset_name (str): The dataset name to filter by (e.g., 'sst').
         loss_only (bool): If True, only return the loss value.
-        pickles_dir (str): Path to the pickles directory.
         N (int): Number of results to return.
         
     Returns:
         List of tuples: [(filename, loss), ...] sorted by lowest loss.
     """
-    results = []
-    for fname in os.listdir(pickle_dir):
-        if dataset_name in fname and fname.endswith('.pkl'):
-            fpath = os.path.join(pickle_dir, fname)
-            with open(fpath, 'rb') as f:
-                data = pickle.load(f)
-                # Try both 'test_loss' and 'test_loss_pod' keys for robustness
-                results.append((fname, data))
     # Sort by loss (ascending) and return top 5
-    results.sort(key=lambda x: get_result_loss(x[1]), reverse=False)
+    results.sort(key=lambda x: x['best_value'], reverse=False)
     if loss_only:
-        results = [(x[0], get_result_loss(x[1])) for x in results]
+        results = [(x, x['best_value']) for x in results]
     return results[:N]
+
+def print_top_N_results(results, dataset_name, loss_only=False, N=5):
+    """
+    Prints the extracted best results with the lowest test loss.
+    """
+    results = get_top_N_models_by_loss(results, dataset_name, loss_only, N)
+    print(f"{dataset_name} ({N} best)")
+    for result in results:
+        print(f"> Encoder (n={result['final_config']['model']['encoder_depth']}): {result['final_config']['model']['encoder']}")
+        print(f"> Decoder (n={result['final_config']['model']['decoder_depth']}): {result['final_config']['model']['decoder']}")
+        print(f"> Test loss: {result['best_value']:0.4e}")
+        print()
 
 def get_identifier(filename):
     """Extract identifier from filename by removing extension and _test_loss suffix."""
