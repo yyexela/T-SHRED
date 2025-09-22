@@ -16,11 +16,14 @@ encoder_dict = {
     "sindy_attention_sindy_loss_transformer": "SASLT-T",
     "sindy_attention_transformer_rollout": "SAR-T",
     "sindy_attention_sindy_loss_transformer_rollout": "SASLR-T",
+    "sindy_attention_transformer_rollout_5": "SAR-T-5",
+    "sindy_attention_sindy_loss_transformer_rollout_5": "SASLR-T-5",
 }
+
 n_seeds = 5
-encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]
+encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout", "sindy_attention_transformer_rollout_5", "sindy_attention_sindy_loss_transformer_rollout_5"]
 decoders = ["mlp", "cnn"]
-datasets = ["planetswe"]
+datasets = ["sst", "plasma", "planetswe"]
 
 top_dir = Path(__file__).parent.parent
 
@@ -62,7 +65,6 @@ def main():
                     identifier = f"{dataset}_{encoder}_{decoder}_{seed}"
                     config['model']['identifier'] = identifier
 
-
                     # Check if config has been optimized
                     results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
                     results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
@@ -92,14 +94,18 @@ def main():
                     
                     # Set forecast_length based on rollout
                     if "rollout" in encoder:
-                        config['model']['forecast_length'] = 1
+                        if "rollout_5" in encoder:
+                            config['model']['forecast_length'] = 5
+                            config['model']['encoder'] = encoder[:-2]
+                        else:
+                            config['model']['forecast_length'] = 1
 
                         # Only 1 encoder depth supported
                         hyperparams_to_remove.append("encoder_depth")
                         config['model']['encoder_depth'] = 1
                     else:
                         config['model']['forecast_length'] = 1
-                    
+ 
                     # Remove relevant hyperparameters
                     for param in hyperparams_to_remove:
                         if param in config['hyperparameters']:
@@ -109,6 +115,7 @@ def main():
                     output_path = output_dir / f"{identifier}.yaml"
                     with open(output_path, 'w') as f:
                         yaml.dump(config, f, default_flow_style=False, indent=2)
+                    print(f"Generated config: {output_path}")
                     
                     config_count += 1
     

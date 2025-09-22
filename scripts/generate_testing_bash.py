@@ -31,19 +31,19 @@ echo "Finished running Python"\
 
 # Parameters
 hyper_opt_time = 9999999.0
-n_parallel = 2
+n_parallel = 1
 
 # Computer configuration - each computer has its own repo path, venv path, and available GPUs
 computers = {
     "computer0": {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        "gpus": ["cuda:0", "cuda:1", "cuda:2", "cuda:3"]
+        "gpus": ["cuda:1", "cuda:2", "cuda:3"]
     },
     "computer1": {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        "gpus": ["cuda:0", "cuda:1"]
+        "gpus": ["cuda:1", "cuda:2", "cuda:3"]
     },
 }
 
