@@ -96,12 +96,6 @@ for config_file in config_files:
     results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "pickles"
     results_path = results_path / f"{identifier}.pkl"
 
-    if "sst_sindy_attention_transformer_rollout_5_mlp_0" in str(results_path) or \
-        "sst_sindy_attention_sindy_loss_transformer_rollout_5_mlp_1" in str(results_path) or \
-        "sst_sindy_attention_sindy_loss_transformer_rollout_5_mlp_2" in str(results_path):
-        print("Results path:", results_path, "exists", results_path.exists())
-        print("Results path:", results_path, "exists", results_path.exists())
-
     if not results_path.exists():
         config_files_to_process.append(config_file)
     else:

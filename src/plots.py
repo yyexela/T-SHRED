@@ -196,7 +196,7 @@ def plot_losses(training_loss: list[float], validation_loss: list[float], saved_
     else:
         fig.show()
 
-def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None, title_fontsize: int = 16, axes_fontsize: int = 14, legend_fontsize: int = 12, reverse: bool = False, encoders: list[str] = None) -> None:
+def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = None, save: bool = False, fname: str = None, title_fontsize: int = 16, axes_fontsize: int = 14, legend_fontsize: int = 12, reverse: bool = False, encoders: list[str] = None, results_type: str = "hyper_opt") -> None:
     """
     Create a scatter plot of model results using plotly, where:
     - y-axis shows the results (test loss) on a log scale
@@ -205,6 +205,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     - only shows results for the specified dataset
     - optionally shows only the top N performing models
     - groups results by model configuration (excluding seed) and shows mean with error bars
+    - results_type can be "hyper_opt" or "pickle"
     
     Args:
         results (list[dict]): List of dictionaries containing model results and hyperparameters
@@ -219,7 +220,12 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         encoders (list[str], optional): List of encoders to include in the plot. Defaults to None, which uses all encoders.
     """
     # Filter results for the specified dataset
-    filtered_results = [r for r in results if r['final_config']['model']['dataset'] == dataset]
+    if results_type == "hyper_opt":
+        filtered_results = [r for r in results if r['final_config']['model']['dataset'] == dataset]
+    elif results_type == "pickle":
+        filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset]
+    else:
+        raise Exception("Invalid results_type:", results_type)
 
     # Filter to only include transformer encoders
     #filtered_results = [r for r in filtered_results if 'transformer' in r['hyperparameters']['encoder']]
@@ -229,16 +235,31 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     model_groups = defaultdict(list)
     
     for r in filtered_results:
-        if encoders is not None and r['final_config']['model']['encoder'] not in encoders:
-            continue
+        if results_type == "hyper_opt":
+            if encoders is not None and r['final_config']['model']['encoder'] not in encoders:
+                continue
+        elif results_type == "pickle":
+            if encoders is not None and r['hyperparameters']['encoder'] not in encoders:
+                continue
 
-        # Create a key from hyperparameters excluding 'seed'
-        hyperparams = r['final_config']['model'].copy()
+        # Create a key  from hyperparameters excluding 'seed'
+        if results_type == "hyper_opt":
+            hyperparams = r['final_config']['model'].copy()
+        elif results_type == "pickle":
+            hyperparams = r['hyperparameters'].copy()
+
+        # Modify encoder if rollout is not 1
+        if "rollout" in hyperparams['encoder']:
+            if r['hyperparameters']['forecast_length'] != 1:
+                hyperparams['encoder'] = hyperparams['encoder'] + f"_{r['hyperparameters']['forecast_length']}"
         
         # Convert to a frozenset of items to make it hashable
-        key = f"{hyperparams['encoder']}_{hyperparams['decoder']}_{hyperparams['dataset']}_e{hyperparams['encoder_depth']}_d{hyperparams['decoder_depth']}"
+        key = f"{hyperparams['encoder']}_{hyperparams['decoder']}_{hyperparams['dataset']}"
 
-        test_loss = r['best_value']
+        if results_type == "hyper_opt":
+            test_loss = r['best_value']
+        elif results_type == "pickle":
+            test_loss = r['test_loss']
         
         if test_loss is not None:
             model_groups[key].append({
@@ -282,7 +303,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     unique_decoders = list(set([r['hyperparameters']['decoder'] for r in aggregated_results]))
     
     # Create color mappings
-    encoder_colors = palettable.cartocolors.qualitative.Prism_8.hex_colors
+    encoder_colors = palettable.cartocolors.qualitative.Prism_9.hex_colors
     encoder_color_map = {encoder: encoder_colors[i % len(encoder_colors)] for i, encoder in enumerate(unique_encoders)}
     decoder_colors = palettable.cartocolors.qualitative.Pastel_3.hex_colors
     decoder_color_map = {decoder: decoder_colors[i % len(decoder_colors)] for i, decoder in enumerate(unique_decoders)}
@@ -313,6 +334,10 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             encoder_name = "SAR-T"
         elif encoder == "sindy_attention_sindy_loss_transformer_rollout":
             encoder_name = "SASLR-T"
+        elif encoder == "sindy_attention_transformer_rollout_5":
+            encoder_name = "SAR-T-5"
+        elif encoder == "sindy_attention_sindy_loss_transformer_rollout_5":
+            encoder_name = "SASLR-T-5"
             
             
         fig.add_trace(go.Scatter(
@@ -357,19 +382,15 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     # Add actual data points with error bars
     for i, r in enumerate(aggregated_results):
         encoder = r['hyperparameters']['encoder']
-        encoder_depth = r['hyperparameters']['encoder_depth']
         decoder = r['hyperparameters']['decoder']
-        decoder_depth = r['hyperparameters']['decoder_depth']
         mean_test_loss = r['mean_test_loss']
         std_test_loss = r['std_test_loss']
         n_seeds = r['n_seeds']
 
         if r['hyperparameters']['coord_descent']:
             hover_template = (
-                f"Encoder: {encoder} (x{encoder_depth})<br>"
-                f"Decoder: {decoder} (x{decoder_depth})<br>"
-                f"Model LR: {r['hyperparameters']['coord_descent_model_lr']:.2e}<br>"
-                f"SINDy Attention LR: {r['hyperparameters']['coord_descent_sindy_attention_lr']:.2e}<br>"
+                f"Encoder: {encoder}<br>"
+                f"Decoder: {decoder}<br>"
                 f"Mean Test Loss: {mean_test_loss:.2e}<br>"
                 f"Std Test Loss: {std_test_loss:.2e}<br>"
                 f"Seeds: {n_seeds}<br>"
@@ -377,9 +398,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             )
         else:
             hover_template = (
-                f"Encoder: {encoder} (x{encoder_depth})<br>"
-                f"Decoder: {decoder} (x{decoder_depth})<br>"
-                f"LR: {r['hyperparameters']['lr']:.2e}<br>"
+                f"Encoder: {encoder}<br>"
+                f"Decoder: {decoder}<br>"
                 f"Mean Test Loss: {mean_test_loss:.2e}<br>"
                 f"Std Test Loss: {std_test_loss:.2e}<br>"
                 f"Seeds: {n_seeds}<br>"
@@ -472,8 +492,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
                 size=legend_fontsize
             )
         ),
-        height=500,
-        width=500
+        height=550,
+        width=650
     )
     
     # Show or save the plot

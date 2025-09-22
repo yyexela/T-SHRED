@@ -1137,6 +1137,131 @@ def sort_bash_config_key(config_file):
     
     return (dataset_priority_value, seed)
 
+def create_results_table(results, datasets, results_type):
+    """
+    Create a LaTeX table from the results.
+    """
+    import numpy as np
+
+    encoder_order = [
+        "lstm",
+        "gru",
+        "sindy_loss_gru",
+        "sindy_loss_lstm",
+        "vanilla_transformer",
+        "sindy_loss_transformer",
+        "sindy_attention_transformer_rollout",
+        "sindy_attention_sindy_loss_transformer_rollout",
+        "sindy_attention_transformer_rollout_5",
+        "sindy_attention_sindy_loss_transformer_rollout_5",
+    ]
+    encoder_label = {
+        "lstm": "LSTM",
+        "gru": "GRU",
+        "sindy_loss_gru": "SL-GRU",
+        "sindy_loss_lstm": "SL-LSTM",
+        "vanilla_transformer": "T",
+        "sindy_loss_transformer": "SL-T",
+        "sindy_attention_transformer_rollout": "SA-T",
+        "sindy_attention_sindy_loss_transformer_rollout": "SASL-T",
+        "sindy_attention_transformer_rollout_5": "SA-T-5",
+        "sindy_attention_sindy_loss_transformer_rollout_5": "SASL-T-5",
+    }
+    decoder_order = ["mlp", "cnn"]
+    decoder_label = {"mlp": "MLP", "cnn": "CNN"}
+    dataset_label = {"plasma": "Plasma", "sst": "SST", "planetswe": "PlanetSWE"}
+
+    from collections import defaultdict
+    stats = defaultdict(list)  # (decoder, encoder, dataset) -> [losses]
+
+    for r in results:
+        if results_type == "hyper_opt":
+            cfg = r['final_config']['model']
+            ds = cfg['dataset']
+            enc = cfg['encoder']
+            dec = cfg['decoder']
+            loss = r['best_value']
+        elif results_type == "pickle":
+            cfg = r['hyperparameters']
+            ds = cfg['dataset']
+            enc = cfg['encoder']
+            dec = cfg['decoder']
+            loss = r['test_loss']
+        else:
+            raise Exception("Invalid results_type:", results_type)
+
+        # If encoder is rollout, check forecast length
+        if "rollout" in enc:
+            if cfg['forecast_length'] == 1:
+                enc = enc
+            elif cfg['forecast_length'] == 5:
+                enc = enc + "_5"
+
+        if ds not in datasets or enc not in encoder_order or dec not in decoder_order or loss is None:
+            continue
+        stats[(dec, enc, ds)].append(loss)
+
+    means, stds = {}, {}
+    best_per_dataset = {ds: np.inf for ds in datasets}
+    for key, losses in stats.items():
+        dec, enc, ds = key
+        m = float(np.mean(losses))
+        s = float(np.std(losses)) if len(losses) > 1 else 0.0
+        means[key] = m
+        stds[key] = s
+        if m < best_per_dataset[ds]:
+            best_per_dataset[ds] = m
+
+    def format_cell(decoder, encoder, ds):
+        key = (decoder, encoder, ds)
+        if key not in means:
+            return "—"
+        m = means[key]
+        s = stds[key]
+        cell = f"{m:0.2e} $\\pm$ {s:0.2e}"
+        if np.isfinite(best_per_dataset.get(ds, np.inf)) and abs(m - best_per_dataset[ds]) < 1e-15:
+            cell = f"\\textbf{{{cell}}}"
+        return cell
+
+    ordered_datasets = [ds for ds in ["plasma", "sst", "planetswe"] if ds in datasets]
+    header_cols = [dataset_label.get(ds, ds) for ds in ordered_datasets]
+
+    lines = []
+    lines.append("\\begin{table}[h]")
+    lines.append("  \\centering")
+    lines.append(f"  \\begin{{tabular}}{{|l|l|{'|'.join(['c']*len(ordered_datasets))}|}}")
+    lines.append("  \\hline")
+    lines.append("  \\textbf{Decoder} & \\textbf{Encoder} & " + " & ".join([f"\\textbf{{{c}}}" for c in header_cols]) + " \\\\ \\hline")
+
+    total_cols_end = 1 + 1 + len(ordered_datasets)
+    for decoder in decoder_order:
+        encs_present = [e for e in encoder_order]
+        if len(encs_present) == 0:
+            continue
+        first_enc = encs_present[0]
+        lines.append(
+            f"  \\multirow{{{len(encs_present)}}}{{*}}{{{decoder_label[decoder]}}} "
+            + " & " + encoder_label[first_enc] + " & "
+            + " & ".join([format_cell(decoder, first_enc, ds) for ds in ordered_datasets])
+            + f" \\\\ \\cline{{2-{total_cols_end}}}"
+        )
+
+        for j, enc in enumerate(encs_present[1:]):
+            is_last = (j == len(encs_present[1:]) - 1)
+            row = "              & " + encoder_label[enc] + " & " + " & ".join([format_cell(decoder, enc, ds) for ds in ordered_datasets])
+            if is_last:
+                row += " \\\\ \\hline"
+            else:
+                row += f" \\\\ \\cline{{2-{total_cols_end}}}"
+            lines.append(row)
+
+    lines.append("  \\end{tabular}")
+    lines.append("  \\caption{Model performance across datasets. Values show RMSE of the next-step prediction over five seeds (mean $\\pm$ std). Bold values indicate the best performing model for each dataset. The encoders shown are the vanilla transformer (T), the SINDy-Loss transformer (SL-T), the SINDy-Attention Transformer (SA-T), the SINDy-Attention Transformer with SINDy-Loss (SASL-T), the GRU, the LSTM, the SINDy-Loss GRU (SL-GRU), and the SINDy-Loss LSTM (SL-LSTM).}")
+    lines.append("  \\label{tab:results_table}")
+    lines.append("\\end{table}")
+
+    return "\n".join(lines)
+
 # We use this for exact parity with the PyTorch implementation, having the same init
 # for every layer might not be necessary.
 def _get_clones(module, N):
