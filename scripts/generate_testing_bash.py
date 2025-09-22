@@ -1,6 +1,10 @@
+import sys
 from pathlib import Path
 
 top_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(top_dir))
+
+from src.helpers import extract_seed, extract_identifier, extract_dataset, sort_bash_config_key
 
 bash_template_0 = \
 """\
@@ -19,9 +23,7 @@ source {venv_path}
 
 bash_template_1 = \
 """\
-mkdir -p $repo/logs/{model_name}
-
-python -u $repo/scripts/hyper_opt.py --config-path $repo/configs/{model_name}/tuning_config/{identifier}.yaml --time-budget-hours {hyper_opt_time} --device {device} --use-asha --gpus-per-trial 0 --log-to-file --log-dir $repo/logs/{model_name}
+CUDA_VISIBLE_DEVICES={device} python -u $repo/scripts/main.py --config $repo/results/{identifier}/optimal_params_{dataset}.yaml
 """
 
 bash_template_2 = \
@@ -30,7 +32,6 @@ echo "Finished running Python"\
 """
 
 # Parameters
-hyper_opt_time = 9999999.0
 n_parallel = 1
 
 # Computer configuration - each computer has its own repo path, venv path, and available GPUs
@@ -53,27 +54,14 @@ bash_dir.mkdir(exist_ok=True)
 for file in bash_dir.glob('*.sh'):
     file.unlink()
 
-# Recursively find all tuning configs in configs directory only if 'tuning_config' is a part of the path
-configs_dir = top_dir / 'configs'
+# Recursively find all tuning configs in results directory only if 'optimal_params' is a part of the path
+configs_dir = top_dir / 'results'
 config_files = []
 for config_file in configs_dir.glob('**/*.yaml'):
-    if 'tuning_config' in str(config_file):
+    if 'optimal_params' in str(config_file):
         config_files.append(config_file)
 
-def extract_seed(config_file):
-    filename = config_file.stem
-    seed_str = filename.split('_')[-1]
-    return int(seed_str)
-
-def extract_identifier(config_file):
-    return config_file.stem
-
-def extract_dataset(config_file):
-    identifier = extract_identifier(config_file)
-    dataset = identifier.split('_')[0]
-    return dataset
-
-config_files.sort(key=extract_seed)
+config_files.sort(key=sort_bash_config_key)
 
 # Build flat list of all available devices across all computers
 all_devices = []
@@ -98,38 +86,47 @@ for computer_name, device in all_devices:
             log_filename=log_filename
         )
 
-# Go through config files and removes those which are optimized
+# Go through config files and filter out those which are evaluated
+config_files_to_process = []
+
 skipped_count = 0
 for config_file in config_files:
     identifier = extract_identifier(config_file)
     dataset = extract_dataset(config_file)
-    results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
-    results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
+    results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "pickles"
+    results_path = results_path / f"{identifier}.pkl"
 
-    if results_path.exists():
-        print("Skipping config:", config_file)
-        config_files.remove(config_file)
+    if "sst_sindy_attention_transformer_rollout_5_mlp_0" in str(results_path) or \
+        "sst_sindy_attention_sindy_loss_transformer_rollout_5_mlp_1" in str(results_path) or \
+        "sst_sindy_attention_sindy_loss_transformer_rollout_5_mlp_2" in str(results_path):
+        print("Results path:", results_path, "exists", results_path.exists())
+        print("Results path:", results_path, "exists", results_path.exists())
+
+    if not results_path.exists():
+        config_files_to_process.append(config_file)
+    else:
         skipped_count += 1
+
+# Update config_files to only include files that need processing
+config_files = config_files_to_process
 
 # Write bash scripts for non-optimized configs
 written_count = 0
 device_counter = 0
 for config_file in config_files:
-    config_file_name = config_file.name
-    model_name = config_file.parent.parent.name
-    identifier = config_file_name.split('.')[0]
+    identifier = extract_identifier(config_file)
+    dataset = extract_dataset(config_file)
 
     # Determine which computer-device-parallel combination to use
     device_idx = device_counter % len(all_devices)
     parallel_idx = (device_counter // len(all_devices)) % n_parallel
     computer_name, current_device = all_devices[device_idx]
     script_key = f"{computer_name}_{current_device}_{parallel_idx}"
-    
+
     cmd = bash_template_1.format(
-        hyper_opt_time=hyper_opt_time,
-        model_name=model_name,
         identifier=identifier,
-        device=current_device,
+        dataset=dataset,
+        device=current_device.split(':')[1]
     )
 
     # Add the command to the appropriate bash script

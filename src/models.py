@@ -90,7 +90,8 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
             sensors = sensors[0:args.n_sensors]
         else:
             sensors = helpers.generate_sensor_positions(args.n_sensors, args.data_rows_in, args.data_cols_in)
-    print()
+    if args.verbose:
+        print()
     return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors
 
 class MixedModel(nn.Module):

@@ -284,7 +284,7 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model(model, dl, sensors, metadata, epoch=0, args=None):
+def evaluate_model(model, dl, sensors, metadata, epoch=0, split='val', args=None):
     """
     Evaluate a PyTorch model. Returns reconstruction loss only. 
     """
@@ -302,7 +302,12 @@ def evaluate_model(model, dl, sensors, metadata, epoch=0, args=None):
 
             # Create inputs and outputs based on model
             inputs = batch[0][:,:args.input_length,:,:,:]
-            labels = batch[1][:,-1:,:,:,:]
+
+            # If validation, use full rollout, otherwise for test use next step rollout 
+            if split == 'val':
+                labels = batch[1][:,args.input_length:,:,:,:]
+            elif split == 'test':
+                labels = batch[1][:,args.input_length:args.input_length+1,:,:,:]
 
             # Extract sensors per input tensor
             input_sensors = []
@@ -324,8 +329,12 @@ def evaluate_model(model, dl, sensors, metadata, epoch=0, args=None):
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
             outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch[0].shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
-            # Take only the last output from all models
-            outputs = outputs[:,-1:,-1,:,:,:]
+            # Take only the last output of sequence length from all models
+            # Take one rollout during test split, otherwise full rollout during test split
+            if split == 'val':
+                outputs = outputs[:,:,-1,:,:,:]
+            elif split == 'test':
+                outputs = outputs[:,0:1,-1,:,:,:]
 
             # Calculate loss
             reconstruction_loss = loss_fn(outputs, labels)
@@ -650,7 +659,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses.append(train_loss)
 
         # Calculate validation loss
-        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, metadata=metadata, args=args)
+        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, metadata=metadata, split='val', args=args)
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss
@@ -1082,7 +1091,51 @@ def threshold_all_layers(model, threshold, verbose=False):
                 layer.self_attn.coefficients[i].data *= mask
                 if verbose:
                     print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
-        print()
+        if verbose:
+            print()
+
+def extract_seed(config_file):
+    if 'optimal_params' in config_file.name:
+        filename = config_file.parent.stem
+        seed_str = filename.split('_')[-1]
+        return int(seed_str)
+    else:
+        filename = config_file.stem
+        seed_str = filename.split('_')[-1]
+        return int(seed_str)
+
+def extract_identifier(config_file):
+    if 'optimal_params' in config_file.name:
+        return config_file.parent.stem
+    else:
+        return config_file.stem
+
+def extract_dataset(config_file):
+    if 'optimal_params' in config_file.name:
+        identifier = extract_identifier(config_file.parent)
+        dataset = identifier.split('_')[0]
+        return dataset
+    else:
+        identifier = extract_identifier(config_file)
+        dataset = identifier.split('_')[0]
+        return dataset
+
+def sort_bash_config_key(config_file):
+    """Sort by dataset priority (planetswe, sst, plasma) then by seed within each dataset"""
+    dataset = extract_dataset(config_file)
+    seed = extract_seed(config_file)
+    
+    # Define dataset priority order
+    dataset_priority = {
+        'planetswe': 0,
+        'sst': 1, 
+        'plasma': 2
+    }
+    
+    # Get priority for this dataset, default to 999 for unknown datasets
+    dataset_priority_value = dataset_priority.get(dataset, 999)
+    
+    return (dataset_priority_value, seed)
 
 # We use this for exact parity with the PyTorch implementation, having the same init
 # for every layer might not be necessary.

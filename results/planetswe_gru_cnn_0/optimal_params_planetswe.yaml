@@ -13,15 +13,15 @@ model:
   encoder_depth: 1
   epochs: 50
   forecast_length: 1
-  generate_loss_plots: true
-  generate_test_plots: true
+  generate_loss_plots: false
+  generate_test_plots: false
   generate_training_plots: false
   hidden_size: 20
-  identifier: planetswe_gru_cnn_0_50
+  identifier: planetswe_gru_cnn_0
   input_length: 10
   lr: 0.0017020304893488024
   n_heads: 4
-  n_sensors: 50
+  n_sensors: 5
   n_well_tracks: 10
   poly_order: 1
   save_every_n_epochs: 10
@@ -31,4 +31,4 @@ model:
   sindy_attention_weight: 6.4781522550943915
   sindy_loss_threshold: 0.1
   skip_load_checkpoint: true
-  verbose: true
+  verbose: false

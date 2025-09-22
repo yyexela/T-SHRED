@@ -1,6 +1,10 @@
+import sys
 from pathlib import Path
 
 top_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(top_dir))
+
+from src.helpers import extract_seed, extract_identifier, extract_dataset, sort_bash_config_key
 
 bash_template_0 = \
 """\
@@ -60,20 +64,7 @@ for config_file in configs_dir.glob('**/*.yaml'):
     if 'tuning_config' in str(config_file):
         config_files.append(config_file)
 
-def extract_seed(config_file):
-    filename = config_file.stem
-    seed_str = filename.split('_')[-1]
-    return int(seed_str)
-
-def extract_identifier(config_file):
-    return config_file.stem
-
-def extract_dataset(config_file):
-    identifier = extract_identifier(config_file)
-    dataset = identifier.split('_')[0]
-    return dataset
-
-config_files.sort(key=extract_seed)
+config_files.sort(key=sort_bash_config_key)
 
 # Build flat list of all available devices across all computers
 all_devices = []
@@ -98,7 +89,9 @@ for computer_name, device in all_devices:
             log_filename=log_filename
         )
 
-# Go through config files and removes those which are optimized
+# Go through config files and filter out those which are optimized
+config_files_to_process = []
+
 skipped_count = 0
 for config_file in config_files:
     identifier = extract_identifier(config_file)
@@ -106,18 +99,20 @@ for config_file in config_files:
     results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
     results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
 
-    if results_path.exists():
-        print("Skipping config:", config_file)
-        config_files.remove(config_file)
+    if not results_path.exists():
+        config_files_to_process.append(config_file)
+    else:
         skipped_count += 1
+
+# Update config_files to only include files that need processing
+config_files = config_files_to_process
 
 # Write bash scripts for non-optimized configs
 written_count = 0
 device_counter = 0
 for config_file in config_files:
-    config_file_name = config_file.name
     model_name = config_file.parent.parent.name
-    identifier = config_file_name.split('.')[0]
+    identifier = extract_identifier(config_file)
 
     # Determine which computer-device-parallel combination to use
     device_idx = device_counter % len(all_devices)
@@ -134,6 +129,8 @@ for config_file in config_files:
 
     # Add the command to the appropriate bash script
     bash_scripts[script_key] += cmd
+
+    print("Writing config:", config_file)
 
     device_counter += 1
     written_count += 1
