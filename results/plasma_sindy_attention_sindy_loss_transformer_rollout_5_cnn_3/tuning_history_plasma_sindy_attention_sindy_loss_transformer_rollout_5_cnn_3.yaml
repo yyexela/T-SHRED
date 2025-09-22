@@ -1,0 +1,48 @@
+best_config:
+  coord_descent_model_lr: 0.00982420000879307
+  coord_descent_model_n_epochs: 7
+  coord_descent_sindy_attention_lr: 0.0035396684910294074
+  coord_descent_sindy_attention_n_epochs: 8
+  dropout: 0.0
+  sindy_attention_weight: 8.484445416151065
+  sindy_loss_weight: 7.706377004510821
+best_value: 0.0005903407873120159
+final_config:
+  model:
+    batch_size: 128
+    coord_descent: true
+    coord_descent_model_lr: 0.00982420000879307
+    coord_descent_model_n_epochs: 7
+    coord_descent_sindy_attention_lr: 0.0035396684910294074
+    coord_descent_sindy_attention_n_epochs: 8
+    dataset: plasma
+    decoder: cnn
+    decoder_depth: 1
+    delete_checkpoint: true
+    device: cuda:0
+    dropout: 0.0
+    dt: 1.0
+    early_stop: 10
+    encoder: sindy_attention_sindy_loss_transformer_rollout
+    encoder_depth: 1
+    epochs: 50
+    forecast_length: 5
+    generate_loss_plots: false
+    generate_test_plots: false
+    generate_training_plots: false
+    hidden_size: 20
+    identifier: plasma_sindy_attention_sindy_loss_transformer_rollout_5_cnn_3
+    input_length: 10
+    n_heads: 4
+    n_sensors: 5
+    n_well_tracks: 10
+    poly_order: 1
+    save_every_n_epochs: 10
+    seed: 3
+    sindy_attention_threshold: 0.1
+    sindy_attention_threshold_n_epochs: 10
+    sindy_attention_weight: 8.484445416151065
+    sindy_loss_threshold: 0.1
+    sindy_loss_weight: 7.706377004510821
+    skip_load_checkpoint: true
+    verbose: false
