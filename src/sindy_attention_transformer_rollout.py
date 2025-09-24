@@ -245,9 +245,7 @@ class SindyAttentionTransformerRollout(Transformer):
         src_mask=None,
         is_causal=True,
     ):
-        x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
-
-        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
+        x_pos_encoded = self.pos_encoder(src) # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,

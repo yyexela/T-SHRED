@@ -110,6 +110,8 @@ def verify_args(args):
         raise ValueError(f"forecast_length {args.forecast_length} must be 1 for non-rollout encoders")
     if args.hidden_size <= 0:
         raise ValueError(f"hidden_size {args.hidden_size} must be greater than 0")
+    if 'encoder' in args.encoder and args.hidden_size != args.d_model:
+        raise ValueError(f"hidden_size {args.hidden_size} must be equal to d_model {args.d_model} for transformer encoders")
     if args.input_length <= 0:
         raise ValueError(f"input_length {args.input_length} must be greater than 0")
     if args.identifier is None:

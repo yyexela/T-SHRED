@@ -312,22 +312,12 @@ class Transformer(nn.Module):
             dropout=dropout
         )
 
-        self.input_embedding = nn.GRU(
-            input_size=d_model,
-            hidden_size=hidden_size, # GRU output matches d_model
-            num_layers=2,                 # Example: 2 GRU layers for embedding
-            batch_first=True,
-            dropout=dropout if num_encoder_layers > 1 else 0.0 # Dropout between GRU layers
-        )
-
     def forward(
         self,
         src,
         src_mask=None,
         is_causal=True,
     ):
-        x_embedded, _ = self.input_embedding(src) # Shape: (batch_size, seq_len, d_model)
-
         x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
