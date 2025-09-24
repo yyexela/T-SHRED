@@ -6,6 +6,7 @@ import einops
 import random
 import pickle
 import argparse
+import numpy as np
 from torch import nn
 from pathlib import Path
 from src.plots import plot_losses, plot_field_comparison
@@ -329,8 +330,7 @@ def evaluate_model(model, dl, sensors, metadata, epoch=0, split='val', args=None
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
             outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch[0].shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
-            # Take only the last output of sequence length from all models
-            # Take one rollout during test split, otherwise full rollout during test split
+            # Take one rollout during test split, otherwise full rollout during validation split
             if split == 'val':
                 outputs = outputs[:,:,-1,:,:,:]
             elif split == 'test':
@@ -394,13 +394,14 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
     # Which timesteps to evaluate
     if args.dataset == "plasma":
         ds_iter = [0]
-        forecast_length_plot = 50
+        forecast_length_plot = 130
     elif args.dataset == "planetswe":
         ds_iter = [0]
-        forecast_length_plot = 50
+        forecast_length_plot = 150
     elif args.dataset == "sst":
         ds_iter = [0]
-        forecast_length_plot = 50
+        forecast_length_plot = 101
+    plot_steps = list(np.linspace(0, forecast_length_plot-1, 4).astype(int))
 
     with torch.no_grad():
         for i in ds_iter:
@@ -424,14 +425,44 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
             input_sensors = einops.rearrange(input_sensors, 'w n d -> 1 w (n d)')
 
             # Pass data through model
-            model.encoder.encoder.layers[0].self_attn.forecast_length = forecast_length_plot
-            output = model(input_sensors)
-            model.encoder.encoder.layers[0].self_attn.forecast_length = args.forecast_length
+            expected_seq_len = args.input_length if "transformer" in args.encoder else 1
+            if "rollout" in args.encoder:
+                # Set forecast length to expected plot length
+                model.encoder.encoder.layers[0].self_attn.forecast_length = forecast_length_plot
+                output = model(input_sensors)
+                model.encoder.encoder.layers[0].self_attn.forecast_length = args.forecast_length
+                outputs = output["output"]
+            else:
+                # Autoregressively forecast since forecast length is 1
+                preds = []
+                curr_inputs = inputs.clone()
+                for _ in range(forecast_length_plot):
+                    # Build sensors from current input window
+                    step_input_sensors = []
+                    for sensor in sensors:
+                        step_input_sensors.append(curr_inputs[:,sensor[0],sensor[1],:])
+                    step_input_sensors = torch.stack(step_input_sensors, dim=2)  # [w, n, d]
+                    step_input_sensors = einops.rearrange(step_input_sensors, 'w n d -> 1 w (n d)')
 
-            outputs = output["output"]
+                    step_output = model(step_input_sensors)
+                    preds.append(step_output["output"])  # shape [1, 1, seq_len, (r c d)]
+
+                    # Extract predicted next frame (last in seq_len)
+                    step_output_reshaped = einops.rearrange(
+                        step_output["output"],
+                        'b f s (r c d) -> b f s r c d',
+                        b=1, f=1, s=expected_seq_len,
+                        r=args.data_rows_out, c=args.data_cols_out, d=args.d_data_out
+                    )
+                    next_frame = step_output_reshaped[0, 0, -1]  # [r, c, d]
+
+                    # Slide window: drop first frame, append prediction
+                    curr_inputs = torch.cat([curr_inputs[1:], next_frame.unsqueeze(0)], dim=0)
+
+                outputs = torch.cat(preds, dim=1)  # [1, forecast, seq_len, (r c d)]
 
             # Reshape output
-            outputs = einops.rearrange(outputs, '1 forecast seq_len (r c d) -> forecast seq_len r c d', forecast=forecast_length_plot, seq_len=args.input_length, r=args.data_rows_out, c=args.data_cols_out, d=args.d_data_out)
+            outputs = einops.rearrange(outputs, '1 forecast seq_len (r c d) -> forecast seq_len r c d', forecast=forecast_length_plot, seq_len=expected_seq_len, r=args.data_rows_out, c=args.data_cols_out, d=args.d_data_out)
 
             # Extract only last column of forecast corresponding to full input and predicting all unseen states
             outputs = outputs[:, -1, :, :, :]
@@ -441,7 +472,7 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
                 for j in range(outputs.shape[3]):
                     outputs[...,j] = inverse_min_max_scale(outputs[...,j], metadata['scalers'][j])
 
-                for j in range(outputs.shape[0]):
+                for j in plot_steps:
                     tmp_label = ds[i + args.input_length + j][1][0, :, :, :]
                     tmp_label.to(outputs[j].device)
 
@@ -450,7 +481,7 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
 
                     plot_field_comparison(outputs[j], tmp_label, dataset=args.dataset, sensors=sensors, save=True, fname=f"{args.identifier}_full_comparison_ds{i}_r{j}")
             elif args.dataset in ['plasma']:
-                for j in range(outputs.shape[0]):
+                for j in plot_steps:
                     tmp_label = ds[i + args.input_length + j][1][0, :, :, :]
                     tmp_label = tmp_label.to(outputs[j].device)
 
@@ -720,7 +751,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 print(f'Epoch {epoch+1}, SINDy training loss: {sindy_loss:0.4e}, SINDy validation loss: {sindy_val_loss:0.4e}')
 
         # Print model coefficients
-        if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_transformer_rollout"]):
+        if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]):
             print_model_coefficients(model, args)
 
         # Collect model eigenvalues
@@ -927,6 +958,13 @@ def get_results_from_hyper_opt(hyper_opt_dir):
                 if tune_file.is_file() and tune_file.name.startswith("tuning_history_") and tune_file.name.endswith(".yaml"):
                     with open(tune_file, 'r') as f:
                         data = yaml.safe_load(f)
+                        data['file_path'] = tune_file
+
+                        # Modify encoder if rollout is not 1
+                        if "rollout" in data['hyperparameters']['encoder']:
+                            if data['hyperparameters']['forecast_length'] != 1:
+                                data['hyperparameters']['encoder'] = data['hyperparameters']['encoder'] + f"_{data['hyperparameters']['forecast_length']}"
+
                         results.append(data)
     return results
 
@@ -946,6 +984,13 @@ def get_dictionaries_from_pickles(pickle_dir):
         fpath = os.path.join(pickle_dir, fname)
         with open(fpath, 'rb') as f:
             data = pickle.load(f)
+            data['file_path'] = fpath
+
+            # Modify encoder if rollout is not 1
+            if "rollout" in data['hyperparameters']['encoder']:
+                if data['hyperparameters']['forecast_length'] != 1:
+                    data['hyperparameters']['encoder'] = data['hyperparameters']['encoder'] + f"_{data['hyperparameters']['forecast_length']}"
+
             results.append(data)
     return results
 
@@ -996,35 +1041,55 @@ def get_model_coefficient_eigenvalues(model, args):
             eigvs_l.append(terms_eigvs)
     return eigvs_l
 
-def get_top_N_models_by_loss(results, dataset_name, loss_only=False, N=5):
+def get_top_N_models_by_loss(results, dataset_name, N=5, encoders=None, result_type="hyper_opt"):
     """
-    Returns the top 5 models with the lowest test loss for a given dataset.
+    Returns the top N models with the lowest test loss for a given dataset.
     
     Args:
         results (list): List of dictionaries containing the results.
         dataset_name (str): The dataset name to filter by (e.g., 'sst').
-        loss_only (bool): If True, only return the loss value.
         N (int): Number of results to return.
+        encoders (list): List of encoders to filter by.
+        result_type (str): The type of results to return (e.g., 'hyper_opt' or 'pickle').
         
     Returns:
         List of tuples: [(filename, loss), ...] sorted by lowest loss.
     """
-    # Sort by loss (ascending) and return top 5
-    results.sort(key=lambda x: x['best_value'], reverse=False)
-    if loss_only:
-        results = [(x, x['best_value']) for x in results]
-    return results[:N]
+    # Filter results by dataset
+    if result_type == "hyper_opt":
+        filtered_results = [r for r in results if r['final_config']['model']['dataset'] == dataset_name]
+        if encoders is not None:
+            filtered_results = [r for r in filtered_results if r['final_config']['model']['encoder'] in encoders]
+        filtered_results.sort(key=lambda x: x['best_value'], reverse=False)
+    elif result_type == "pickle":
+        filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset_name]
+        if encoders is not None:
+            filtered_results = [r for r in filtered_results if r['hyperparameters']['encoder'] in encoders]
+        filtered_results.sort(key=lambda x: x['test_loss'], reverse=False)
+    else:
+        raise Exception("Invalid result_type:", result_type)
+    
+    return filtered_results[:N]
 
-def print_top_N_results(results, dataset_name, loss_only=False, N=5):
+def print_top_N_results(results, dataset_name, N=5, encoders=None, result_type="hyper_opt"):
     """
     Prints the extracted best results with the lowest test loss.
     """
-    results = get_top_N_models_by_loss(results, dataset_name, loss_only, N)
+    results = get_top_N_models_by_loss(results, dataset_name, N, encoders, result_type)
     print(f"{dataset_name} ({N} best)")
     for result in results:
-        print(f"> Encoder (n={result['final_config']['model']['encoder_depth']}): {result['final_config']['model']['encoder']}")
-        print(f"> Decoder (n={result['final_config']['model']['decoder_depth']}): {result['final_config']['model']['decoder']}")
-        print(f"> Test loss: {result['best_value']:0.4e}")
+        if result_type == "hyper_opt":
+            print(f"> Encoder (n={result['final_config']['model']['encoder_depth']}): {result['final_config']['model']['encoder']}")
+            print(f"> Decoder (n={result['final_config']['model']['decoder_depth']}): {result['final_config']['model']['decoder']}")
+            print(f"> Test loss: {result['best_value']:0.4e}")
+            print(f"> Config path: {result['file_path']}")
+        elif result_type == "pickle":
+            print(f"> Encoder (n={result['hyperparameters']['encoder_depth']}): {result['hyperparameters']['encoder']}")
+            print(f"> Decoder (n={result['hyperparameters']['decoder_depth']}): {result['hyperparameters']['decoder']}")
+            print(f"> Test loss: {result['test_loss']:0.4e}")
+            print(f"> Config path: {result['file_path']}")
+        else:
+            raise Exception("Invalid result_type:", result_type)
         print()
 
 def get_identifier(filename):
@@ -1189,13 +1254,6 @@ def create_results_table(results, datasets, results_type):
             loss = r['test_loss']
         else:
             raise Exception("Invalid results_type:", results_type)
-
-        # If encoder is rollout, check forecast length
-        if "rollout" in enc:
-            if cfg['forecast_length'] == 1:
-                enc = enc
-            elif cfg['forecast_length'] == 5:
-                enc = enc + "_5"
 
         if ds not in datasets or enc not in encoder_order or dec not in decoder_order or loss is None:
             continue

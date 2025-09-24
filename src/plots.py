@@ -247,12 +247,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             hyperparams = r['final_config']['model'].copy()
         elif results_type == "pickle":
             hyperparams = r['hyperparameters'].copy()
-
-        # Modify encoder if rollout is not 1
-        if "rollout" in hyperparams['encoder']:
-            if r['hyperparameters']['forecast_length'] != 1:
-                hyperparams['encoder'] = hyperparams['encoder'] + f"_{r['hyperparameters']['forecast_length']}"
-        
+ 
         # Convert to a frozenset of items to make it hashable
         key = f"{hyperparams['encoder']}_{hyperparams['decoder']}_{hyperparams['dataset']}"
 
