@@ -131,21 +131,23 @@ def main(args=None):
         helpers.print_model_coefficients(best_model, args)
 
     # Calculate loss
-    test_loss, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, split='test', args=args)
-    if args.verbose:
-        print(f'Test loss: {test_loss:0.4e}')
-    save_dict = {'test_loss': test_loss, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'model_eigvs': model_eigvs, 'sensors': sensors}
+    test_loss_next, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, split='test', args=args)
+    print(f'Test loss (next): {test_loss_next:0.4e}')
+
+    test_loss_rollout, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, split='val', args=args)
+    print(f'Test loss (rollout): {test_loss_rollout:0.4e}')
+
+    save_dict = {'test_loss_next': test_loss_next, 'test_loss_rollout': test_loss_rollout, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'model_eigvs': model_eigvs, 'sensors': sensors}
 
     # Create plots
     if args.generate_test_plots:
-        if "rollout" not in args.encoder:
-            helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
-        else:
+        #helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
+        if "rollout" in args.encoder:
             model_eigvs = np.asarray(model_eigvs)
             model_eigvs = einops.rearrange(model_eigvs, 'epochs heads coeffs -> heads epochs coeffs')
             for i in range(args.n_heads):
                 plots.plot_eigvs(model_eigvs[i], save=True, fname=f"{args.identifier}_eigvs_head{i}")
-            helpers.create_far_out_plots(best_model, test_ds, sensors, metadata, args=args)
+        helpers.create_far_out_plots(best_model, test_ds, sensors, metadata, args=args)
 
     # Save pickle
     with open(pickle_dir / f'{args.identifier}.pkl', 'wb') as f:

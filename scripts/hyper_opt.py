@@ -9,9 +9,10 @@ import argparse
 import traceback
 from ray import tune
 from pathlib import Path
-from ray.tune.schedulers import ASHAScheduler
 from typing import Dict, Any, Optional, List
+from ray.tune.schedulers import ASHAScheduler
 from main import config_main as training_main
+from ray.tune.search.optuna import OptunaSearch
 
 # Modified from https://github.com/CTF-for-Science/ctf4science
 # Original author: Yue Zhao (yue.zhao@surf.nl)
@@ -477,6 +478,7 @@ class TuningRunner:
         
         # Create tune config
         tune_config = tune.TuneConfig(
+            search_alg=OptunaSearch(),
             metric=self.metric,
             mode=self.mode,
             scheduler=scheduler
