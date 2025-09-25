@@ -1146,15 +1146,19 @@ def extract_seed(config_file):
         seed_str = filename.split('_')[-1]
         return int(seed_str)
     else:
-        filename = config_file.stem
-        seed_str = filename.split('_')[-1]
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f)
+        seed_str = str(config['model']['seed'])
         return int(seed_str)
 
 def extract_identifier(config_file):
     if 'optimal_params' in config_file.name:
         return config_file.parent.stem
     else:
-        return config_file.stem
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f)
+        identifier = str(config['model']['identifier'])
+        return identifier
 
 def extract_dataset(config_file):
     if 'optimal_params' in config_file.name:
@@ -1162,8 +1166,9 @@ def extract_dataset(config_file):
         dataset = identifier.split('_')[0]
         return dataset
     else:
-        identifier = extract_identifier(config_file)
-        dataset = identifier.split('_')[0]
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f)
+        dataset = str(config['model']['dataset'])
         return dataset
 
 def sort_bash_config_key(config_file):
