@@ -72,6 +72,11 @@ def main(args=None):
     args.dim_feedforward = args.hidden_size * 4
     args.output_size = args.data_rows_out*args.data_cols_out*args.d_data_out
 
+    # Set hidden size to d_model for transformers
+    if 'transformer' in args.encoder:
+        print(f"WARNING: Hidden size (was {args.hidden_size}) set to d_model ({args.d_model}) for transformers")
+        args.hidden_size = args.d_model
+
     # Create dataloader
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=False)
     val_dl = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
@@ -121,13 +126,13 @@ def main(args=None):
     best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors = models.load_model_from_checkpoint(args.best_checkpoint_path, force_load=True, args=args)
 
     # Threshold
-    if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
+    if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
         if args.verbose:
             print(f"Thresholding SINDy coefficients")
         helpers.threshold_all_layers(best_model.encoder, args.sindy_attention_threshold, verbose=args.verbose)
 
     # Print model coefficients
-    if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_transformer_rollout"]):
+    if args.verbose and (args.encoder in ["sindy_attention_transformer"]):
         helpers.print_model_coefficients(best_model, args)
 
     # Calculate loss
@@ -142,7 +147,7 @@ def main(args=None):
     # Create plots
     if args.generate_test_plots:
         #helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
-        if "rollout" in args.encoder:
+        if "sindy_attention" in args.encoder:
             model_eigvs = np.asarray(model_eigvs)
             model_eigvs = einops.rearrange(model_eigvs, 'epochs heads coeffs -> heads epochs coeffs')
             for i in range(args.n_heads):

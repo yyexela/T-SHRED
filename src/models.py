@@ -7,8 +7,6 @@ from pathlib import Path
 from vanilla_transformer import Transformer
 from sindy_attention_transformer import SindyAttentionTransformer
 from sindy_attention_sindy_loss_transformer import SindyAttentionSindyLossTransformer
-from sindy_attention_transformer_rollout import SindyAttentionTransformerRollout
-from sindy_attention_sindy_loss_transformer_rollout import SindyAttentionSindyLossTransformerRollout
 from sindy_loss_transformer import SINDyLossTransformer
 from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
 from rnns import GRU, LSTM
@@ -158,22 +156,6 @@ class MixedModel(nn.Module):
             self.encoder = SindyAttentionTransformer(
                 d_model=args.d_model,
                 nhead=args.n_heads,
-                dim_feedforward=args.dim_feedforward,
-                dropout=args.dropout,
-                activation=nn.GELU(),
-                hidden_size=args.hidden_size,
-                input_length=args.input_length,
-                num_encoder_layers=args.encoder_depth,
-                layer_norm_eps=1e-5,
-                norm_first=False,
-                bias=True,
-                poly_order=args.poly_order,
-                device=args.device
-            )
-        elif args.encoder == "sindy_attention_transformer_rollout":
-            self.encoder = SindyAttentionTransformerRollout(
-                d_model=args.d_model,
-                nhead=args.n_heads,
                 forecast_length=args.forecast_length,
                 dim_feedforward=args.dim_feedforward,
                 dropout=args.dropout,
@@ -187,8 +169,8 @@ class MixedModel(nn.Module):
                 poly_order=args.poly_order,
                 device=args.device
             )
-        elif args.encoder == "sindy_attention_sindy_loss_transformer_rollout":
-            self.encoder = SindyAttentionSindyLossTransformerRollout(
+        elif args.encoder == "sindy_attention_sindy_loss_transformer":
+            self.encoder = SindyAttentionSindyLossTransformer(
                 d_model=args.d_model,
                 nhead=args.n_heads,
                 forecast_length=args.forecast_length,
@@ -204,24 +186,6 @@ class MixedModel(nn.Module):
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt,
-                device=args.device
-            )
-        elif args.encoder == "sindy_attention_sindy_loss_transformer":
-            self.encoder = SindyAttentionSindyLossTransformer(
-                d_model=args.d_model,
-                nhead=args.n_heads,
-                dim_feedforward=args.dim_feedforward,
-                dropout=args.dropout,
-                activation=nn.GELU(),
-                hidden_size=args.hidden_size,
-                input_length=args.input_length,
-                num_encoder_layers=args.encoder_depth,
-                layer_norm_eps=1e-5,
-                norm_first=False,
-                bias=True,
-                poly_order=args.poly_order,
-                sindy_loss_threshold=args.sindy_loss_threshold,
-                dt=args.dt,                              # Time step for Euler integration
                 device=args.device
             )
         elif args.encoder == "sindy_loss_transformer":

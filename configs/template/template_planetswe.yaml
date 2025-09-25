@@ -17,7 +17,7 @@ model:
   hidden_size: 20
   identifier: none
   input_length: 10
-  n_heads: 4
+  n_heads: 1
   n_sensors: 5
   n_well_tracks: 10
   n_trials: 25

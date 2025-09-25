@@ -23,17 +23,6 @@ from src import *
 slurm_dir = top_dir / 'slurms'
 pickle_dir = top_dir / 'pickles'
 
-# We will iterate through every combination of these
-datasets = ["sst", "plasma", "planetswe_pod", "gray_scott_reaction_diffusion_pod"]
-encoders = ["lstm", "vanilla_transformer", "sindy_attention_transformer"]
-decoders = ["mlp", "cnn"]
-lrs = [f"lr{i:0.2e}" for i in [1e-2, 1e-3, 1e-4, 1e-5]]
-
-# These two will be zipped pairwise
-encoder_depths = [f"e{i}" for i in[1, 2, 3]]
-decoder_depths = [f"d{i}" for i in[1, 2]]
-
-
 # Get list of results
 results = helpers.get_dictionaries_from_pickles(pickle_dir, early_stop=None)
 

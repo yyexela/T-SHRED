@@ -324,15 +324,11 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         elif encoder == "sindy_attention_transformer":
             encoder_name = "SA-T"
         elif encoder == "sindy_attention_sindy_loss_transformer":
-            encoder_name = "SASL-T"
-        elif encoder == "sindy_attention_transformer_rollout":
             encoder_name = "SAR-T"
-        elif encoder == "sindy_attention_sindy_loss_transformer_rollout":
-            encoder_name = "SASLR-T"
-        elif encoder == "sindy_attention_transformer_rollout_5":
+        elif encoder == "sindy_attention_transformer_5":
+            encoder_name = "SA-T-5"
+        elif encoder == "sindy_attention_sindy_loss_transformer_5":
             encoder_name = "SAR-T-5"
-        elif encoder == "sindy_attention_sindy_loss_transformer_rollout_5":
-            encoder_name = "SASLR-T-5"
             
             
         fig.add_trace(go.Scatter(

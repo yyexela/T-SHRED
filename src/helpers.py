@@ -35,10 +35,10 @@ def parse_args():
     parser.add_argument('--dropout', type=float, default=0.1, help="Model droput proportion")
     parser.add_argument('--dt', type=float, default=1.0, help="Time step for SINDy derivatives (Euler integration)")
     parser.add_argument('--early_stop', type=int, default=0, help="Train the model for at least this many epochs before saving best validation score")
-    parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, gru, sindy_loss_lstm, sindy_loss_gru, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer, sindy_attention_transformer_rollout, sindy_attention_sindy_loss_transformer_rollout)")
+    parser.add_argument('--encoder', type=str, default="transformer", help="Which encoder to use (lstm, gru, sindy_loss_lstm, sindy_loss_gru, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer)")
     parser.add_argument('--encoder_depth', type=int, default=1, help="Number of encoder layers")
     parser.add_argument('--epochs', type=int, default=5, help="Number of epochs for training")
-    parser.add_argument('--forecast_length', type=int, default=1, help="Number of timesteps to forecast (sindy_attention_transformer_rollout and sindy_attention_sindy_loss_transformer_rollout only)")
+    parser.add_argument('--forecast_length', type=int, default=1, help="Number of timesteps to forecast (sindy_attention_transformer and sindy_attention_sindy_loss_transformer only)")
     parser.add_argument('--hidden_size', type=int, default=12, help="Hidden size of encoder")
     parser.add_argument('--generate_test_plots', action='store_true', help="Generate test plots")
     parser.add_argument('--generate_training_plots', action='store_true', help="Generate training plots")
@@ -99,20 +99,18 @@ def verify_args(args):
         raise ValueError(f"dt {args.dt} must be non-negative")
     if args.early_stop < 0:
         raise ValueError(f"early_stop {args.early_stop} must be non-negative")
-    if args.encoder not in ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
-        raise ValueError(f"encoder {args.encoder} not supported, choose one of: gru, lstm, sindy_loss_gru, sindy_loss_lstm, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer, sindy_attention_transformer_rollout, sindy_attention_sindy_loss_transformer_rollout")
+    if args.encoder not in ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+        raise ValueError(f"encoder {args.encoder} not supported, choose one of: gru, lstm, sindy_loss_gru, sindy_loss_lstm, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer")
     if args.encoder_depth <= 0:
         raise ValueError(f"encoder_depth {args.encoder_depth} must be greater than 0")
     if args.epochs <= 0:
         raise ValueError(f"epochs {args.epochs} must be greater than 0")
     if args.forecast_length <= 0:
         raise ValueError(f"forecast_length {args.forecast_length} must be greater than 0")
-    if args.forecast_length > 1 and args.encoder not in ["sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
+    if args.forecast_length > 1 and args.encoder not in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
         raise ValueError(f"forecast_length {args.forecast_length} must be 1 for non-rollout encoders")
     if args.hidden_size <= 0:
         raise ValueError(f"hidden_size {args.hidden_size} must be greater than 0")
-    if 'encoder' in args.encoder and args.hidden_size != args.d_model:
-        raise ValueError(f"hidden_size {args.hidden_size} must be equal to d_model {args.d_model} for transformer encoders")
     if args.input_length <= 0:
         raise ValueError(f"input_length {args.input_length} must be greater than 0")
     if args.identifier is None:
@@ -428,7 +426,7 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
 
             # Pass data through model
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
-            if "rollout" in args.encoder:
+            if "sindy_attention" in args.encoder:
                 # Set forecast length to expected plot length
                 model.encoder.encoder.layers[0].self_attn.forecast_length = forecast_length_plot
                 output = model(input_sensors)
@@ -621,7 +619,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 inputs = batch[0][:,:args.input_length,:,:,:]
                 labels = batch[1][:,1:,:,:,:]
 
-                if "rollout" in args.encoder:
+                if "sindy_attention" in args.encoder:
                     # Create array of labels for each forecast
                     labels = torch.stack([labels[:,i:i+args.forecast_length,:,:,:] for i in range(args.input_length)], dim=2)
                 else:
@@ -679,7 +677,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 sindy_loss += sindy_loss_batch.item()
 
         # Threshold if necessary
-        if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]:
+        if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
             if epoch > 0 and (epoch+1) % args.sindy_attention_threshold_n_epochs == 0:
                 if args.verbose:
                     print(f"Thresholding SINDy coefficients (epoch {epoch+1})")
@@ -753,11 +751,11 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
                 print(f'Epoch {epoch+1}, SINDy training loss: {sindy_loss:0.4e}, SINDy validation loss: {sindy_val_loss:0.4e}')
 
         # Print model coefficients
-        if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout"]):
+        if args.verbose and (args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]):
             print_model_coefficients(model, args)
 
         # Collect model eigenvalues
-        if "rollout" in args.encoder:
+        if "sindy_attention" in args.encoder:
             model_eigvs_epoch = get_model_coefficient_eigenvalues(model, args)
             model_eigvs.append(model_eigvs_epoch)
 
@@ -963,7 +961,7 @@ def get_results_from_hyper_opt(hyper_opt_dir):
                         data['file_path'] = tune_file
 
                         # Modify encoder if rollout is not 1
-                        if "rollout" in data['hyperparameters']['encoder']:
+                        if "sindy_attention" in data['hyperparameters']['encoder']:
                             if data['hyperparameters']['forecast_length'] != 1:
                                 data['hyperparameters']['encoder'] = data['hyperparameters']['encoder'] + f"_{data['hyperparameters']['forecast_length']}"
 
@@ -989,7 +987,7 @@ def get_dictionaries_from_pickles(pickle_dir):
             data['file_path'] = fpath
 
             # Modify encoder if rollout is not 1
-            if "rollout" in data['hyperparameters']['encoder']:
+            if "sindy_attention" in data['hyperparameters']['encoder']:
                 if data['hyperparameters']['forecast_length'] != 1:
                     data['hyperparameters']['encoder'] = data['hyperparameters']['encoder'] + f"_{data['hyperparameters']['forecast_length']}"
 
@@ -998,49 +996,32 @@ def get_dictionaries_from_pickles(pickle_dir):
 
 def print_model_coefficients(model, args):
     # coefficients: n_heads x ((library terms + 1 (for linear) terms) x library_terms equations)
-    library = model.encoder.encoder.layers[0].self_attn.library_terms
-    if 'rollout' in args.encoder:
-        for i in range(args.encoder_depth):
-            print(f"Layer {i}:")
-            for j in range(args.n_heads):
-                print(f"Head {j}:")
-                for k in range(args.hidden_size // args.n_heads):
-                    print(f"Hidden layer {k}:")
-                    output_str = ""
-                    for l in range(len(library)):
-                        terms = model.encoder.encoder.layers[i].self_attn.matrix_from_params(j)
-                        output_str += f"{terms[l][k].item():.3f} \\cdot {library[l]} + "
-                    print(output_str[:-3])
-                print()
+    library = model.encoder.encoder.layers[-1].self_attn.library_terms
+    if "sindy_attention" in args.encoder:
+        for j in range(args.n_heads):
+            print(f"Head {j}:")
+            for k in range(args.hidden_size // args.n_heads):
+                print(f"Hidden layer {k}:")
+                output_str = ""
+                for l in range(len(library)):
+                    terms = model.encoder.encoder.layers[-1].self_attn.matrix_from_params(j)
+                    output_str += f"{terms[l][k].item():.3f} \\cdot {library[l]} + "
+                print(output_str[:-3])
+            print()
     else:
-        for i in range(args.encoder_depth):
-            print(f"Layer {i}:")
-            for j in range(args.n_heads):
-                print(f"Head {j}:")
-                for k in range(args.hidden_size // args.n_heads):
-                    print(f"Hidden layer {k}:")
-                    output_str = ""
-                    for l in range(len(library)):
-                        output_str += f"{model.encoder.encoder.layers[i].self_attn.coefficients[j][l][k].item():0.3f} \\cdot {library[l]} + "
-                    print(output_str[:-3])
-                print()
+        raise Exception("Invalid encoder for printing model coefficients:", args.encoder)
 
 def get_model_coefficient_eigenvalues(model, args):
     eigvs_l = []
-    if 'rollout' in args.encoder:
+    if "sindy_attention" in args.encoder:
         for j in range(args.n_heads):
             # Head j
-            terms_matrix = model.encoder.encoder.layers[0].self_attn.matrix_from_params(j).detach()
+            terms_matrix = model.encoder.encoder.layers[-1].self_attn.matrix_from_params(j).detach()
             terms_eigvs = torch.linalg.eigvals(terms_matrix)
             terms_eigvs = terms_eigvs.cpu()
             eigvs_l.append(terms_eigvs)
     else:
-        for j in range(args.n_heads):
-            # Head j
-            terms_matrix = model.encoder.encoder.layers[0].self_attn.coefficients[j].detach()
-            terms_eigvs = torch.linalg.eigvals(terms_matrix)
-            terms_eigvs = terms_eigvs.cpu()
-            eigvs_l.append(terms_eigvs)
+        raise Exception("Invalid encoder for getting model coefficients eigenvalues:", args.encoder)
     return eigvs_l
 
 def get_top_N_models_by_loss(results, dataset_name, N=5, encoders=None, result_type="hyper_opt"):
@@ -1140,26 +1121,24 @@ def get_SINDy_coefficients_sum(model):
     """
     with torch.no_grad():
         sindy_sum = 0.
-        for i, layer in enumerate(model.encoder.layers):
-            for i in range(layer.self_attn.nheads):
-                sindy_sum += torch.sqrt((torch.abs(layer.self_attn.coefficients[i].data)**2).sum())
+        layer = model.encoder.layers[-1]
+        for i in range(layer.self_attn.nheads):
+            sindy_sum += torch.sqrt((torch.abs(layer.self_attn.coefficients[i].data)**2).sum())
     return sindy_sum
 
 def threshold_all_layers(model, threshold, verbose=False):
     """
     Threshold all SINDy coefficients in all heads of all layers.
     """
-    for i, layer in enumerate(model.encoder.layers):
-        if verbose:
-            print(f"Layer {i}")
-        with torch.no_grad():
-            for i in range(layer.self_attn.nheads):
-                mask = torch.abs(layer.self_attn.coefficients[i].data) > threshold
-                layer.self_attn.coefficients[i].data *= mask
-                if verbose:
-                    print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
-        if verbose:
-            print()
+    layer = model.encoder.layers[-1]
+    with torch.no_grad():
+        for i in range(layer.self_attn.nheads):
+            mask = torch.abs(layer.self_attn.coefficients[i].data) > threshold
+            layer.self_attn.coefficients[i].data *= mask
+            if verbose:
+                print(f"SindyAttentionTransformer: Applied threshold {threshold} to head {i}. Non-zero coeffs: {mask.sum().item()}/{mask.numel()}")
+    if verbose:
+        print()
 
 def extract_seed(config_file):
     if 'optimal_params' in config_file.name:
@@ -1217,10 +1196,10 @@ def create_results_table(results, datasets, results_type):
         "sindy_loss_lstm",
         "vanilla_transformer",
         "sindy_loss_transformer",
-        "sindy_attention_transformer_rollout",
-        "sindy_attention_sindy_loss_transformer_rollout",
-        "sindy_attention_transformer_rollout_5",
-        "sindy_attention_sindy_loss_transformer_rollout_5",
+        "sindy_attention_transformer",
+        "sindy_attention_sindy_loss_transformer",
+        "sindy_attention_transformer_5",
+        "sindy_attention_sindy_loss_transformer_5",
     ]
     encoder_label = {
         "lstm": "LSTM",
@@ -1229,10 +1208,10 @@ def create_results_table(results, datasets, results_type):
         "sindy_loss_lstm": "SL-LSTM",
         "vanilla_transformer": "T",
         "sindy_loss_transformer": "SL-T",
-        "sindy_attention_transformer_rollout": "SA-T",
-        "sindy_attention_sindy_loss_transformer_rollout": "SASL-T",
-        "sindy_attention_transformer_rollout_5": "SA-T-5",
-        "sindy_attention_sindy_loss_transformer_rollout_5": "SASL-T-5",
+        "sindy_attention_transformer": "SA-T",
+        "sindy_attention_sindy_loss_transformer": "SASL-T",
+        "sindy_attention_transformer_5": "SA-T-5",
+        "sindy_attention_sindy_loss_transformer_5": "SASL-T-5",
     }
     decoder_order = ["mlp", "cnn"]
     decoder_label = {"mlp": "MLP", "cnn": "CNN"}

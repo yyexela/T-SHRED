@@ -11,19 +11,17 @@ encoder_dict = {
     "sindy_loss_gru": "SL-GRU",
     "sindy_loss_lstm": "SL-LSTM",
     "vanilla_transformer": "T",
-    "sindy_attention_transformer": "SA-T",
     "sindy_loss_transformer": "SLT",
-    "sindy_attention_sindy_loss_transformer": "SASLT-T",
-    "sindy_attention_transformer_rollout": "SAR-T",
-    "sindy_attention_sindy_loss_transformer_rollout": "SASLR-T",
-    "sindy_attention_transformer_rollout_5": "SAR-T-5",
-    "sindy_attention_sindy_loss_transformer_rollout_5": "SASLR-T-5",
+    "sindy_attention_transformer": "SA-T",
+    "sindy_attention_sindy_loss_transformer": "SAR-T",
+    "sindy_attention_transformer_5": "SA-T-5",
+    "sindy_attention_sindy_loss_transformer_5": "SAR-T-5",
 }
 
 n_seeds = 5
-encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_attention_transformer", "sindy_loss_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_rollout", "sindy_attention_sindy_loss_transformer_rollout", "sindy_attention_transformer_rollout_5", "sindy_attention_sindy_loss_transformer_rollout_5"]
+encoders = ["sindy_attention_transformer_5", "sindy_attention_sindy_loss_transformer_5"] # "gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_5", "sindy_attention_sindy_loss_transformer_5"
 decoders = ["mlp", "cnn"]
-datasets = ["sst", "plasma", "planetswe"]
+datasets = ["sst"] # , "plasma", "planetswe"
 
 top_dir = Path(__file__).parent.parent
 
@@ -93,8 +91,8 @@ def main():
                         hyperparams_to_remove.append("sindy_loss_weight")
                     
                     # Set forecast_length based on rollout
-                    if "rollout" in encoder:
-                        if "rollout_5" in encoder:
+                    if "sindy_attention" in encoder:
+                        if "_5" in encoder:
                             config['model']['forecast_length'] = 5
                             config['model']['encoder'] = encoder[:-2]
                         else:
