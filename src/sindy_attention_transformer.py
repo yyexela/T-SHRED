@@ -222,7 +222,7 @@ class SindyAttentionTransformer(Transformer):
         poly_order: int,
         device: str = 'cpu',
     ):
-        super().__init__(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers-1, dim_feedforward=dim_feedforward, dropout=dropout, activation=activation, layer_norm_eps=layer_norm_eps, norm_first=norm_first, bias=bias, input_length=input_length, hidden_size=hidden_size, device=device)
+        super().__init__(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers, dim_feedforward=dim_feedforward, dropout=dropout, activation=activation, layer_norm_eps=layer_norm_eps, norm_first=norm_first, bias=bias, input_length=input_length, hidden_size=hidden_size, device=device)
 
         self.encoder.layers[-1].self_attn = MultiHeadSindyAttention(
             hidden_size,

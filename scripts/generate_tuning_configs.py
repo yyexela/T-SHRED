@@ -30,6 +30,7 @@ datasets = ["sst"] # , "plasma", "planetswe"
 
 n_sensors_l = [5, 15, 100]
 input_lengths = [10, 20, 100]
+n_heads_l = [1, 5, 20]
 
 top_dir = Path(__file__).parent.parent
 
@@ -59,7 +60,7 @@ def main():
             for decoder in decoders:
                 # Iterate over datasets
                 for dataset in datasets:
-                    for n_sensors in n_sensors_l:
+                    for n_sensors, n_heads in zip(n_sensors_l, n_heads_l):
                         for input_length in input_lengths:
                             # Create a deep copy of the template config
                             config = copy.deepcopy(template_config)
@@ -70,7 +71,9 @@ def main():
                             config['model']['dataset'] = dataset
                             config['model']['seed'] = seed
                             config['model']['n_sensors'] = n_sensors
+                            config['model']['n_heads'] = n_heads
                             config['model']['input_length'] = input_length
+                            config['model']['hidden_size'] = n_sensors
                             
                             # Set identifier
                             identifier = f"data-{dataset}_enc-{encoder_dict[encoder]}_dec-{decoder_dict[decoder]}_seed-{seed}_ns-{n_sensors}_il-{input_length}"

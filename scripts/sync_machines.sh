@@ -13,7 +13,7 @@ for dir in "results" "scripts" "src" "notebooks" "configs" "bash" "pickles" ".vs
     if [ $? -ne 0 ]; then
         echo "Error: Failed to sync $dir to $target_machine"
     fi
-    #rsync -az $target_machine:"/home/alexey/Git/T-SHRED/$dir" "/home/alexey/Git/T-SHRED/"
+    rsync -az $target_machine:"/home/alexey/Git/T-SHRED/$dir" "/home/alexey/Git/T-SHRED/"
     #echo "rsync -az $target_machine:\"/home/alexey/Git/T-SHRED/$dir\" \"/home/alexey/Git/T-SHRED/\""
     if [ $? -ne 0 ]; then
         echo "Error: Failed to sync $dir from $target_machine"

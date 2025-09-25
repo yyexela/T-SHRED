@@ -47,6 +47,9 @@ class SINDyLoss(nn.Module):
             torch.Tensor: SINDy regularization loss
         """
         batch_size, seq_len, hidden_size = x.shape
+
+        if x.shape[0] < 3:
+            return torch.tensor(0.0)
         
         # We need to compare: h_t -> h_{t+1} and h_{t+1} -> h_{t+2}
         h_t = x[:-2, :, :]          # (batch_size-2, 1, hidden_size)
