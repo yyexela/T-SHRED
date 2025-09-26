@@ -7,7 +7,7 @@ else
     target_machine="matrix"
 fi
 
-for dir in "results" "scripts" "src" "notebooks" "configs" "bash" "pickles" ".vscode"; do
+for dir in "results" "scripts" "src" "notebooks" "configs" "bash" "pickles" "logs" ".vscode" ".git"; do
     # Sync to target machine
     #echo "Running: rsync -az \"/home/alexey/Git/T-SHRED/$dir\" $target_machine:\"/home/alexey/Git/T-SHRED/\""
     rsync -az "/home/alexey/Git/T-SHRED/$dir" $target_machine:"/home/alexey/Git/T-SHRED/"

@@ -82,9 +82,9 @@ def main():
                             # Check if config has been optimized
                             results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
                             results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
-                            if results_path.exists():
-                                skip_count += 1
-                                continue
+                            #if results_path.exists():
+                                #skip_count += 1
+                                #continue
 
                             # Set hyperparameters to remove to empty
                             hyperparams_to_remove = []

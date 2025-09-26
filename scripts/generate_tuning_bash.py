@@ -4,7 +4,7 @@ from pathlib import Path
 top_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(top_dir))
 
-from src.helpers import extract_seed, extract_identifier, extract_dataset, sort_bash_config_key
+from src.helpers import extract_config_value, sort_bash_config_key
 
 bash_template_0 = \
 """\
@@ -94,8 +94,8 @@ config_files_to_process = []
 
 skipped_count = 0
 for config_file in config_files:
-    identifier = extract_identifier(config_file)
-    dataset = extract_dataset(config_file)
+    identifier = extract_config_value(config_file, 'identifier')
+    dataset = extract_config_value(config_file, 'dataset')
     results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
     results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
 
@@ -107,12 +107,17 @@ for config_file in config_files:
 # Update config_files to only include files that need processing
 config_files = config_files_to_process
 
+if len(config_files) == 0:
+    print("No configs to process")
+    exit(0)
+
 # Write bash scripts for non-optimized configs
+script_written_count = {script_key: 0 for script_key in bash_scripts.keys()}
 written_count = 0
 device_counter = 0
 for config_file in config_files:
     model_name = config_file.parent.parent.name
-    identifier = extract_identifier(config_file)
+    identifier = extract_config_value(config_file, 'identifier')
 
     # Determine which computer-device-parallel combination to use
     device_idx = device_counter % len(all_devices)
@@ -130,7 +135,7 @@ for config_file in config_files:
     # Add the command to the appropriate bash script
     bash_scripts[script_key] += cmd
 
-    print("Writing config:", config_file)
+    script_written_count[script_key] += 1
 
     device_counter += 1
     written_count += 1
@@ -149,13 +154,17 @@ for script_key, script_content in bash_scripts.items():
     filename = f"run_{computer_name}_cuda_{device_num}_{parallel_idx}.sh"
     filepath = bash_dir / filename
     
-    with open(filepath, 'w') as f:
-        f.write(script_content)
+    if script_written_count[script_key] > 0:
+        with open(filepath, 'w') as f:
+            f.write(script_content)
     
     # Make the script executable
     filepath.chmod(0o755)
     
     print(f"Generated bash script: {filepath}")
+
+# Modify total_scripts to only include scripts with commands
+total_scripts = sum(1 for script_key in bash_scripts.keys() if script_written_count[script_key] > 0)
 
 print(f"\nSummary:")
 print(f"Total computers: {len(computers)}")

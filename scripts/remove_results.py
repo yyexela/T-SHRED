@@ -7,7 +7,7 @@ top_dir = Path(__file__).parent.parent
 
 sys.path.insert(0, str(top_dir))
 
-from src.helpers import extract_seed, extract_identifier, extract_dataset, sort_bash_config_key
+from src.helpers import extract_config_value, sort_bash_config_key
 
 results_dir = top_dir / 'results'
 config_files = []
@@ -22,8 +22,8 @@ for config_file in config_files:
     # Load yaml file config_file
     with open(config_file, 'r') as f:
         config = yaml.safe_load(f)
-    identifier = config['model']['identifier']
-    dataset = config['model']['dataset']
+    identifier = extract_config_value(config_file, 'identifier')
+    dataset = extract_config_value(config_file, 'dataset')
     if 'transformer' in config['model']['encoder']:
         print("Deleting config:", config_file.parent)
         shutil.rmtree(config_file.parent)

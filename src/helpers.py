@@ -1,13 +1,17 @@
 import os
 import copy
 import yaml
+import time
 import torch
 import einops
 import random
 import pickle
 import argparse
+import threading
+import subprocess
 import numpy as np
 from torch import nn
+from queue import Queue, Empty
 from pathlib import Path
 from src.plots import plot_losses, plot_field_comparison
 
@@ -961,9 +965,9 @@ def get_results_from_hyper_opt(hyper_opt_dir):
                         data['file_path'] = tune_file
 
                         # Modify encoder if rollout is not 1
-                        if "sindy_attention" in data['hyperparameters']['encoder']:
-                            if data['hyperparameters']['forecast_length'] != 1:
-                                data['hyperparameters']['encoder'] = data['hyperparameters']['encoder'] + f"_{data['hyperparameters']['forecast_length']}"
+                        if "sindy_attention" in data['final_config']['model']['encoder']:
+                            if data['final_config']['model']['forecast_length'] != 1:
+                                data['final_config']['model']['encoder'] = data['final_config']['model']['encoder'] + f"_{data['final_config']['model']['forecast_length']}"
 
                         results.append(data)
     return results
@@ -1140,41 +1144,15 @@ def threshold_all_layers(model, threshold, verbose=False):
     if verbose:
         print()
 
-def extract_seed(config_file):
-    if 'optimal_params' in config_file.name:
-        filename = config_file.parent.stem
-        seed_str = filename.split('_')[-1]
-        return int(seed_str)
-    else:
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        seed_str = str(config['model']['seed'])
-        return int(seed_str)
-
-def extract_identifier(config_file):
-    if 'optimal_params' in config_file.name:
-        return config_file.parent.stem
-    else:
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        identifier = str(config['model']['identifier'])
-        return identifier
-
-def extract_dataset(config_file):
-    if 'optimal_params' in config_file.name:
-        identifier = extract_identifier(config_file.parent)
-        dataset = identifier.split('_')[0]
-        return dataset
-    else:
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        dataset = str(config['model']['dataset'])
-        return dataset
+def extract_config_value(config_file, key):
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
+    return str(config['model'][key])
 
 def sort_bash_config_key(config_file):
     """Sort by dataset priority (planetswe, sst, plasma) then by seed within each dataset"""
-    dataset = extract_dataset(config_file)
-    seed = extract_seed(config_file)
+    dataset = extract_config_value(config_file, 'dataset')
+    seed = extract_config_value(config_file, 'seed')
     
     # Define dataset priority order
     dataset_priority = {
@@ -1305,6 +1283,210 @@ def create_results_table(results, datasets, results_type):
     lines.append("\\end{table}")
 
     return "\n".join(lines)
+
+def execute_command(config_file, sem_dict):
+    """Execute a single command, assumes semaphore is already acquired"""
+    identifier = extract_config_value(config_file, 'identifier')
+
+    remote_cmd_template = sem_dict['remote_cmd_template']
+    command_type = sem_dict['type']
+    device = sem_dict['device']
+    log_path = sem_dict['log_path']
+    computer_name = sem_dict['computer_name']
+    repo_path = sem_dict['repo_path']
+    venv_path = sem_dict['venv_path']
+
+    device_num = device.split(':')[1]
+
+    remote_cmd = remote_cmd_template.format(
+        repo_path=repo_path,
+        venv_path=venv_path,
+        device_num=device_num,
+        identifier=identifier,
+        config_file=config_file
+    )
+
+    try:
+        # Create logs directory
+        log_path.mkdir(exist_ok=True)
+        
+        log_filename = f"{identifier}.log"
+        log_file = log_path / log_filename
+        
+        print(f"Starting remote job: {identifier} on {computer_name}:{device_num}")
+
+        print(remote_cmd)
+        
+        # Prepare SSH command
+        cmd = [
+            'ssh',
+            '-o', 'StrictHostKeyChecking=no',  # Skip host key verification
+            '-o', 'UserKnownHostsFile=/dev/null',  # Don't save host keys
+            computer_name,
+            remote_cmd
+        ]
+        
+        # Execute command remotely via SSH
+        with open(log_file, 'w') as f:
+            f.write(f"Starting remote job: {identifier} on {computer_name}:{device_num}\n")
+            f.write(f"SSH command: {' '.join(cmd)}\n")
+            f.flush()
+            
+            process = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,  # Don't raise exception on non-zero return codes
+                timeout=None  # Wait indefinitely for completion (explicit)
+            )
+            
+            f.write(process.stdout)
+            f.write(f"\nCompleted job: {identifier} on {computer_name}:{device_num} (return code: {process.returncode})\n")
+        
+        print(f"Completed remote job: {identifier} on {computer_name}:{device_num}")
+        
+    except Exception as e:
+        print(f"Error executing job {identifier} on {computer_name}:{device_num}: {e}")
+
+def worker_thread(config_queue, semaphores):
+    """Worker thread that processes commands from the queue"""
+    while True:
+        try:
+            # Loop through all semaphores, there should be one available since there are not more workers than available semaphores
+            semaphore = None
+            for sem_dict in semaphores:
+                semaphore = sem_dict["semaphore"]
+                if semaphore.acquire(blocking=False):
+                    break
+
+            if semaphore is None:
+                break
+
+            config_file = config_queue.get(timeout=1)
+
+            execute_command(config_file, sem_dict)
+
+            config_queue.task_done()
+            
+        except Empty:
+            break
+        except Exception as e:
+            print(f"Worker thread error: {e}")
+            break
+        finally:
+            if semaphore is not None:
+                semaphore.release()
+
+def get_tuning_configs(top_dir):
+    # Recursively find all tuning configs in results directory only if 'optimal_params' is a part of the path
+    configs_dir = top_dir / 'configs'
+    config_files = []
+    for config_file in configs_dir.glob('**/*.yaml'):
+        if 'tuning_config' in str(config_file):
+            config_files.append(config_file)
+
+    config_files.sort(key=sort_bash_config_key)
+
+    config_files_to_process = []
+    for config_file in config_files:
+        identifier = extract_config_value(config_file, 'identifier')
+        dataset = extract_config_value(config_file, 'dataset')
+        results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
+        results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
+
+        #if not results_path.exists():
+            #config_files_to_process.append(config_file)
+        
+        config_files_to_process.append(config_file)
+    
+    return config_files_to_process
+
+def get_testing_configs(top_dir):
+    # Recursively find all tuning configs in results directory only if 'optimal_params' is a part of the path
+    configs_dir = top_dir / 'results'
+    config_files = []
+    for config_file in configs_dir.glob('**/*.yaml'):
+        if 'optimal_params' in str(config_file):
+            config_files.append(config_file)
+
+    config_files.sort(key=sort_bash_config_key)
+
+    config_files_to_process = []
+    for config_file in config_files:
+        identifier = extract_config_value(config_file, 'identifier')
+        results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "pickles"
+        results_path = results_path / f"{identifier}.pkl"
+
+        if not results_path.exists():
+            config_files_to_process.append(config_file)
+
+    return config_files_to_process
+
+def create_all_devices(computers):
+    # Build flat list of all available devices across all computers
+    all_devices = []
+    for computer_name, computer_config in computers.items():
+        for gpu in computer_config["gpus"]:
+            all_devices.append((computer_name, gpu))
+
+    return all_devices
+
+def create_semaphores(computers, n_parallel, remote_cmd_template, command_type):
+    # Create semaphores for each computer-GPU pair
+    # Each element is a dictionary containing the semaphore and computer dictionary
+    semaphores = []
+    for computer_name, computer_config in computers.items():
+        for gpu in computer_config["gpus"]:
+            semaphores.append({
+                "computer_name": computer_name,
+                "device": gpu,
+                "semaphore": threading.Semaphore(n_parallel),
+                "remote_cmd_template": remote_cmd_template,
+                "log_path": Path(computer_config["log_path"]),
+                "repo_path": Path(computer_config["repo_path"]),
+                "venv_path": Path(computer_config["venv_path"]),
+                "type": command_type,
+            })
+            print(f"Created semaphore for {computer_name}:{gpu} with {n_parallel} slots")
+
+    return semaphores
+
+def run_in_parallel(config_files, semaphores, n_parallel):
+    # Execute commands using threading with semaphore management
+    print(f"\nStarting threaded execution of {len(config_files)} configurations...")
+    print(f"Commands will be distributed across available devices with {n_parallel} jobs per GPU")
+
+    # Create command queue and add all commands
+    config_queue = Queue()
+    for config_file in config_files:
+        config_queue.put(config_file)
+
+    # Create and start worker threads (one per total available slot across all semaphores)
+    num_workers = min(len(config_files), n_parallel * len(semaphores))  # Don't create more workers than available semaphores
+    workers = []
+
+    print(f"Starting {num_workers} worker threads...")
+
+    for i in range(num_workers):
+        worker = threading.Thread(
+            target=worker_thread,
+            args=(config_queue, semaphores),
+            name=f"Worker-{i}"
+        )
+        worker.daemon = True
+        worker.start()
+        workers.append(worker)
+
+    # Wait for all commands to complete
+    start_time = time.time()
+    config_queue.join()
+
+    for worker in workers:
+        worker.join()
+
+    end_time = time.time()
+    print(f"All commands completed in {end_time - start_time:.2f} seconds!")
 
 # We use this for exact parity with the PyTorch implementation, having the same init
 # for every layer might not be necessary.
