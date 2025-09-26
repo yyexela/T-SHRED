@@ -1053,7 +1053,7 @@ def get_top_N_models_by_loss(results, dataset_name, N=5, encoders=None, result_t
         filtered_results = [r for r in results if r['hyperparameters']['dataset'] == dataset_name]
         if encoders is not None:
             filtered_results = [r for r in filtered_results if r['hyperparameters']['encoder'] in encoders]
-        filtered_results.sort(key=lambda x: x['test_loss'], reverse=False)
+        filtered_results.sort(key=lambda x: x['test_loss_next'], reverse=False)
     else:
         raise Exception("Invalid result_type:", result_type)
     
@@ -1074,7 +1074,7 @@ def print_top_N_results(results, dataset_name, N=5, encoders=None, result_type="
         elif result_type == "pickle":
             print(f"> Encoder (n={result['hyperparameters']['encoder_depth']}): {result['hyperparameters']['encoder']}")
             print(f"> Decoder (n={result['hyperparameters']['decoder_depth']}): {result['hyperparameters']['decoder']}")
-            print(f"> Test loss: {result['test_loss']:0.4e}")
+            print(f"> Test loss: {result['test_loss_next']:0.4e}")
             print(f"> Config path: {result['file_path']}")
         else:
             raise Exception("Invalid result_type:", result_type)

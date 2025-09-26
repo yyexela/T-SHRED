@@ -254,7 +254,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         if results_type == "hyper_opt":
             test_loss = r['best_value']
         elif results_type == "pickle":
-            test_loss = r['test_loss']
+            test_loss = r['test_loss_next']
         
         if test_loss is not None:
             model_groups[key].append({
@@ -378,24 +378,14 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
         std_test_loss = r['std_test_loss']
         n_seeds = r['n_seeds']
 
-        if r['hyperparameters']['coord_descent']:
-            hover_template = (
-                f"Encoder: {encoder}<br>"
-                f"Decoder: {decoder}<br>"
-                f"Mean Test Loss: {mean_test_loss:.2e}<br>"
-                f"Std Test Loss: {std_test_loss:.2e}<br>"
-                f"Seeds: {n_seeds}<br>"
-                f"<extra></extra>"
-            )
-        else:
-            hover_template = (
-                f"Encoder: {encoder}<br>"
-                f"Decoder: {decoder}<br>"
-                f"Mean Test Loss: {mean_test_loss:.2e}<br>"
-                f"Std Test Loss: {std_test_loss:.2e}<br>"
-                f"Seeds: {n_seeds}<br>"
-                f"<extra></extra>"
-            )
+        hover_template = (
+            f"Encoder: {encoder}<br>"
+            f"Decoder: {decoder}<br>"
+            f"Mean Test Loss: {mean_test_loss:.2e}<br>"
+            f"Std Test Loss: {std_test_loss:.2e}<br>"
+            f"Seeds: {n_seeds}<br>"
+            f"<extra></extra>"
+        )
         
         fig.add_trace(go.Scatter(
             x=[i + 1],  # Add 1 to avoid log(0)
