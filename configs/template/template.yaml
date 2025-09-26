@@ -20,7 +20,7 @@ model:
   n_heads: 1
   n_sensors: 5
   n_well_tracks: 10
-  n_trials: 100
+  n_trials: 25
   poly_order: 1
   save_every_n_epochs: 10
   seed: none # set in generate_configs.py
@@ -33,7 +33,7 @@ model:
 hyperparameters:
   encoder_depth:
     type: choice
-    choices: [1, 5, 10, 20]
+    choices: [1, 2, 3]
   dropout:
     type: choice
     choices: [0.0, 0.1]

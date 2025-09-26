@@ -1316,8 +1316,6 @@ def execute_command(config_file, sem_dict):
         
         print(f"Starting remote job: {identifier} on {computer_name}:{device_num}")
 
-        print(remote_cmd)
-        
         # Execute command remotely via Paramiko SSH
         with open(log_file, 'w') as f:
             f.write(f"Starting remote job: {identifier} on {computer_name}:{device_num}\n")

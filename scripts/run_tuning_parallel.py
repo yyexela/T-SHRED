@@ -17,12 +17,12 @@ computers = {
         "log_path": "/home/alexey/Git/T-SHRED/logs",
         "gpus": ["cuda:1"]
     },
-    #"matrix": {
-        #"repo_path": "/home/alexey/Git/T-SHRED",
-        #"venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        #"log_path": "/home/alexey/Git/T-SHRED/logs",
-        #"gpus": ["cuda:1", "cuda:2", "cuda:3"]
-    #},
+    "matrix": {
+        "repo_path": "/home/alexey/Git/T-SHRED",
+        "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
+        "log_path": "/home/alexey/Git/T-SHRED/logs",
+        "gpus": ["cuda:1", "cuda:2", "cuda:3"]
+    },
 }
 
 remote_cmd_template = (
