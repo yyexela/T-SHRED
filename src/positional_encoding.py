@@ -22,7 +22,7 @@ class PositionalEncoding(nn.Module):
             pos_encoding[0, :, 1::2] = torch.cos(position * div_term[:-1])
         else:
             pos_encoding[0, :, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pos_encoding)
+        self.register_buffer('pe', pos_encoding.to(device))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.pe[:, :x.size(1), :]

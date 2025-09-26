@@ -69,13 +69,8 @@ def main(args=None):
     args.data_rows_out, args.data_cols_out = (train_ds[0][1].shape[-3],
                                       train_ds[0][1].shape[-2])
     args.d_model = args.n_sensors * args.d_data_in
-    args.dim_feedforward = args.hidden_size * 4
+    args.dim_feedforward = args.hidden_size * 2
     args.output_size = args.data_rows_out*args.data_cols_out*args.d_data_out
-
-    # Set hidden size to d_model for transformers
-    if 'transformer' in args.encoder:
-        print(f"WARNING: Hidden size (was {args.hidden_size}) set to d_model ({args.d_model}) for transformers")
-        args.hidden_size = args.d_model
 
     # Create dataloader
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=False)

@@ -227,45 +227,6 @@ class TransformerEncoder(nn.Module):
 
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class TransformerDecoder(nn.Module):
-    def __init__(
-        self,
-        decoder_layer: nn.Module,
-        num_layers: int,
-        norm: Optional[nn.Module],
-    ):
-        super().__init__()
-        self.layers = _get_clones(decoder_layer, num_layers)
-        self.num_layers = num_layers
-        self.norm = norm
-    
-    def forward(
-        self,
-        tgt: Tensor,
-        memory: Tensor,
-        tgt_mask: Optional[Tensor] = None,
-        memory_mask: Optional[Tensor] = None,
-        tgt_is_causal=True,
-        memory_is_causal=True
-    ):
-        output = tgt
-        for mod in self.layers:
-            output = mod(
-                output,
-                memory,
-                tgt_mask=tgt_mask,
-                memory_mask=memory_mask,
-                tgt_is_causal=tgt_is_causal,
-                memory_is_causal=memory_is_causal,
-            )
-        
-        if self.norm is not None:
-            output = self.norm(output)
-        
-        return output
-
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class Transformer(nn.Module):
     def __init__(
         self,
@@ -284,8 +245,11 @@ class Transformer(nn.Module):
         **kwargs
     ):
         super().__init__()
+        
+        self.input_embedding = nn.Linear(d_model, hidden_size, bias=bias, device=device)
+        
         encoder_layer = TransformerEncoderLayer(
-            hidden_size,
+            hidden_size,  # Fix: Use d_model instead of hidden_size
             nhead,
             dim_feedforward,
             dropout,
@@ -309,7 +273,8 @@ class Transformer(nn.Module):
         self.pos_encoder = PositionalEncoding(
             d_model=hidden_size,
             sequence_length=input_length + 10, # Provide some buffer
-            dropout=dropout
+            dropout=dropout,
+            device=device
         )
 
     def forward(
@@ -318,7 +283,11 @@ class Transformer(nn.Module):
         src_mask=None,
         is_causal=True,
     ):
-        x_pos_encoded = self.pos_encoder(src) # Shape: (batch_size, seq_len, d_model)
+        # Embed input
+        x_embedded = self.input_embedding(src)
+        
+        # Apply positional encoding
+        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,
@@ -335,128 +304,3 @@ class Transformer(nn.Module):
             "sindy_loss": None
         }
         
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
-class TransformerDecoderLayer(nn.Module):
-    def __init__(
-        self,
-        d_model: int,
-        nhead: int,
-        dim_feedforward: int,
-        dropout: float,
-        activation : nn.Module,
-        layer_norm_eps: float,
-        norm_first: bool,
-        bias: bool,
-        dtype: torch.dtype,
-        device: str = 'cpu',
-    ):
-        factory_kwargs = {"device": device, "dtype": dtype}
-        super().__init__()
-        self.self_attn = MultiHeadAttention(
-            d_model,
-            d_model,
-            d_model,
-            d_model,
-            nhead,
-            dropout=dropout,
-            bias=bias,
-            **factory_kwargs,
-        )
-        self.multihead_attn = MultiHeadAttention(
-            d_model,
-            d_model,
-            d_model,
-            d_model,
-            nhead,
-            dropout=dropout,
-            bias=bias,
-            **factory_kwargs,
-        )
-
-        self.linear1 = nn.Linear(d_model, dim_feedforward, bias=bias, **factory_kwargs)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model, bias=bias, **factory_kwargs)
-
-        self.norm_first = norm_first
-        self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.norm3 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        self.dropout3 = nn.Dropout(dropout)
-    
-        self.activation = activation
-    
-    # self-attention block
-    def _sa_block(
-        self,
-        x: Tensor,
-        attn_mask: Optional[Tensor],
-        is_causal: bool = True,
-    ) -> Tensor:
-        x = self.self_attn(
-            x,
-            x,
-            x,
-            attn_mask=attn_mask,
-            is_causal=is_causal,
-        )
-        return self.dropout1(x)
-
-    # multihead attention block
-    def _mha_block(
-        self,
-        x: Tensor,
-        mem: Tensor,
-        attn_mask: Optional[Tensor],
-        is_causal: bool = True,
-    ) -> Tensor:
-        x = self.multihead_attn(
-            x,
-            mem,
-            mem,
-            attn_mask=attn_mask,
-            is_causal=is_causal,
-        )
-        return self.dropout2(x)
-
-    # feed forward block
-    def _ff_block(self, x: Tensor) -> Tensor:
-        x = self.linear2(self.dropout(self.activation(self.linear1(x))))
-        return self.dropout3(x)
-
-    def forward(
-        self,
-        tgt: Tensor,
-        memory: Tensor,
-        tgt_mask: Optional[Tensor] = None,
-        memory_mask: Optional[Tensor] = None,
-        tgt_is_causal=True,
-        memory_is_causal=True,
-    ):
-        x = tgt
-        if self.norm_first:
-            x = x + self._sa_block(
-                self.norm1(x), tgt_mask, tgt_is_causal
-            )
-            x = x + self._mha_block(
-                self.norm2(x),
-                memory,
-                memory_mask,
-                memory_is_causal,
-            )
-            x = x + self._ff_block(self.norm3(x))
-        else:
-            x = self.norm1(
-                x + self._sa_block(x, tgt_mask, tgt_is_causal)
-            )
-            x = self.norm2(
-                x
-                + self._mha_block(
-                    x, memory, memory_mask, memory_is_causal
-                )
-            )
-            x = self.norm3(x + self._ff_block(x))
-
-        return x
