@@ -47,7 +47,11 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
                 - final_hidden_state: Last timestep hidden state (batch_size, hidden_size)
                 - sindy_loss: SINDy regularization loss if training (or None if not)
         """
-        x_pos_encoded = self.pos_encoder(src) # Shape: (batch_size, seq_len, d_model)
+        # Embed input
+        x_embedded = self.input_embedding(src)
+        
+        # Apply positional encoding
+        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,
