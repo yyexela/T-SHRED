@@ -34,12 +34,13 @@ remote_cmd_template = (
 )
 
 config_files = get_tuning_configs(top_dir)
-semaphores = create_semaphores(computers, n_parallel, remote_cmd_template, "tuning")
-num_devices = sum(len(computer_config["gpus"]) for computer_config in computers.values())
 
 if len(config_files) == 0:
     print("No configurations to process")
     exit(0)
+
+semaphores = create_semaphores(computers, n_parallel, remote_cmd_template, "tuning")
+num_devices = sum(len(computer_config["gpus"]) for computer_config in computers.values())
 
 run_in_parallel(config_files, semaphores, n_parallel)
 

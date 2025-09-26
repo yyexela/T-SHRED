@@ -10,6 +10,7 @@ import argparse
 import threading
 import subprocess
 import numpy as np
+import paramiko
 from torch import nn
 from queue import Queue, Empty
 from pathlib import Path
@@ -1317,32 +1318,73 @@ def execute_command(config_file, sem_dict):
 
         print(remote_cmd)
         
-        # Prepare SSH command
-        cmd = [
-            'ssh',
-            '-o', 'StrictHostKeyChecking=no',  # Skip host key verification
-            '-o', 'UserKnownHostsFile=/dev/null',  # Don't save host keys
-            computer_name,
-            remote_cmd
-        ]
-        
-        # Execute command remotely via SSH
+        # Execute command remotely via Paramiko SSH
         with open(log_file, 'w') as f:
             f.write(f"Starting remote job: {identifier} on {computer_name}:{device_num}\n")
-            f.write(f"SSH command: {' '.join(cmd)}\n")
+            f.write(f"Remote command: {remote_cmd}\n")
             f.flush()
             
-            process = subprocess.run(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                check=False,  # Don't raise exception on non-zero return codes
-                timeout=None  # Wait indefinitely for completion (explicit)
-            )
+            # Create SSH client and load SSH config
+            ssh_client = paramiko.SSHClient()
+            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
-            f.write(process.stdout)
-            f.write(f"\nCompleted job: {identifier} on {computer_name}:{device_num} (return code: {process.returncode})\n")
+            # Load SSH config
+            ssh_config = paramiko.SSHConfig()
+            ssh_config_path = os.path.expanduser('/home/alexey/.ssh/config')
+            
+            if os.path.exists(ssh_config_path):
+                with open(ssh_config_path, 'r') as config_file:
+                    ssh_config.parse(config_file)
+            
+            # Get connection details from SSH config
+            host_config = ssh_config.lookup(computer_name)
+            
+            # Extract connection parameters
+            hostname = host_config.get('hostname', computer_name)
+            port = int(host_config.get('port', 22))
+            username = host_config.get('user', os.getenv('USER', 'alexey'))
+            key_filename = host_config.get('identityfile')
+            
+            # Debug logging
+            f.write(f"SSH Config - Hostname: {hostname}, Port: {port}, User: {username}\n")
+            f.flush()
+            
+            try:
+                # Connect to remote host using SSH config
+                ssh_client.connect(
+                    hostname=hostname,
+                    port=port,
+                    username=username,
+                    key_filename=key_filename,
+                    timeout=30,
+                    allow_agent=True,
+                    look_for_keys=True
+                )
+                
+                # Execute remote command
+                _, stdout, stderr = ssh_client.exec_command(remote_cmd)
+                
+                # Read output in real-time and write to log
+                exit_status = stdout.channel.recv_exit_status()  # Wait for command to complete
+                
+                # Get all output
+                stdout_data = stdout.read().decode('utf-8')
+                stderr_data = stderr.read().decode('utf-8')
+                
+                # Write output to log
+                f.write(stdout_data)
+                if stderr_data:
+                    f.write(f"\nSTDERR:\n{stderr_data}")
+                
+                f.write(f"\nCompleted job: {identifier} on {computer_name}:{device_num} (exit status: {exit_status})\n")
+                
+            except Exception as ssh_error:
+                error_msg = f"SSH connection error: {ssh_error}"
+                f.write(f"\nSSH Error: {error_msg}\n")
+                print(f"SSH error for {identifier} on {computer_name}: {ssh_error}")
+                
+            finally:
+                ssh_client.close()
         
         print(f"Completed remote job: {identifier} on {computer_name}:{device_num}")
         
@@ -1395,10 +1437,8 @@ def get_tuning_configs(top_dir):
         results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
         results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
 
-        #if not results_path.exists():
-            #config_files_to_process.append(config_file)
-        
-        config_files_to_process.append(config_file)
+        if not results_path.exists():
+            config_files_to_process.append(config_file)
     
     return config_files_to_process
 
@@ -1448,7 +1488,6 @@ def create_semaphores(computers, n_parallel, remote_cmd_template, command_type):
                 "venv_path": Path(computer_config["venv_path"]),
                 "type": command_type,
             })
-            print(f"Created semaphore for {computer_name}:{gpu} with {n_parallel} slots")
 
     return semaphores
 

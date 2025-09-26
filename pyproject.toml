@@ -20,7 +20,8 @@ dependencies = [
     "palettable>=3.3.3",
     "pyfiglet>=1.0.2",
     "ray[data,train,tune,serve]>=2.48.0",
-    "torchdiffeq>=0.2.5"
+    "torchdiffeq>=0.2.5",
+    "paramiko>=4.0.0"
 ]
 requires-python = ">=3.8"
 description = "Transformer SINDy-SHRED"
