@@ -1,0 +1,43 @@
+best_config:
+  dropout: 0.010923099721649811
+  encoder_depth: 9
+  lr: 0.00017696440610736786
+  sindy_attention_weight: 1.455961029702863
+  sindy_loss_weight: 1.2656958404582455
+best_value: 0.005246247892500833
+final_config:
+  model:
+    batch_size: 128
+    coord_descent: false
+    dataset: planetswe
+    decoder: mlp
+    decoder_depth: 1
+    delete_checkpoint: true
+    device: cuda:0
+    dropout: 0.010923099721649811
+    dt: 1.0
+    early_stop: 10
+    encoder: sindy_attention_sindy_loss_transformer
+    encoder_depth: 9
+    epochs: 50
+    forecast_length: 1
+    generate_loss_plots: false
+    generate_test_plots: false
+    generate_training_plots: false
+    hidden_size: 20
+    identifier: planetswe_sindy_attention_sindy_loss_transformer_mlp_0
+    input_length: 10
+    lr: 0.00017696440610736786
+    n_heads: 4
+    n_sensors: 5
+    n_well_tracks: 10
+    poly_order: 1
+    save_every_n_epochs: 10
+    seed: 0
+    sindy_attention_threshold: 0.1
+    sindy_attention_threshold_n_epochs: 10
+    sindy_attention_weight: 1.455961029702863
+    sindy_loss_threshold: 0.1
+    sindy_loss_weight: 1.2656958404582455
+    skip_load_checkpoint: true
+    verbose: true

@@ -17,6 +17,7 @@ exec > >(tee -a $repo/logs/{log_filename}) 2>&1
 echo "Running Python on {computer_name}"
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export CUDA_VISIBLE_DEVICES={device}
 
 source {venv_path}
 """
@@ -25,7 +26,7 @@ bash_template_1 = \
 """\
 mkdir -p $repo/logs/{model_name}
 
-python -u $repo/scripts/hyper_opt.py --config-path $repo/configs/{model_name}/tuning_config/{identifier}.yaml --time-budget-hours {hyper_opt_time} --device {device} --use-asha --gpus-per-trial 0 --log-to-file --log-dir $repo/logs/{model_name}
+python -u $repo/scripts/hyper_opt.py --config-path $repo/configs/{model_name}/tuning_config/{identifier}.yaml --time-budget-hours {hyper_opt_time} --device cuda:0 --use-asha --gpus-per-trial 0 --log-to-file --log-dir $repo/logs/{model_name}
 """
 
 bash_template_2 = \
@@ -86,7 +87,8 @@ for computer_name, device in all_devices:
             repo_path=computer_config["repo_path"],
             venv_path=computer_config["venv_path"],
             computer_name=computer_name,
-            log_filename=log_filename
+            log_filename=log_filename,
+            device=device_num
         )
 
 # Go through config files and filter out those which are optimized
@@ -129,7 +131,6 @@ for config_file in config_files:
         hyper_opt_time=hyper_opt_time,
         model_name=model_name,
         identifier=identifier,
-        device=current_device,
     )
 
     # Add the command to the appropriate bash script
@@ -158,8 +159,8 @@ for script_key, script_content in bash_scripts.items():
         with open(filepath, 'w') as f:
             f.write(script_content)
     
-    # Make the script executable
-    filepath.chmod(0o755)
+            # Make the script executable
+            filepath.chmod(0o755)
     
     print(f"Generated bash script: {filepath}")
 

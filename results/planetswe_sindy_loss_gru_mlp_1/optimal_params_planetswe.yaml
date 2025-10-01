@@ -6,11 +6,11 @@ model:
   decoder_depth: 1
   delete_checkpoint: true
   device: cuda:0
-  dropout: 0.0
+  dropout: 0.011535668377358543
   dt: 1.0
   early_stop: 10
   encoder: sindy_loss_gru
-  encoder_depth: 1
+  encoder_depth: 2
   epochs: 50
   forecast_length: 1
   generate_loss_plots: false
@@ -19,7 +19,7 @@ model:
   hidden_size: 20
   identifier: planetswe_sindy_loss_gru_mlp_1
   input_length: 10
-  lr: 0.0013001986268930078
+  lr: 0.0015611180991335078
   n_heads: 4
   n_sensors: 5
   n_well_tracks: 10
@@ -28,8 +28,7 @@ model:
   seed: 1
   sindy_attention_threshold: 0.1
   sindy_attention_threshold_n_epochs: 10
-  sindy_attention_weight: 1.1712344512902808
   sindy_loss_threshold: 0.1
-  sindy_loss_weight: 1.2649318505873532
+  sindy_loss_weight: 5.372692684718011
   skip_load_checkpoint: true
-  verbose: false
+  verbose: true

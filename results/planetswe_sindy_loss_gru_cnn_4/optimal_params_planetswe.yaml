@@ -6,7 +6,7 @@ model:
   decoder_depth: 1
   delete_checkpoint: true
   device: cuda:0
-  dropout: 0.0
+  dropout: 0.057127499577526164
   dt: 1.0
   early_stop: 10
   encoder: sindy_loss_gru
@@ -19,7 +19,7 @@ model:
   hidden_size: 20
   identifier: planetswe_sindy_loss_gru_cnn_4
   input_length: 10
-  lr: 0.0036592778715182246
+  lr: 0.004169919972514897
   n_heads: 4
   n_sensors: 5
   n_well_tracks: 10
@@ -28,8 +28,7 @@ model:
   seed: 4
   sindy_attention_threshold: 0.1
   sindy_attention_threshold_n_epochs: 10
-  sindy_attention_weight: 4.360492644127742
   sindy_loss_threshold: 0.1
-  sindy_loss_weight: 1.6309320256233388
+  sindy_loss_weight: 1.6679992561341606
   skip_load_checkpoint: true
-  verbose: false
+  verbose: true

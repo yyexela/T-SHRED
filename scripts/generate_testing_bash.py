@@ -39,12 +39,12 @@ computers = {
     "computer0": {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        "gpus": ["cuda:1", "cuda:2", "cuda:3"]
+        "gpus": ["cuda:0", "cuda:1", "cuda:2", "cuda:3"]
     },
     "computer1": {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        "gpus": ["cuda:1", "cuda:2", "cuda:3"]
+        "gpus": ["cuda:0", "cuda:1", "cuda:2", "cuda:3"]
     },
 }
 
@@ -154,8 +154,8 @@ for script_key, script_content in bash_scripts.items():
         with open(filepath, 'w') as f:
             f.write(script_content)
     
-    # Make the script executable
-    filepath.chmod(0o755)
+        # Make the script executable
+        filepath.chmod(0o755)
     
     print(f"Generated bash script: {filepath}")
 

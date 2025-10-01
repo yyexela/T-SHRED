@@ -1,0 +1,39 @@
+best_config:
+  dropout: 0.03341553711927524
+  encoder_depth: 1
+  lr: 0.009640045248903556
+best_value: 0.000493127852678299
+final_config:
+  model:
+    batch_size: 128
+    coord_descent: false
+    dataset: plasma
+    decoder: cnn
+    decoder_depth: 1
+    delete_checkpoint: true
+    device: cuda:0
+    dropout: 0.03341553711927524
+    dt: 1.0
+    early_stop: 10
+    encoder: gru
+    encoder_depth: 1
+    epochs: 50
+    forecast_length: 1
+    generate_loss_plots: false
+    generate_test_plots: false
+    generate_training_plots: false
+    hidden_size: 20
+    identifier: plasma_gru_cnn_6
+    input_length: 10
+    lr: 0.009640045248903556
+    n_heads: 4
+    n_sensors: 5
+    n_well_tracks: 10
+    poly_order: 1
+    save_every_n_epochs: 10
+    seed: 6
+    sindy_attention_threshold: 0.1
+    sindy_attention_threshold_n_epochs: 10
+    sindy_loss_threshold: 0.1
+    skip_load_checkpoint: true
+    verbose: true

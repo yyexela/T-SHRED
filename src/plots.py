@@ -473,8 +473,8 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
                 size=legend_fontsize
             )
         ),
-        height=550,
-        width=650
+        height=450,
+        width=550
     )
     
     # Show or save the plot

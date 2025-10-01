@@ -23,10 +23,10 @@ decoder_dict = {
     "cnn": "CNN",
 }
 
-n_seeds = 5
-encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "sindy_attention_transformer_5", "sindy_attention_sindy_loss_transformer_5"]
-decoders = ["mlp"]
-datasets = ["sst", "plasma"] # "planetswe"
+n_seeds = 10
+encoders = ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"] #, "sindy_attention_transformer_5", "sindy_attention_sindy_loss_transformer_5"]
+decoders = ["mlp", "cnn"]
+datasets = ["sst", "plasma", "planetswe"] 
 
 top_dir = Path(__file__).parent.parent
 
@@ -89,6 +89,8 @@ def main():
                     # SINDy Loss options
                     if "sindy_loss" not in encoder:
                         hyperparams_to_remove.append("sindy_loss_weight")
+                    if "sindy_attention" not in encoder:
+                        hyperparams_to_remove.append("sindy_attention_weight")
                     
                     # Set forecast_length based on rollout
                     if "sindy_attention" in encoder:

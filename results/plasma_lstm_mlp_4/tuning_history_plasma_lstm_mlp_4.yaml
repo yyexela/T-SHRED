@@ -1,9 +1,8 @@
 best_config:
-  dropout: 0.0
+  dropout: 0.08632502554663818
   encoder_depth: 1
-  lr: 0.007288432695804253
-  sindy_attention_weight: 6.575058317553329
-best_value: 0.0005213596450630575
+  lr: 0.020041719764334085
+best_value: 0.0005248483503237367
 final_config:
   model:
     batch_size: 128
@@ -13,7 +12,7 @@ final_config:
     decoder_depth: 1
     delete_checkpoint: true
     device: cuda:0
-    dropout: 0.0
+    dropout: 0.08632502554663818
     dt: 1.0
     early_stop: 10
     encoder: lstm
@@ -26,7 +25,7 @@ final_config:
     hidden_size: 20
     identifier: plasma_lstm_mlp_4
     input_length: 10
-    lr: 0.007288432695804253
+    lr: 0.020041719764334085
     n_heads: 4
     n_sensors: 5
     n_well_tracks: 10
@@ -35,7 +34,6 @@ final_config:
     seed: 4
     sindy_attention_threshold: 0.1
     sindy_attention_threshold_n_epochs: 10
-    sindy_attention_weight: 6.575058317553329
     sindy_loss_threshold: 0.1
     skip_load_checkpoint: true
-    verbose: false
+    verbose: true

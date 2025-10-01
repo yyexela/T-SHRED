@@ -1,10 +1,9 @@
 best_config:
-  dropout: 0.0
-  encoder_depth: 2
-  lr: 0.045455380751385145
-  sindy_attention_weight: 6.468832453986165
-  sindy_loss_weight: 9.349535636385902
-best_value: 0.0004518890491453931
+  dropout: 0.0108311781988739
+  encoder_depth: 5
+  lr: 0.026578638379987987
+  sindy_loss_weight: 6.152163450645739
+best_value: 0.00043827114859595895
 final_config:
   model:
     batch_size: 128
@@ -14,11 +13,11 @@ final_config:
     decoder_depth: 1
     delete_checkpoint: true
     device: cuda:0
-    dropout: 0.0
+    dropout: 0.0108311781988739
     dt: 1.0
     early_stop: 10
     encoder: sindy_loss_gru
-    encoder_depth: 2
+    encoder_depth: 5
     epochs: 50
     forecast_length: 1
     generate_loss_plots: false
@@ -27,7 +26,7 @@ final_config:
     hidden_size: 20
     identifier: sst_sindy_loss_gru_mlp_4
     input_length: 10
-    lr: 0.045455380751385145
+    lr: 0.026578638379987987
     n_heads: 4
     n_sensors: 5
     n_well_tracks: 10
@@ -36,8 +35,7 @@ final_config:
     seed: 4
     sindy_attention_threshold: 0.1
     sindy_attention_threshold_n_epochs: 10
-    sindy_attention_weight: 6.468832453986165
     sindy_loss_threshold: 0.1
-    sindy_loss_weight: 9.349535636385902
+    sindy_loss_weight: 6.152163450645739
     skip_load_checkpoint: true
-    verbose: false
+    verbose: true

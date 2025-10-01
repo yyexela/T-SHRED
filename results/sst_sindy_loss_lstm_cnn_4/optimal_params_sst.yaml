@@ -6,7 +6,7 @@ model:
   decoder_depth: 1
   delete_checkpoint: true
   device: cuda:0
-  dropout: 0.0
+  dropout: 0.0029190384209245887
   dt: 1.0
   early_stop: 10
   encoder: sindy_loss_lstm
@@ -19,7 +19,7 @@ model:
   hidden_size: 20
   identifier: sst_sindy_loss_lstm_cnn_4
   input_length: 10
-  lr: 0.02809621419075318
+  lr: 0.011178232623046363
   n_heads: 4
   n_sensors: 5
   n_well_tracks: 10
@@ -28,8 +28,7 @@ model:
   seed: 4
   sindy_attention_threshold: 0.1
   sindy_attention_threshold_n_epochs: 10
-  sindy_attention_weight: 7.376769502122194
   sindy_loss_threshold: 0.1
-  sindy_loss_weight: 2.354411992056007
+  sindy_loss_weight: 4.439096253287909
   skip_load_checkpoint: true
-  verbose: false
+  verbose: true

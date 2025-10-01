@@ -6,7 +6,7 @@ model:
   decoder_depth: 1
   delete_checkpoint: true
   device: cuda:0
-  dropout: 0.0
+  dropout: 0.04326845843329265
   dt: 1.0
   early_stop: 10
   encoder: gru
@@ -19,7 +19,7 @@ model:
   hidden_size: 20
   identifier: plasma_gru_mlp_0
   input_length: 10
-  lr: 0.010520940474749005
+  lr: 0.006244126179992165
   n_heads: 4
   n_sensors: 5
   n_well_tracks: 10
@@ -28,7 +28,6 @@ model:
   seed: 0
   sindy_attention_threshold: 0.1
   sindy_attention_threshold_n_epochs: 10
-  sindy_attention_weight: 8.34264793348111
   sindy_loss_threshold: 0.1
   skip_load_checkpoint: true
-  verbose: false
+  verbose: true

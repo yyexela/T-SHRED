@@ -1,10 +1,9 @@
 best_config:
-  dropout: 0.0
+  dropout: 0.07625390215283273
   encoder_depth: 1
-  lr: 0.00385952623637585
-  sindy_attention_weight: 9.01577845736641
-  sindy_loss_weight: 3.786419031182266
-best_value: 0.0037827392225153744
+  lr: 0.002964813415710475
+  sindy_loss_weight: 2.8890484172965176
+best_value: 0.005158868560101837
 final_config:
   model:
     batch_size: 128
@@ -14,7 +13,7 @@ final_config:
     decoder_depth: 1
     delete_checkpoint: true
     device: cuda:0
-    dropout: 0.0
+    dropout: 0.07625390215283273
     dt: 1.0
     early_stop: 10
     encoder: sindy_loss_lstm
@@ -27,7 +26,7 @@ final_config:
     hidden_size: 20
     identifier: planetswe_sindy_loss_lstm_cnn_0
     input_length: 10
-    lr: 0.00385952623637585
+    lr: 0.002964813415710475
     n_heads: 4
     n_sensors: 5
     n_well_tracks: 10
@@ -36,8 +35,7 @@ final_config:
     seed: 0
     sindy_attention_threshold: 0.1
     sindy_attention_threshold_n_epochs: 10
-    sindy_attention_weight: 9.01577845736641
     sindy_loss_threshold: 0.1
-    sindy_loss_weight: 3.786419031182266
+    sindy_loss_weight: 2.8890484172965176
     skip_load_checkpoint: true
-    verbose: false
+    verbose: true

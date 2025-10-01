@@ -17,7 +17,7 @@ model:
   hidden_size: 20
   identifier: none
   input_length: 10
-  n_heads: 1
+  n_heads: 4
   n_sensors: 5
   n_well_tracks: 10
   n_trials: 25
@@ -32,11 +32,13 @@ model:
 
 hyperparameters:
   encoder_depth:
-    type: choice
-    choices: [1, 2, 3]
+    type: randint
+    lower_bound: 1
+    upper_bound: 10
   dropout:
-    type: choice
-    choices: [0.0, 0.1]
+    type: uniform
+    lower_bound: 0.0
+    upper_bound: 0.1
   lr:
     lower_bound: 1.0e-04
     type: loguniform

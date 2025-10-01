@@ -399,14 +399,14 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
     # Which timesteps to evaluate
     if args.dataset == "plasma":
         ds_iter = [0]
-        forecast_length_plot = 130
+        forecast_length_plot = 101
     elif args.dataset == "planetswe":
         ds_iter = [0]
-        forecast_length_plot = 150
+        forecast_length_plot = 101
     elif args.dataset == "sst":
         ds_iter = [0]
         forecast_length_plot = 101
-    plot_steps = list(np.linspace(0, forecast_length_plot-1, 4).astype(int))
+    plot_steps = list(np.linspace(0, forecast_length_plot-1, 3).astype(int))
 
     with torch.no_grad():
         for i in ds_iter:
@@ -433,15 +433,15 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
             if "sindy_attention" in args.encoder:
                 # Set forecast length to expected plot length
-                model.encoder.encoder.layers[0].self_attn.forecast_length = forecast_length_plot
+                model.encoder.encoder.layers[-1].self_attn.forecast_length = forecast_length_plot
                 output = model(input_sensors)
-                model.encoder.encoder.layers[0].self_attn.forecast_length = args.forecast_length
+                model.encoder.encoder.layers[-1].self_attn.forecast_length = args.forecast_length
                 outputs = output["output"]
             else:
                 # Autoregressively forecast since forecast length is 1
                 preds = []
                 curr_inputs = inputs.clone()
-                for _ in range(forecast_length_plot):
+                for j in range(forecast_length_plot):
                     # Build sensors from current input window
                     step_input_sensors = []
                     for sensor in sensors:
@@ -460,6 +460,18 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
                         r=args.data_rows_out, c=args.data_cols_out, d=args.d_data_out
                     )
                     next_frame = step_output_reshaped[0, 0, -1]  # [r, c, d]
+
+                    if args.dataset == "plasma":
+                        # Convert from V to full space
+                        u = torch.from_numpy(metadata['u_total']).float().to(args.device)
+                        s = torch.from_numpy(metadata['s_total']).float().to(args.device)
+                        v = torch.from_numpy(metadata['v_total']).float().to(args.device)
+
+                        s_diag = torch.diag_embed(s.reshape(-1))
+                        next_frame = (next_frame[0,:,0] @ s_diag @ u)
+
+                        # Reshape
+                        next_frame = einops.rearrange(next_frame, '(r c d) -> r c d', r = args.data_rows_in, c = args.data_cols_in, d = args.d_data_in)
 
                     # Slide window: drop first frame, append prediction
                     curr_inputs = torch.cat([curr_inputs[1:], next_frame.unsqueeze(0)], dim=0)
@@ -1151,21 +1163,37 @@ def extract_config_value(config_file, key):
     return str(config['model'][key])
 
 def sort_bash_config_key(config_file):
-    """Sort by dataset priority (planetswe, sst, plasma) then by seed within each dataset"""
+    """Sort by:
+    1) dataset priority (planetswe, sst, plasma)
+    2) by encoder priority (gru, lstm, sindy_loss_gru, sindy_loss_lstm, vanilla_transformer, sindy_loss_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer)
+    3) by decoder priority (mlp, cnn)
+    4) seed
+    """
     dataset = extract_config_value(config_file, 'dataset')
     seed = extract_config_value(config_file, 'seed')
-    
-    # Define dataset priority order
-    dataset_priority = {
-        'planetswe': 0,
-        'sst': 1, 
-        'plasma': 2
+    encoder = extract_config_value(config_file, 'encoder')
+    decoder = extract_config_value(config_file, 'decoder')
+    # Define priority orders
+    dataset_priority = {"planetswe": 0, "sst": 1, "plasma": 2}
+    encoder_priority = {
+        "gru": 0,
+        "lstm": 1,
+        "sindy_loss_gru": 2,
+        "sindy_loss_lstm": 3,
+        "vanilla_transformer": 4,
+        "sindy_loss_transformer": 5,
+        "sindy_attention_transformer": 6,
+        "sindy_attention_sindy_loss_transformer": 7
     }
+    decoder_priority = {"mlp": 0, "cnn": 1}
     
-    # Get priority for this dataset, default to 999 for unknown datasets
-    dataset_priority_value = dataset_priority.get(dataset, 999)
-    
-    return (dataset_priority_value, seed)
+    # Return tuple for sorting
+    return (
+        int(seed),
+        dataset_priority.get(dataset, 999),
+        encoder_priority.get(encoder, 999),
+        decoder_priority.get(decoder, 999),
+    )
 
 def create_results_table(results, datasets, results_type):
     """
@@ -1216,7 +1244,7 @@ def create_results_table(results, datasets, results_type):
             ds = cfg['dataset']
             enc = cfg['encoder']
             dec = cfg['decoder']
-            loss = r['test_loss']
+            loss = r['test_loss_next']
         else:
             raise Exception("Invalid results_type:", results_type)
 
