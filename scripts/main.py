@@ -131,11 +131,11 @@ def main(args=None):
         helpers.print_model_coefficients(best_model, args)
 
     # Calculate loss
-    test_loss_next, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, split='test', args=args)
-    print(f'Test loss (next): {test_loss_next:0.4e}')
+    test_loss_next, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, rollout=False, rmse=True, args=args)
+    print(f'Test loss (next rmse): {test_loss_next:0.4e}')
 
-    test_loss_rollout, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, split='val', args=args)
-    print(f'Test loss (rollout): {test_loss_rollout:0.4e}')
+    test_loss_rollout, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, rollout=True, rmse=False, args=args)
+    print(f'Test loss (rollout rmse): {test_loss_rollout:0.4e}')
 
     save_dict = {'test_loss_next': test_loss_next, 'test_loss_rollout': test_loss_rollout, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'model_eigvs': model_eigvs, 'sensors': sensors}
 

@@ -290,7 +290,7 @@ def inverse_normalize_pytorch(normalized_tensor, mean, std, eps=1e-8):
     
     return denormalized
 
-def evaluate_model(model, dl, sensors, metadata, epoch=0, split='val', args=None):
+def evaluate_model(model, dl, sensors, metadata, epoch=0, rollout=False, rmse=False, args=None):
     """
     Evaluate a PyTorch model. Returns reconstruction loss only. 
     """
@@ -310,9 +310,9 @@ def evaluate_model(model, dl, sensors, metadata, epoch=0, split='val', args=None
             inputs = batch[0][:,:args.input_length,:,:,:]
 
             # If validation, use full rollout, otherwise for test use next step rollout 
-            if split == 'val':
+            if rollout:
                 labels = batch[1][:,args.input_length:,:,:,:]
-            elif split == 'test':
+            else:
                 labels = batch[1][:,args.input_length:args.input_length+1,:,:,:]
 
             # Extract sensors per input tensor
@@ -336,9 +336,9 @@ def evaluate_model(model, dl, sensors, metadata, epoch=0, split='val', args=None
             outputs = einops.rearrange(outputs, 'batch forecast seq_len (rows cols dim) -> batch forecast seq_len rows cols dim', batch=batch[0].shape[0], forecast=args.forecast_length, seq_len=expected_seq_len, rows=args.data_rows_out, cols=args.data_cols_out, dim=args.d_data_out)
 
             # Take one rollout during test split, otherwise full rollout during validation split
-            if split == 'val':
+            if rollout:
                 outputs = outputs[:,:,-1,:,:,:]
-            elif split == 'test':
+            else:
                 outputs = outputs[:,0:1,-1,:,:,:]
 
             # Calculate loss
@@ -349,6 +349,9 @@ def evaluate_model(model, dl, sensors, metadata, epoch=0, split='val', args=None
             if "sindy_attention" in args.encoder:
                 if args.sindy_attention_weight > 0.0:
                     sindy_sum = args.sindy_attention_weight * get_SINDy_coefficients_sum(model.encoder)
+
+            if rmse:
+                reconstruction_loss = torch.sqrt(reconstruction_loss)
 
             dl_loss += reconstruction_loss.item()
 
@@ -412,8 +415,6 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
         for i in ds_iter:
             # Get raw data
             data = ds[i]
-            if args.dataset in ["planetswe", "gray_scott_reaction_diffusion"]:
-                data = data.to(args.device)
 
             # Create inputs and outputs based on model, assuming transformer rollout type
             # Transformers are causal (masked self-attention)
@@ -707,7 +708,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
         train_losses.append(train_loss)
 
         # Calculate validation loss
-        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, metadata=metadata, split='val', args=args)
+        val_loss, sindy_val_loss = evaluate_model(model, val_dl, sensors, epoch=epoch, metadata=metadata, rollout=True, rmse=False, args=args)
         val_losses.append(val_loss)
 
         # Save model to checkpoint if validation loss is lower than best validation loss

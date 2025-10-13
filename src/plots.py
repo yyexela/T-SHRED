@@ -100,7 +100,7 @@ def plot_field_comparison(prediction: torch.Tensor, target: torch.Tensor, datase
         ax_error.set_yticks([])
 
         # Add sensor markers to error subplot
-        if dataset in ["sst", "planetswe"]:
+        if dataset in ["sst", "planetswe", "plasma"]:
             if sensors:
                 for sensor in sensors:
                     x, y = sensor
@@ -296,15 +296,44 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
     # Get unique encoders and decoders
     unique_encoders = list(set([r['hyperparameters']['encoder'] for r in aggregated_results]))
     unique_decoders = list(set([r['hyperparameters']['decoder'] for r in aggregated_results]))
+
+    # Sort encoders and decoders
+    unique_encoders.sort()
+    unique_decoders.sort()
     
     # Create color mappings
-    encoder_colors = palettable.cartocolors.qualitative.Prism_9.hex_colors
+    #encoder_colors = palettable.colorbrewer.qualitative.Dark2_8.hex_colors
+    encoder_colors = palettable.cartocolors.qualitative.Prism_8.hex_colors
     encoder_color_map = {encoder: encoder_colors[i % len(encoder_colors)] for i, encoder in enumerate(unique_encoders)}
-    decoder_colors = palettable.cartocolors.qualitative.Pastel_3.hex_colors
-    decoder_color_map = {decoder: decoder_colors[i % len(decoder_colors)] for i, decoder in enumerate(unique_decoders)}
+    
+    # Create marker symbol mappings for decoders
+    decoder_symbol_map = {
+        'mlp': 'circle',
+        'cnn': 'triangle-up'
+    }
     
     # Create the figure
     fig = go.Figure()
+
+    # Then add dummy traces for decoders to create legend entries
+    for decoder in unique_decoders:
+        decoder_name = None
+        if decoder == "mlp":
+            decoder_name = "MLP"
+        elif decoder == "cnn":
+            decoder_name = "CNN"
+        fig.add_trace(go.Scatter(
+            x=[None],
+            y=[None],
+            mode='markers',
+            name=f'{decoder_name}',
+            marker=dict(
+                color='gray',
+                size=12,
+                symbol=decoder_symbol_map.get(decoder, 'circle')
+            ),
+            showlegend=True
+        ))
     
     # First add dummy traces for encoders to create legend entries
     for encoder in unique_encoders:
@@ -337,39 +366,13 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             mode='markers',
             name=f'{encoder_name}',
             marker=dict(
-                color="white",
-                line=dict(
-                    color=encoder_color_map[encoder],
-                    width=4
-                ),
+                color=encoder_color_map[encoder],
                 size=12,
+                symbol='square'
             ),
             showlegend=True
         ))
-    
-    # Then add dummy traces for decoders to create legend entries
-    for decoder in unique_decoders:
-        decoder_name = None
-        if decoder == "mlp":
-            decoder_name = "MLP"
-        elif decoder == "cnn":
-            decoder_name = "CNN"
-        fig.add_trace(go.Scatter(
-            x=[None],
-            y=[None],
-            mode='markers',
-            name=f'{decoder_name}',
-            marker=dict(
-                color=decoder_color_map[decoder],
-                line=dict(
-                    color="white",
-                    width=4
-                ),
-                size=12,
-            ),
-            showlegend=True
-        ))
-    
+     
     # Add actual data points with error bars
     for i, r in enumerate(aggregated_results):
         encoder = r['hyperparameters']['encoder']
@@ -401,12 +404,9 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             mode='markers',
             name=f'{encoder}-{decoder}',
             marker=dict(
-                color=decoder_color_map[decoder],
-                line=dict(
-                    color=encoder_color_map[encoder],
-                    width=4
-                ),
-                size=12
+                color=encoder_color_map[encoder],
+                size=12,
+                symbol=decoder_symbol_map.get(decoder, 'circle')
             ),
             hovertemplate=hover_template,
             showlegend=False  # Don't show these in legend
@@ -483,7 +483,7 @@ def plot_model_results_scatter(results: list[dict], dataset: str, top_n: int = N
             raise Exception(f"Filename fname ({fname}) must not be None.")
         fig.write_image(figure_dir / f'{fname}.pdf', engine='kaleido')
         print(f"Saved {figure_dir/fname}.pdf")
-        #fig.show()
+        fig.show()
     else:
         fig.show()
 

@@ -4,7 +4,7 @@ model:
   dataset: planetswe
   decoder: mlp
   decoder_depth: 1
-  delete_checkpoint: true
+  delete_checkpoint: false
   device: cuda:0
   dropout: 0.028376367210372705
   dt: 1.0
@@ -13,8 +13,8 @@ model:
   encoder_depth: 1
   epochs: 50
   forecast_length: 1
-  generate_loss_plots: false
-  generate_test_plots: false
+  generate_loss_plots: true
+  generate_test_plots: true
   generate_training_plots: false
   hidden_size: 20
   identifier: planetswe_gru_mlp_7
@@ -29,5 +29,5 @@ model:
   sindy_attention_threshold: 0.1
   sindy_attention_threshold_n_epochs: 10
   sindy_loss_threshold: 0.1
-  skip_load_checkpoint: true
+  skip_load_checkpoint: false
   verbose: true
