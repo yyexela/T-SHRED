@@ -47,7 +47,7 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
 
         # Compute SINDy Loss, put forecast dimension into batch dimension
         transformer_output_3d = einops.rearrange(transformer_output, 'b r s d -> (b r) s d')
-        sindy_loss = self.compute_sindy_loss(transformer_output_3d[:,-1:,:])
+        sindy_loss = self.compute_sindy_loss(transformer_output_3d)
 
         return {
             "sequence_output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
