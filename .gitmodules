@@ -1,0 +1,3 @@
+[submodule "submodules/rotary-embedding-torch"]
+	path = submodules/rotary-embedding-torch
+	url = git@github.com:lucidrains/rotary-embedding-torch.git

@@ -11,6 +11,7 @@ from sindy_loss_transformer import SINDyLossTransformer
 from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
 from rnns import GRU, LSTM
 from decoders import MLP, CNN
+from moe_rnns import MOEGRU
 
 from src import helpers
 
@@ -116,6 +117,17 @@ class MixedModel(nn.Module):
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt, # Time step for Euler integration
+                device=args.device
+            )
+        elif args.encoder == "moe_gru":
+            self.encoder = MOEGRU(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                n_experts=args.n_experts,
+                forecast_length=args.forecast_length,
+                num_layers=args.encoder_depth,
+                strict_symmetry=args.strict_symmetry,
+                dropout=args.dropout,
                 device=args.device
             )
         elif args.encoder == "lstm":

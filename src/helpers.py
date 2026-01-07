@@ -51,6 +51,7 @@ def parse_args():
     parser.add_argument('--identifier', type=str, default=None, help="Identifier for logging")
     parser.add_argument('--input_length', type=int, default=10, help="Dataset window length")
     parser.add_argument('--lr', type=float, default=0.0001, help="Learning rate for training")
+    parser.add_argument('--n_experts', type=int, default=2, help="Number of experts for MOE-GRU")
     parser.add_argument('--n_heads', type=int, default=6, help="Number of transformer heads")
     parser.add_argument('--n_sensors', type=int, default=50, help="Number of sensors")
     parser.add_argument('--n_well_tracks', type=int, default=10, help="Maximum number of tracks to load from the well dataset")
@@ -63,6 +64,7 @@ def parse_args():
     parser.add_argument('--sindy_loss_threshold', type=float, default=0.05, help="Threshold for SINDy coefficient sparsification loss")
     parser.add_argument('--sindy_loss_weight', type=float, default=100, help="Weight for SINDy loss term")
     parser.add_argument('--skip_load_checkpoint', action='store_true', help="Skip loading checkpoint")
+    parser.add_argument('--strict_symmetry', action='store_true', help="Use strict symmetry for SINDy coefficients in MOE-GRU")
     parser.add_argument('--verbose', action='store_true', help="Enable verbose messages")
     args = parser.parse_args()
 
@@ -104,15 +106,15 @@ def verify_args(args):
         raise ValueError(f"dt {args.dt} must be non-negative")
     if args.early_stop < 0:
         raise ValueError(f"early_stop {args.early_stop} must be non-negative")
-    if args.encoder not in ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
-        raise ValueError(f"encoder {args.encoder} not supported, choose one of: gru, lstm, sindy_loss_gru, sindy_loss_lstm, vanilla_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer")
+    if args.encoder not in ["gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm", "moe_gru", "vanilla_transformer", "sindy_loss_transformer", "sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+        raise ValueError(f"encoder {args.encoder} not supported, choose one of: gru, lstm, sindy_loss_gru, sindy_loss_lstm, moe_gru, vanilla_transformer, sindy_loss_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer")
     if args.encoder_depth <= 0:
         raise ValueError(f"encoder_depth {args.encoder_depth} must be greater than 0")
     if args.epochs <= 0:
         raise ValueError(f"epochs {args.epochs} must be greater than 0")
     if args.forecast_length <= 0:
         raise ValueError(f"forecast_length {args.forecast_length} must be greater than 0")
-    if args.forecast_length > 1 and args.encoder not in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+    if args.forecast_length > 1 and args.encoder not in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer", "moe_gru"]:
         raise ValueError(f"forecast_length {args.forecast_length} must be 1 for non-rollout encoders")
     if args.hidden_size <= 0:
         raise ValueError(f"hidden_size {args.hidden_size} must be greater than 0")
@@ -122,8 +124,10 @@ def verify_args(args):
         raise ValueError(f"identifier {args.identifier} must be provided")
     if not args.coord_descent and args.lr <= 0:
         raise ValueError(f"lr {args.lr} must be greater than 0")
-    if 'transformer' in args.encoder and args.n_heads <= 0:
+    if "transformer" in args.encoder and args.n_heads <= 0:
         raise ValueError(f"n_heads {args.n_heads} must be greater than 0")
+    if 'moe' in args.encoder and args.n_experts <= 0:
+        raise ValueError(f"n_experts {args.n_experts} must be greater than 0")
     if args.n_sensors <= 0:
         raise ValueError(f"n_sensors {args.n_sensors} must be greater than 0")
     if args.dataset in ['planetswe'] and args.n_well_tracks <= 0:
@@ -438,6 +442,11 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
                 output = model(input_sensors)
                 model.encoder.encoder.layers[-1].self_attn.forecast_length = args.forecast_length
                 outputs = output["output"]
+            elif "moe_gru" in args.encoder:
+                model.encoder.set_forecast_length(forecast_length_plot)
+                output = model(input_sensors)
+                model.encoder.set_forecast_length(args.forecast_length)
+                outputs = output["output"]
             else:
                 # Autoregressively forecast since forecast length is 1
                 preds = []
@@ -592,6 +601,40 @@ def coord_descent_change_lr(optimizer, epoch, args):
         optimizer.param_groups[0]['lr'] = args.coord_descent_sindy_attention_lr
         optimizer.param_groups[1]['lr'] = 0.0
 
+def create_inputs_and_labels_from_batch(batch, args):
+    # Batch is a list of [inputs, labels]
+    # > inputs and labels have the same shape
+    #   [batch_size, input_length + forecast_length, rows, cols, dim]
+    # Outputs should be shape
+    #   [batch_size, forecast_length, sequence_length, rows, cols, dim]
+
+    # Inputs are the same regardless of model
+    inputs = batch[0][:,:args.input_length,:,:,:]
+
+    # Create inputs and outputs from batch based on model
+    if "transformer" in args.encoder and "sindy_attention" not in args.encoder:
+        # Transformers are causal (masked self-attention)
+        labels = batch[1][:,1:,:,:,:]
+    elif "transformer" in args.encoder and "sindy_attention" in args.encoder:
+        # SINDy-Attention Transformers create a long-term forecast for each input
+        labels = torch.stack([batch[1][:,(i+1):(i+1)+args.forecast_length,:,:,:] for i in range(args.input_length)], dim=2)
+    elif "moe_gru" in args.encoder:
+        # MOE-GRUs create one long-term forecast
+        labels = batch[1][:,args.input_length:,:,:,:]
+    else:
+        # LSTMs and GRUs are not causal, so we use the last timestep as the label
+        # > forecast length is 1
+        labels = batch[1][:,-1:,:,:,:]
+
+    if "sindy_attention" not in args.encoder and "moe_gru" not in args.encoder:
+        # Set forecast length to 1 for non-SINDy-Attention Transformers
+        labels = labels.unsqueeze(1)
+    elif "moe_gru" in args.encoder:
+        # Set sequence length to 1 for moe_gru
+        labels = labels.unsqueeze(2)
+
+    return inputs, labels
+
 def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, optimizer, metadata, args):
     """
     Train a PyTorch model.
@@ -631,25 +674,7 @@ def train_model(model, train_dl, val_dl, sensors, start_epoch, best_val, best_ep
             batch[0] = batch[0].to(args.device)
             batch[1] = batch[1].to(args.device)
 
-            # Create inputs and outputs based on model
-            if "transformer" in args.encoder:
-                # Transformers are causal (masked self-attention)
-                inputs = batch[0][:,:args.input_length,:,:,:]
-                labels = batch[1][:,1:,:,:,:]
-
-                if "sindy_attention" in args.encoder:
-                    # Create array of labels for each forecast
-                    labels = torch.stack([labels[:,i:i+args.forecast_length,:,:,:] for i in range(args.input_length)], dim=2)
-                else:
-                    # Set forecast length to 1
-                    labels = labels.unsqueeze(1)
-            else:
-                # LSTMs and GRUs are not causal, so we use the last timestep as the label
-                inputs = batch[0][:,:args.input_length,:,:,:]
-                labels = batch[1][:,-1:,:,:,:]
-
-                # Set forecast length to 1
-                labels = labels.unsqueeze(1)
+            inputs, labels = create_inputs_and_labels_from_batch(batch, args)
 
             # Extract sensors per input tensor
             input_sensors = []

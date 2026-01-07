@@ -24,7 +24,7 @@ for config_file in config_files:
         config = yaml.safe_load(f)
     identifier = extract_config_value(config_file, 'identifier')
     dataset = extract_config_value(config_file, 'dataset')
-    if 'transformer' in config['model']['encoder']:
+    if "transformer" in config['model']['encoder']:
         print("Deleting config:", config_file.parent)
         shutil.rmtree(config_file.parent)
         delete_count += 1
