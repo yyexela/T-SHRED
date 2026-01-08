@@ -1,3 +1,9 @@
+"""
+This script preprocesses the The Well dataset to be used for training the models.
+Takes a specified dataset and a number of tracks, and splits each track into training, validation, and testing sets.
+Saves the splits as pickle files and computes the scalers and dataset dimensions of the data.
+"""
+
 # ## Imports
 
 import sys

@@ -1,3 +1,12 @@
+"""
+This script generates bash scripts for testing the models.
+Looks through all configuration files in the `results/**/*optimal_params*.yaml` directories.
+If the configuration file has already generated a pickle file in the `pickles/` directory, it is skipped.
+Writes the bash scripts into the `bash/` directory.
+
+Uses parallelization to run the scripts on multiple GPUs and/or computers.
+"""
+
 import sys
 from pathlib import Path
 
@@ -45,7 +54,7 @@ computers = {
     },
 }
 
-# Create and clean up bash repo
+# Create and clean up bash directory
 bash_dir = top_dir / "bash"
 bash_dir.mkdir(exist_ok=True)
 for file in bash_dir.glob("*.sh"):
@@ -159,6 +168,7 @@ total_scripts = sum(
     1 for script_key in bash_scripts.keys() if script_written_count[script_key] > 0
 )
 
+# Print summary
 print(f"\nSummary:")
 print(f"Total computers: {len(computers)}")
 print(f"Total GPUs across all computers: {len(all_devices)}")

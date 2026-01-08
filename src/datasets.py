@@ -1,3 +1,7 @@
+"""
+This module contains all dataset usage functionalty.
+"""
+
 ###########
 # Imports #
 ###########
@@ -33,6 +37,14 @@ fig_dir = top_dir / "figures"
 
 
 class TimeSeriesDataset(Dataset):
+    """
+    A dataset class for time series data.
+    Takes a list of input tensors and a list of output tensors.
+    Creates a dataset of sliding windows of the input and output tensors.
+    Assumes that the input and output tensors have the same shape.
+
+    Note that the input and output windows contain both the input window and output window concatenated, so these need to be split apart when used. The input and output tensors are separated to allow for use with proper orthogonal decomposition.
+    """
     def __init__(
         self,
         input_tensors: list[torch.Tensor],
@@ -43,9 +55,9 @@ class TimeSeriesDataset(Dataset):
         """
         Args:
             input_tensors (list of torch.Tensor): List of input tensors where each tensor is
-                a time series of shape (time_steps, features)
+                a time series of shape (time_steps, ...)
             output_tensors (list of torch.Tensor): List of output tensors where each tensor is
-                a time series of shape (time_steps, features)
+                a time series of shape (time_steps, ...)
             length (int): Length of the sliding window
             device (str): Device to move the tensors to
         """
@@ -76,6 +88,15 @@ class TimeSeriesDataset(Dataset):
             )
 
     def prepare_tensors(self, tensors):
+        """
+        Prepares a list of tensors for use in the dataset.
+
+        Args:
+            tensors (list of torch.Tensor): List of tensors to prepare
+
+        Returns:
+            list of torch.Tensor: List of prepared tensors
+        """
         # To torch
         if isinstance(tensors[0], np.ndarray):
             tensors = [torch.from_numpy(tensor) for tensor in tensors]
@@ -89,9 +110,21 @@ class TimeSeriesDataset(Dataset):
         return tensors
 
     def __len__(self):
+        """
+        Returns the total number of windows in the dataset.
+        """
         return self.cumulative_offsets[-1]
 
     def __getitem__(self, idx):
+        """
+        Returns the input and output windows for a given index.
+
+        Args:
+            idx (int): Index of the window to return
+
+        Returns:
+            tuple: (input_window, output_window) where each is a torch.Tensor of shape (length, ...)
+        """
         # Find which tensor contains this index
         tensor_idx = bisect.bisect_right(self.cumulative_offsets, idx) - 1
 
@@ -103,6 +136,7 @@ class TimeSeriesDataset(Dataset):
         start = local_idx
         end = start + self.length
 
+        # Get corresponding input and output tensors
         input_tensor = self.input_tensors[tensor_idx]
         output_tensor = (
             input_tensor
@@ -110,6 +144,7 @@ class TimeSeriesDataset(Dataset):
             else self.output_tensors[tensor_idx]
         )
 
+        # Get corresponding input and output windows
         input_window = input_tensor[start:end]
         output_window = output_tensor[start:end]
 
@@ -117,6 +152,15 @@ class TimeSeriesDataset(Dataset):
 
 
 def load_dataset(args):
+    """
+    Loads a dataset from the `datasets/` directory.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
     if args.dataset == "sst":
         return load_sst_data(args)
     elif args.dataset == "sst_demo":
@@ -130,6 +174,23 @@ def load_dataset(args):
 
 
 def load_the_well_pts(load_path, split_name, track_id=None, n_tracks=None):
+    """
+    Loads a dataset from the `datasets/the_well_custom/` directory.
+    To generate a dataset, see `scripts/preprocess_the_well.py`.
+
+    If track_id is provided, only loads the specified track.
+    If n_tracks is provided, loads up to the specified number of tracks.
+
+    Args:
+        load_path (Path): Path to the directory containing the dataset
+        split_name (str): Name of the split to load
+        track_id (int): ID of the track to load
+        n_tracks (int): Number of tracks to load
+
+    Returns:
+        list of torch.Tensor: List of tensors containing the dataset
+            each tensor is of shape (time_steps, ...)
+    """
     tensors = []
     if track_id is not None:
         iter_l = [Path(load_path) / f"{split_name}_{track_id}.pkl"]
@@ -149,6 +210,16 @@ def load_the_well_pts(load_path, split_name, track_id=None, n_tracks=None):
 
 
 def load_well_data(args):
+    """
+    Loads the The Well dataset from the `datasets/the_well_custom/` directory.
+    To generate a dataset, see `scripts/preprocess_the_well.py`.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
     # Data path
     data_path = data_dir / "the_well_custom" / args.dataset
 
@@ -188,6 +259,15 @@ def load_well_data(args):
 
 
 def load_sst_data(args):
+    """
+    Loads the SST dataset from the `datasets/sst/` directory.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
     # Load raw file
     sst_data_path = data_dir / "sst" / "SST_data.mat"
     sst_data = sio.loadmat(sst_data_path)["Z"]  # (64800, 1400)
@@ -227,6 +307,15 @@ def load_sst_data(args):
 
 
 def load_sst_demo_data(args):
+    """
+    Loads the SST demo dataset from the `datasets/sst/` directory.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
     # Load raw file
     sst_data_path = data_dir / "sst" / "demo_sst.npy.gz"
     with gzip.open(sst_data_path, "rb") as f:
@@ -266,6 +355,15 @@ def load_sst_demo_data(args):
 
 
 def load_plasma_data(args):
+    """
+    Loads the plasma dataset from the `datasets/plasma/` directory.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
     # Load data (14 fields)
     ne_data = sio.loadmat(plasma_dir / "ne.mat")  # (65792, 2000) = (257 * 256, 2000)
     ne_data = ne_data["Data"]

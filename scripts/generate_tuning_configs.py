@@ -1,5 +1,11 @@
-import os
-import sys
+"""
+This script generates configuration files for hyperparameter tuning the models.
+Writes configuration files into the `configs/**/tuning_config/` directories.
+These configurations are used by `generate_tuning_bash.py` to generate bash scripts for hyperparameter tuning.
+
+If the configuration file has already generated a `optimal_params_*.yaml` file in the `results/` directory, it is skipped.
+"""
+
 import copy
 import yaml
 import shutil
@@ -8,6 +14,8 @@ from pathlib import Path
 encoder_dict = {
     "gru": "GRU",
     "lstm": "LSTM",
+    "moe_gru": "MOE-GRU",
+    "moe_lstm": "MOE-LSTM",
     "sindy_loss_gru": "SL-GRU",
     "sindy_loss_lstm": "SL-LSTM",
     "vanilla_transformer": "T",
@@ -27,6 +35,8 @@ n_seeds = 10
 encoders = [
     "gru",
     "lstm",
+    "moe_gru",
+    "moe_lstm",
     "sindy_loss_gru",
     "sindy_loss_lstm",
     "vanilla_transformer",

@@ -1,3 +1,8 @@
+"""
+This script runs the tuning configurations from the `configs/**/tuning_config/*.yaml` directories in parallel.
+Note that this code is experimental is just a side project to try to parallelize running test configurations on multiple machines using semaphores.
+"""
+
 import sys
 from pathlib import Path
 

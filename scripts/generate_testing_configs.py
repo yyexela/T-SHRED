@@ -1,29 +1,14 @@
-import os
-import sys
+"""
+This script generates configuration files for testing the models.
+Writes configuration files into the `configs/test/` directory.
+These configurations are used by `run_all_test_configs.sh` to run all the test configurations.
+
+Effectively just a functional verification test to ensure code isn't breaking.
+"""
+
 import copy
 import yaml
-import shutil
 from pathlib import Path
-
-encoder_dict = {
-    "gru": "GRU",
-    "lstm": "LSTM",
-    "moe_gru": "MOE-GRU",
-    "moe_lstm": "MOE-LSTM",
-    "sindy_loss_gru": "SL-GRU",
-    "sindy_loss_lstm": "SL-LSTM",
-    "vanilla_transformer": "T",
-    "sindy_loss_transformer": "SL-T",
-    "sindy_attention_transformer": "SA-T",
-    "sindy_attention_sindy_loss_transformer": "SASL-T",
-    "sindy_attention_transformer_5": "SA-T-5",
-    "sindy_attention_sindy_loss_transformer_5": "SASL-T-5",
-}
-
-decoder_dict = {
-    "mlp": "MLP",
-    "cnn": "CNN",
-}
 
 n_seeds = 1
 encoders = [
@@ -46,10 +31,11 @@ top_dir = Path(__file__).parent.parent
 
 def main():
     # Create output directory and save config, clean up old configs
-    configs_dir = top_dir / "configs" / "test"
+    output_dir = top_dir / "configs" / "test"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load template config
-    template_path = top_dir / "configs/test/template.yaml"
+    template_path = top_dir / "configs/template/test_template.yaml"
     with open(template_path, "r") as f:
         template_config = yaml.safe_load(f)
 

@@ -1,3 +1,9 @@
+"""
+This is the main class for hyperparameter optimization.
+Uses configuration files in the `configs/**/tuning_config/` directories.
+Users can specify the device to use, the time budget, the number of GPUs to use per trial, and whether to use the ASHA scheduler for early stopping.
+"""
+
 import sys
 import ray
 import yaml
@@ -9,7 +15,7 @@ import argparse
 import traceback
 from ray import tune
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from ray.tune.schedulers import ASHAScheduler
 from main import config_main as training_main
 from ray.tune.search.optuna import OptunaSearch

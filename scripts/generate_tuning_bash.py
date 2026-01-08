@@ -1,3 +1,12 @@
+"""
+This script generates bash scripts for hyperparameter tuning the models.
+Looks through all configuration files in the `configs/**/tuning_config/` directories.
+If the configuration file has already generated a `optimal_params_*.yaml` file in the `results/` directory, it is skipped.
+Writes the bash scripts into the `bash/` directory.
+
+Uses parallelization to run the scripts on multiple GPUs and/or computers.
+"""
+
 import sys
 from pathlib import Path
 
@@ -166,6 +175,7 @@ total_scripts = sum(
     1 for script_key in bash_scripts.keys() if script_written_count[script_key] > 0
 )
 
+# Print summary
 print(f"\nSummary:")
 print(f"Total computers: {len(computers)}")
 print(f"Total GPUs across all computers: {len(all_devices)}")

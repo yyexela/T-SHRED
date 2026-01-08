@@ -1,3 +1,7 @@
+"""
+This script executes all the slurm files in the slurms directory `slurms/`.
+"""
+
 import os
 import time
 from pathlib import Path

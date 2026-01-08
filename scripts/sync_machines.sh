@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# This script synchronizes the files between the local machine and the target machine.
+
 # Check hostname to set up target
 if [ "$(hostname)" == "kutz-lambda-matrix" ]; then
     target_machine="vector"

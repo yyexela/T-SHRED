@@ -1,3 +1,9 @@
+"""
+This is the main script for training the models.
+Uses user-provided configuration file to train the model.
+Alternatively, command line arguments can be provided directly.
+"""
+
 ###########
 # Imports #
 ###########
