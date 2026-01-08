@@ -15,13 +15,13 @@ computers = {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
         "log_path": "/home/alexey/Git/T-SHRED/logs",
-        "gpus": ["cuda:1", "cuda:2", "cuda:3"]
+        "gpus": ["cuda:1", "cuda:2", "cuda:3"],
     },
     "matrix": {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
         "log_path": "/home/alexey/Git/T-SHRED/logs",
-        "gpus": ["cuda:1", "cuda:2", "cuda:3"]
+        "gpus": ["cuda:1", "cuda:2", "cuda:3"],
     },
 }
 
@@ -40,7 +40,9 @@ if len(config_files) == 0:
     exit(0)
 
 semaphores = create_semaphores(computers, n_parallel, remote_cmd_template, "tuning")
-num_devices = sum(len(computer_config["gpus"]) for computer_config in computers.values())
+num_devices = sum(
+    len(computer_config["gpus"]) for computer_config in computers.values()
+)
 
 print(f"\nExecution Summary:")
 print(f"Total computers: {len(computers)}")

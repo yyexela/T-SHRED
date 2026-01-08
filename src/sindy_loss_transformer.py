@@ -6,16 +6,18 @@ from vanilla_transformer import Transformer
 from positional_encoding import PositionalEncoding
 from typing import Optional
 
+
 class SINDyLossTransformer(SINDyLoss, Transformer):
     """
     Transformer model with additional SINDy loss for learning sparse dynamics.
-    This model implements a standard transformer encoder with an additional SINDy component 
+    This model implements a standard transformer encoder with an additional SINDy component
     that is used to regularize the latent dynamics.
     """
+
     def __init__(
         self,
         d_model: int,
-        nhead: int,
+        n_heads: int,
         dim_feedforward: int,
         dropout: float,
         hidden_size: int,
@@ -28,10 +30,26 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
         bias: bool,
         layer_norm_eps: float,
         norm_first: bool,
-        device: str = 'cpu',
+        device: str = "cpu",
     ):
-        super().__init__(d_model=d_model, nhead=nhead, dim_feedforward=dim_feedforward, dropout=dropout, hidden_size=hidden_size, input_length=input_length, num_encoder_layers=num_encoder_layers, poly_order=poly_order, dt=dt, sindy_loss_threshold=sindy_loss_threshold, activation=activation, bias=bias, layer_norm_eps=layer_norm_eps, norm_first=norm_first, device=device)
-        
+        super().__init__(
+            d_model=d_model,
+            n_heads=n_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            hidden_size=hidden_size,
+            input_length=input_length,
+            num_encoder_layers=num_encoder_layers,
+            poly_order=poly_order,
+            dt=dt,
+            sindy_loss_threshold=sindy_loss_threshold,
+            activation=activation,
+            bias=bias,
+            layer_norm_eps=layer_norm_eps,
+            norm_first=norm_first,
+            device=device,
+        )
+
     def forward(
         self,
         src: torch.Tensor,
@@ -49,9 +67,11 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
         """
         # Embed input
         x_embedded = self.input_embedding(src)
-        
+
         # Apply positional encoding
-        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
+        x_pos_encoded = self.pos_encoder(
+            x_embedded
+        )  # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,
@@ -61,11 +81,13 @@ class SINDyLossTransformer(SINDyLoss, Transformer):
 
         sindy_loss = self.compute_sindy_loss(transformer_output)
 
-        transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
+        transformer_output = einops.rearrange(transformer_output, "b s d -> b 1 s d")
 
         return {
-            "sequence_output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, forecast_length, d_model]
-            "output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
-            "sindy_loss": sindy_loss
+            "sequence_output": transformer_output,  # [batch_size, forecast_length, sequence_length, d_model]
+            "final_hidden_state": transformer_output[
+                :, :, -1, :
+            ],  # Last timestep [batch_size, forecast_length, d_model]
+            "output": transformer_output,  # [batch_size, forecast_length, sequence_length, d_model]
+            "sindy_loss": sindy_loss,
         }

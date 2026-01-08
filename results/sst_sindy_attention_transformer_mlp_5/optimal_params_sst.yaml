@@ -30,5 +30,6 @@ model:
   sindy_attention_threshold_n_epochs: 10
   sindy_attention_weight: 1.9443979883004667
   sindy_loss_threshold: 0.1
+  strict_symmetry: true
   skip_load_checkpoint: false
   verbose: true

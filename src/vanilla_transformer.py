@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from positional_encoding import PositionalEncoding
 from helpers import _get_clones
 
+
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class MultiHeadAttention(nn.Module):
@@ -19,8 +20,8 @@ class MultiHeadAttention(nn.Module):
         E_k (int): Size of embedding dim for key
         E_v (int): Size of embedding dim for value
         E_total (int): Total embedding dim of combined heads post input projection. Each head
-            has dim E_total // nheads
-        nheads (int): Number of heads
+            has dim E_total // n_heads
+        n_heads (int): Number of heads
         dropout (float, optional): Dropout probability. Default: 0.0
         bias (bool, optional): Whether to add bias to input projection. Default: True
     """
@@ -31,15 +32,15 @@ class MultiHeadAttention(nn.Module):
         E_k: int,
         E_v: int,
         E_total: int,
-        nheads: int,
+        n_heads: int,
         dropout: float,
         bias: bool,
         dtype: torch.dtype,
-        device: str = 'cpu',
+        device: str = "cpu",
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
-        self.nheads = nheads
+        self.n_heads = n_heads
         self.dropout = dropout
         self._qkv_same_embed_dim = E_q == E_k and E_q == E_v
         if self._qkv_same_embed_dim:
@@ -50,8 +51,8 @@ class MultiHeadAttention(nn.Module):
             self.v_proj = nn.Linear(E_v, E_total, bias=bias, **factory_kwargs)
         E_out = E_q
         self.out_proj = nn.Linear(E_total, E_out, bias=bias, **factory_kwargs)
-        assert E_total % nheads == 0, "Embedding dim is not divisible by nheads"
-        self.E_head = E_total // nheads
+        assert E_total % n_heads == 0, "Embedding dim is not divisible by n_heads"
+        self.E_head = E_total // n_heads
         self.bias = bias
 
     def forward(
@@ -107,19 +108,19 @@ class MultiHeadAttention(nn.Module):
 
         # Step 2. Split heads and prepare for SDPA
         # reshape query, key, value to separate by head
-        # (N, L_t, E_total) -> (N, L_t, nheads, E_head) -> (N, nheads, L_t, E_head)
-        query = query.unflatten(-1, [self.nheads, self.E_head]).transpose(1, 2)
-        # (N, L_s, E_total) -> (N, L_s, nheads, E_head) -> (N, nheads, L_s, E_head)
-        key = key.unflatten(-1, [self.nheads, self.E_head]).transpose(1, 2)
-        # (N, L_s, E_total) -> (N, L_s, nheads, E_head) -> (N, nheads, L_s, E_head)
-        value = value.unflatten(-1, [self.nheads, self.E_head]).transpose(1, 2)
+        # (N, L_t, E_total) -> (N, L_t, n_heads, E_head) -> (N, n_heads, L_t, E_head)
+        query = query.unflatten(-1, [self.n_heads, self.E_head]).transpose(1, 2)
+        # (N, L_s, E_total) -> (N, L_s, n_heads, E_head) -> (N, n_heads, L_s, E_head)
+        key = key.unflatten(-1, [self.n_heads, self.E_head]).transpose(1, 2)
+        # (N, L_s, E_total) -> (N, L_s, n_heads, E_head) -> (N, n_heads, L_s, E_head)
+        value = value.unflatten(-1, [self.n_heads, self.E_head]).transpose(1, 2)
 
         # Step 3. Run SDPA
-        # (N, nheads, L_t, E_head)
+        # (N, n_heads, L_t, E_head)
         attn_output = F.scaled_dot_product_attention(
             query, key, value, dropout_p=self.dropout, is_causal=is_causal
         )
-        # (N, nheads, L_t, E_head) -> (N, L_t, nheads, E_head) -> (N, L_t, E_total)
+        # (N, n_heads, L_t, E_head) -> (N, L_t, n_heads, E_head) -> (N, L_t, E_total)
         attn_output = attn_output.transpose(1, 2).flatten(-2)
 
         # Step 4. Apply output projection
@@ -128,21 +129,22 @@ class MultiHeadAttention(nn.Module):
 
         return attn_output
 
+
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class TransformerEncoderLayer(nn.Module):
     def __init__(
         self,
         d_model: int,
-        nhead: int,
+        n_heads: int,
         dim_feedforward: int,
         dropout: float,
-        activation : nn.Module,
+        activation: nn.Module,
         layer_norm_eps: float,
         norm_first: bool,
         bias: bool,
         dtype: torch.dtype,
-        device: str = 'cpu',
+        device: str = "cpu",
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -151,7 +153,7 @@ class TransformerEncoderLayer(nn.Module):
             d_model,
             d_model,
             d_model,
-            nhead,
+            n_heads,
             dropout=dropout,
             bias=bias,
             **factory_kwargs,
@@ -161,13 +163,16 @@ class TransformerEncoderLayer(nn.Module):
         self.linear2 = nn.Linear(dim_feedforward, d_model, bias=bias, **factory_kwargs)
 
         self.norm_first = norm_first
-        self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
+        self.norm1 = nn.LayerNorm(
+            d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs
+        )
+        self.norm2 = nn.LayerNorm(
+            d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs
+        )
 
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
         self.activation = activation
-        
 
     def _sa_block(self, x, attn_mask, is_causal):
         x = self.self_attn(x, x, x, is_causal=is_causal)
@@ -178,12 +183,12 @@ class TransformerEncoderLayer(nn.Module):
         return self.dropout2(x)
 
     def forward(self, src, src_mask=None, is_causal=True):
-        '''
+        """
         Arguments:
             src: (batch_size, seq_len, d_model)
             src_mask: (batch_size, seq_len, seq_len)
             is_causal: bool
-        '''
+        """
         x = src
         if self.norm_first:
             x = x + self._sa_block(self.norm1(x), src_mask, is_causal)
@@ -200,6 +205,7 @@ class TransformerEncoderLayer(nn.Module):
             x = self.norm2(x + self._ff_block(x))
         return x
 
+
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class TransformerEncoder(nn.Module):
@@ -209,7 +215,7 @@ class TransformerEncoder(nn.Module):
         num_layers: int,
         norm: Optional[nn.Module],
         dtype: torch.dtype,
-        device: str = 'cpu',
+        device: str = "cpu",
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -217,7 +223,9 @@ class TransformerEncoder(nn.Module):
         self.num_layers = num_layers
         self.norm = norm
 
-    def forward(self, src: torch.Tensor, mask: Optional[torch.Tensor] = None, is_causal=True):
+    def forward(
+        self, src: torch.Tensor, mask: Optional[torch.Tensor] = None, is_causal=True
+    ):
         output = src
         for mod in self.layers:
             output = mod(output, mask, is_causal)
@@ -225,32 +233,33 @@ class TransformerEncoder(nn.Module):
             output = self.norm(output)
         return output
 
+
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class Transformer(nn.Module):
     def __init__(
         self,
         d_model: int,
-        nhead: int,
+        n_heads: int,
         num_encoder_layers: int,
         dim_feedforward: int,
         dropout: float,
-        activation : nn.Module,
+        activation: nn.Module,
         layer_norm_eps: float,
         norm_first: bool,
         bias: bool,
         input_length: int,
         hidden_size: int,
-        device: str = 'cpu',
-        **kwargs
+        device: str = "cpu",
+        **kwargs,
     ):
         super().__init__()
-        
+
         self.input_embedding = nn.Linear(d_model, hidden_size, bias=bias, device=device)
-        
+
         encoder_layer = TransformerEncoderLayer(
             hidden_size,  # Fix: Use d_model instead of hidden_size
-            nhead,
+            n_heads,
             dim_feedforward,
             dropout,
             activation,
@@ -261,20 +270,22 @@ class Transformer(nn.Module):
             device=device,
         )
 
-        encoder_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps, bias=bias, device=device)
+        encoder_norm = nn.LayerNorm(
+            hidden_size, eps=layer_norm_eps, bias=bias, device=device
+        )
         self.encoder = TransformerEncoder(
             encoder_layer,
             num_encoder_layers,
-            encoder_norm, 
+            encoder_norm,
             dtype=None,
             device=device,
         )
 
         self.pos_encoder = PositionalEncoding(
             d_model=hidden_size,
-            sequence_length=input_length + 10, # Provide some buffer
+            sequence_length=input_length + 10,  # Provide some buffer
             dropout=dropout,
-            device=device
+            device=device,
         )
 
     def forward(
@@ -285,9 +296,11 @@ class Transformer(nn.Module):
     ):
         # Embed input
         x_embedded = self.input_embedding(src)
-        
+
         # Apply positional encoding
-        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
+        x_pos_encoded = self.pos_encoder(
+            x_embedded
+        )  # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,
@@ -295,12 +308,13 @@ class Transformer(nn.Module):
             is_causal=is_causal,
         )
 
-        transformer_output = einops.rearrange(transformer_output, 'b s d -> b 1 s d')
+        transformer_output = einops.rearrange(transformer_output, "b s d -> b 1 s d")
 
         return {
-            "sequence_output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, forecast_length, d_model]
-            "output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
-            "sindy_loss": None
+            "sequence_output": transformer_output,  # [batch_size, forecast_length, sequence_length, d_model]
+            "final_hidden_state": transformer_output[
+                :, :, -1, :
+            ],  # Last timestep [batch_size, forecast_length, d_model]
+            "output": transformer_output,  # [batch_size, forecast_length, sequence_length, d_model]
+            "sindy_loss": None,
         }
-        

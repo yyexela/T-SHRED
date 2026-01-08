@@ -6,8 +6,7 @@ sys.path.insert(0, str(top_dir))
 
 from src.helpers import extract_config_value, sort_bash_config_key
 
-bash_template_0 = \
-"""\
+bash_template_0 = """\
 repo="{repo_path}"
 
 # Create logs directory and set up logging
@@ -21,13 +20,11 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source {venv_path}
 """
 
-bash_template_1 = \
-"""\
+bash_template_1 = """\
 CUDA_VISIBLE_DEVICES={device} python -u $repo/scripts/main.py --config $repo/results/{identifier}/optimal_params_{dataset}.yaml
 """
 
-bash_template_2 = \
-"""\
+bash_template_2 = """\
 echo "Finished running Python"\
 """
 
@@ -39,26 +36,26 @@ computers = {
     "computer0": {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        "gpus": ["cuda:0", "cuda:1", "cuda:2", "cuda:3"]
+        "gpus": ["cuda:0", "cuda:1", "cuda:2", "cuda:3"],
     },
     "computer1": {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        "gpus": ["cuda:0", "cuda:1", "cuda:2", "cuda:3"]
+        "gpus": ["cuda:0", "cuda:1", "cuda:2", "cuda:3"],
     },
 }
 
 # Create and clean up bash repo
-bash_dir = top_dir / 'bash'
+bash_dir = top_dir / "bash"
 bash_dir.mkdir(exist_ok=True)
-for file in bash_dir.glob('*.sh'):
+for file in bash_dir.glob("*.sh"):
     file.unlink()
 
 # Recursively find all tuning configs in results directory only if 'optimal_params' is a part of the path
-configs_dir = top_dir / 'results'
+configs_dir = top_dir / "results"
 config_files = []
-for config_file in configs_dir.glob('**/*.yaml'):
-    if 'optimal_params' in str(config_file):
+for config_file in configs_dir.glob("**/*.yaml"):
+    if "optimal_params" in str(config_file):
         config_files.append(config_file)
 
 config_files.sort(key=sort_bash_config_key)
@@ -77,13 +74,13 @@ for computer_name, device in all_devices:
     computer_config = computers[computer_name]
     for parallel_idx in range(n_parallel):
         script_key = f"{computer_name}_{device}_{parallel_idx}"
-        device_num = device.split(':')[1]
+        device_num = device.split(":")[1]
         log_filename = f"run_{computer_name}_cuda_{device_num}_{parallel_idx}.log"
         bash_scripts[script_key] = bash_template_0.format(
             repo_path=computer_config["repo_path"],
             venv_path=computer_config["venv_path"],
             computer_name=computer_name,
-            log_filename=log_filename
+            log_filename=log_filename,
         )
 
 # Go through config files and filter out those which are evaluated
@@ -91,8 +88,8 @@ config_files_to_process = []
 
 skipped_count = 0
 for config_file in config_files:
-    identifier = extract_config_value(config_file, 'identifier')
-    dataset = extract_config_value(config_file, 'dataset')
+    identifier = extract_config_value(config_file, "identifier")
+    dataset = extract_config_value(config_file, "dataset")
     results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "pickles"
     results_path = results_path / f"{identifier}.pkl"
 
@@ -113,8 +110,8 @@ script_written_count = {script_key: 0 for script_key in bash_scripts.keys()}
 written_count = 0
 device_counter = 0
 for config_file in config_files:
-    identifier = extract_config_value(config_file, 'identifier')
-    dataset = extract_config_value(config_file, 'dataset')
+    identifier = extract_config_value(config_file, "identifier")
+    dataset = extract_config_value(config_file, "dataset")
 
     # Determine which computer-device-parallel combination to use
     device_idx = device_counter % len(all_devices)
@@ -123,9 +120,7 @@ for config_file in config_files:
     script_key = f"{computer_name}_{current_device}_{parallel_idx}"
 
     cmd = bash_template_1.format(
-        identifier=identifier,
-        dataset=dataset,
-        device=current_device.split(':')[1]
+        identifier=identifier, dataset=dataset, device=current_device.split(":")[1]
     )
 
     # Add the command to the appropriate bash script
@@ -139,28 +134,30 @@ for config_file in config_files:
 # Add the closing template to each script and write to files
 for script_key, script_content in bash_scripts.items():
     script_content += bash_template_2
-    
+
     # Parse computer name, device, and parallel index from script_key
-    parts = script_key.split('_')
+    parts = script_key.split("_")
     computer_name = parts[0]
-    device = '_'.join(parts[1:-1])  # Handle cuda:X format
+    device = "_".join(parts[1:-1])  # Handle cuda:X format
     parallel_idx = parts[-1]
-    device_num = device.split(':')[1]  # Extract number from "cuda:X"
-    
+    device_num = device.split(":")[1]  # Extract number from "cuda:X"
+
     filename = f"run_{computer_name}_cuda_{device_num}_{parallel_idx}.sh"
     filepath = bash_dir / filename
-    
+
     if script_written_count[script_key] > 0:
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             f.write(script_content)
-    
+
         # Make the script executable
         filepath.chmod(0o755)
-    
+
     print(f"Generated bash script: {filepath}")
 
 # Modify total_scripts to only include scripts with commands
-total_scripts = sum(1 for script_key in bash_scripts.keys() if script_written_count[script_key] > 0)
+total_scripts = sum(
+    1 for script_key in bash_scripts.keys() if script_written_count[script_key] > 0
+)
 
 print(f"\nSummary:")
 print(f"Total computers: {len(computers)}")
@@ -168,7 +165,9 @@ print(f"Total GPUs across all computers: {len(all_devices)}")
 print(f"Total jobs skipped: {skipped_count}")
 print(f"Total jobs written: {written_count}")
 print(f"Total scripts generated: {total_scripts}")
-print(f"Jobs per script: ~{len(config_files) // total_scripts if total_scripts > 0 else 0} (with remainder distributed)")
+print(
+    f"Jobs per script: ~{len(config_files) // total_scripts if total_scripts > 0 else 0} (with remainder distributed)"
+)
 
 # Print computer breakdown
 for computer_name, computer_config in computers.items():

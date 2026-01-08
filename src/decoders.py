@@ -2,21 +2,25 @@ import einops
 import numpy as np
 import torch.nn as nn
 
+
 class MLP(nn.Module):
     """
     Creates a simple linear MLP AutoEncoder.
 
-    `in_dim`: input and output dimension   
-    `bottleneck_dim`: dimension at bottleneck  
-    `width`: width of model   
-    `device`: which device to use   
+    `in_dim`: input and output dimension
+    `bottleneck_dim`: dimension at bottleneck
+    `width`: width of model
+    `device`: which device to use
     """
-    def __init__(self,
-                 in_dim: int,
-                 out_dim: int,
-                 n_layers: int,
-                 dropout: float,
-                 device: str = 'cpu'):
+
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        n_layers: int,
+        dropout: float,
+        device: str = "cpu",
+    ):
         super(MLP, self).__init__()
         # Class variables
         self.in_dim = in_dim
@@ -27,15 +31,19 @@ class MLP(nn.Module):
 
         # Model layer sizes
         sizes = list()
-        sizes.extend(np.logspace(np.log2(in_dim), np.log2(out_dim), base=2, num=n_layers+1, dtype=int).tolist())
+        sizes.extend(
+            np.logspace(
+                np.log2(in_dim), np.log2(out_dim), base=2, num=n_layers + 1, dtype=int
+            ).tolist()
+        )
         sizes[0] = self.in_dim
         sizes[-1] = self.out_dim
 
         # Define model layers
         self.layers = []
-        for idx in range(len(sizes)-1):
-            self.layers.append(nn.Linear(sizes[idx], sizes[idx+1]))
-            if idx != (len(sizes)-2):
+        for idx in range(len(sizes) - 1):
+            self.layers.append(nn.Linear(sizes[idx], sizes[idx + 1]))
+            if idx != (len(sizes) - 2):
                 self.layers.append(nn.ReLU())
 
         model = nn.Sequential(*self.layers)
@@ -47,18 +55,18 @@ class MLP(nn.Module):
         x = x["output"]
         out = self.model(x)
         out = self.dropout(out)
-        return {
-            "output": out,
-            "sindy_loss": sindy_loss
-        }
+        return {"output": out, "sindy_loss": sindy_loss}
+
 
 class CNN(nn.Module):
-    def __init__(self,
-                 in_dim: int,
-                 out_dim: int,
-                 n_layers: int,
-                 dropout: float,
-                 device: str = 'cpu'):
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        n_layers: int,
+        dropout: float,
+        device: str = "cpu",
+    ):
         super().__init__()
         # Class variables
         self.in_dim = in_dim
@@ -69,15 +77,21 @@ class CNN(nn.Module):
 
         # Model layer sizes
         sizes = list()
-        sizes.extend(np.logspace(np.log2(in_dim), np.log2(out_dim), base=2, num=n_layers+1, dtype=int).tolist())
+        sizes.extend(
+            np.logspace(
+                np.log2(in_dim), np.log2(out_dim), base=2, num=n_layers + 1, dtype=int
+            ).tolist()
+        )
         sizes[0] = self.in_dim
         sizes[-1] = self.out_dim
 
         # Define model layers
         self.layers = []
-        for idx in range(len(sizes)-1):
-            self.layers.append(nn.Conv1d(sizes[idx], sizes[idx+1], kernel_size=3, padding=1))
-            if idx != (len(sizes)-2):
+        for idx in range(len(sizes) - 1):
+            self.layers.append(
+                nn.Conv1d(sizes[idx], sizes[idx + 1], kernel_size=3, padding=1)
+            )
+            if idx != (len(sizes) - 2):
                 self.layers.append(nn.ReLU())
 
         model = nn.Sequential(*self.layers)
@@ -89,11 +103,12 @@ class CNN(nn.Module):
         x = x["output"]
 
         batch_size, forecast_length, sequence_length, hidden_dim = x.shape
-        x = einops.rearrange(x, 'b f s d -> b d (f s)', f=forecast_length, s=sequence_length)
-        out = self.model(x) 
-        out = self.dropout(out) # want: batch forecast seq_len (rows cols dim)
-        out = einops.rearrange(out, 'b o (f s) -> b f s o', f=forecast_length, s=sequence_length)
-        return {
-            "output": out,
-            "sindy_loss": sindy_loss
-        }
+        x = einops.rearrange(
+            x, "b f s d -> b d (f s)", f=forecast_length, s=sequence_length
+        )
+        out = self.model(x)
+        out = self.dropout(out)  # want: batch forecast seq_len (rows cols dim)
+        out = einops.rearrange(
+            out, "b o (f s) -> b f s o", f=forecast_length, s=sequence_length
+        )
+        return {"output": out, "sindy_loss": sindy_loss}

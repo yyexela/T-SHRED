@@ -3,13 +3,14 @@ import torch.nn as nn
 from sindy_loss_abc import SINDyLoss
 from sindy_attention_transformer import SindyAttentionTransformer
 
+
 # Copied from pytorch:
 # https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
     def __init__(
         self,
         d_model: int,
-        nhead: int,
+        n_heads: int,
         forecast_length: int,
         num_encoder_layers: int,
         dim_feedforward: int,
@@ -23,9 +24,28 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
         poly_order: int,
         sindy_loss_threshold: float,
         dt: float,
-        device: str = 'cpu',
+        strict_symmetry: bool,
+        device: str = "cpu",
     ):
-        super().__init__(d_model=d_model, nhead=nhead, num_encoder_layers=num_encoder_layers, dim_feedforward=dim_feedforward, dropout=dropout, activation=activation, layer_norm_eps=layer_norm_eps, norm_first=norm_first, bias=bias, input_length=input_length, hidden_size=hidden_size, poly_order=poly_order, sindy_loss_threshold=sindy_loss_threshold, dt=dt, forecast_length=forecast_length, device=device)
+        super().__init__(
+            d_model=d_model,
+            n_heads=n_heads,
+            num_encoder_layers=num_encoder_layers,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            activation=activation,
+            layer_norm_eps=layer_norm_eps,
+            norm_first=norm_first,
+            bias=bias,
+            input_length=input_length,
+            hidden_size=hidden_size,
+            poly_order=poly_order,
+            sindy_loss_threshold=sindy_loss_threshold,
+            dt=dt,
+            forecast_length=forecast_length,
+            strict_symmetry=strict_symmetry,
+            device=device,
+        )
 
     def forward(
         self,
@@ -35,9 +55,11 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
     ):
         # Embed input
         x_embedded = self.input_embedding(src)
-        
+
         # Apply positional encoding
-        x_pos_encoded = self.pos_encoder(x_embedded) # Shape: (batch_size, seq_len, d_model)
+        x_pos_encoded = self.pos_encoder(
+            x_embedded
+        )  # Shape: (batch_size, seq_len, d_model)
 
         transformer_output = self.encoder(
             x_pos_encoded,
@@ -46,13 +68,16 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
         )
 
         # Compute SINDy Loss, put forecast dimension into batch dimension
-        transformer_output_3d = einops.rearrange(transformer_output, 'b r s d -> (b r) s d')
+        transformer_output_3d = einops.rearrange(
+            transformer_output, "b r s d -> (b r) s d"
+        )
         sindy_loss = self.compute_sindy_loss(transformer_output_3d)
 
         return {
-            "sequence_output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
-            "final_hidden_state": transformer_output[:, :, -1, :], # Last timestep [batch_size, forecast_length, d_model]
-            "output": transformer_output, # [batch_size, forecast_length, sequence_length, d_model]
-            "sindy_loss": sindy_loss
+            "sequence_output": transformer_output,  # [batch_size, forecast_length, sequence_length, d_model]
+            "final_hidden_state": transformer_output[
+                :, :, -1, :
+            ],  # Last timestep [batch_size, forecast_length, d_model]
+            "output": transformer_output,  # [batch_size, forecast_length, sequence_length, d_model]
+            "sindy_loss": sindy_loss,
         }
-    

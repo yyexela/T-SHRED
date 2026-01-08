@@ -11,19 +11,20 @@ from sindy_loss_transformer import SINDyLossTransformer
 from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
 from rnns import GRU, LSTM
 from decoders import MLP, CNN
-from moe_rnns import MOEGRU
+from moe_rnns import MOEGRU, MOELSTM
 
 from src import helpers
 
 # Local files
-pkg_path = Path(__file__).parent.parent / 'src'
+pkg_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(pkg_path))
 
 # Directories
 top_dir = Path(__file__).parent.parent
-data_dir = top_dir / 'datasets'
-plasma_dir = data_dir / 'plasma'
-fig_dir = top_dir / 'figures'
+data_dir = top_dir / "datasets"
+plasma_dir = data_dir / "plasma"
+fig_dir = top_dir / "figures"
+
 
 def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
     model = MixedModel(args)
@@ -31,27 +32,40 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
     if (not args.skip_load_checkpoint or force_load) and checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path)
 
-        coefficient_params = [p for name, p in model.named_parameters() if 'self_attn.coefficients' in name]
-        other_params = [p for name, p in model.named_parameters() if 'self_attn.coefficients' not in name]
+        coefficient_params = [
+            p
+            for name, p in model.named_parameters()
+            if "triangle_coefficients" in name or "sindy_coefficients" in name
+        ]
+        other_params = [
+            p
+            for name, p in model.named_parameters()
+            if not ("triangle_coefficients" in name or "sindy_coefficients" in name)
+        ]
 
         if args.coord_descent:
-            optimizer = torch.optim.Adam([
-                {'params': coefficient_params, 'lr': args.coord_descent_sindy_attention_lr},
-                {'params': other_params, 'lr': args.coord_descent_model_lr}
-            ])
+            optimizer = torch.optim.Adam(
+                [
+                    {
+                        "params": coefficient_params,
+                        "lr": args.coord_descent_sindy_layer_lr,
+                    },
+                    {"params": other_params, "lr": args.coord_descent_model_lr},
+                ]
+            )
         else:
             optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint["model_state_dict"])
         model.to(args.device)
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch']
-        best_val = checkpoint['best_val']
-        best_epoch = checkpoint['best_epoch']
-        train_losses = checkpoint['train_losses']
-        val_losses = checkpoint['val_losses']
-        model_eigvs = checkpoint['model_eigvs']
-        sensors = checkpoint['sensors']
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        start_epoch = checkpoint["epoch"]
+        best_val = checkpoint["best_val"]
+        best_epoch = checkpoint["best_epoch"]
+        train_losses = checkpoint["train_losses"]
+        val_losses = checkpoint["val_losses"]
+        model_eigvs = checkpoint["model_eigvs"]
+        sensors = checkpoint["sensors"]
         if args.verbose:
             print(f"Loading model from {checkpoint_path}")
             print(f"> start_epoch: {start_epoch}")
@@ -59,19 +73,32 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
     else:
         if args.verbose:
             print(f"Using newly initialized model")
-        checkpoint=None
+        checkpoint = None
         start_epoch = 0
-        best_val = float('inf')
+        best_val = float("inf")
         model.to(args.device)
 
-        coefficient_params = [p for name, p in model.named_parameters() if 'self_attn.coefficients' in name]
-        other_params = [p for name, p in model.named_parameters() if 'self_attn.coefficients' not in name]
+        coefficient_params = [
+            p
+            for name, p in model.named_parameters()
+            if "self_attn.coefficients" in name
+        ]
+        other_params = [
+            p
+            for name, p in model.named_parameters()
+            if "self_attn.coefficients" not in name
+        ]
 
         if args.coord_descent:
-            optimizer = torch.optim.Adam([
-                {'params': coefficient_params, 'lr': args.coord_descent_sindy_attention_lr},
-                {'params': other_params, 'lr': args.coord_descent_model_lr}
-            ])
+            optimizer = torch.optim.Adam(
+                [
+                    {
+                        "params": coefficient_params,
+                        "lr": args.coord_descent_sindy_layer_lr,
+                    },
+                    {"params": other_params, "lr": args.coord_descent_model_lr},
+                ]
+            )
         else:
             optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
@@ -82,21 +109,37 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
         # Generate sensors
         # Handle SST differently (don't place sensors on land)
         if args.dataset == "sst":
-            sensors = helpers.generate_sensor_positions(args.n_sensors*4, args.data_rows_in, args.data_cols_in)
-            with open(data_dir / 'sst' / 'SST_zeros.pkl', 'rb') as f:
+            sensors = helpers.generate_sensor_positions(
+                args.n_sensors * 4, args.data_rows_in, args.data_cols_in
+            )
+            with open(data_dir / "sst" / "SST_zeros.pkl", "rb") as f:
                 zeros = pickle.load(f)
             sensors = [pos for pos in sensors if (zeros[pos[0], pos[1]] == False)]
-            sensors = sensors[0:args.n_sensors]
+            sensors = sensors[0 : args.n_sensors]
         else:
-            sensors = helpers.generate_sensor_positions(args.n_sensors, args.data_rows_in, args.data_cols_in)
+            sensors = helpers.generate_sensor_positions(
+                args.n_sensors, args.data_rows_in, args.data_cols_in
+            )
     if args.verbose:
         print()
-    return model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors
+    return (
+        model,
+        optimizer,
+        start_epoch,
+        best_val,
+        best_epoch,
+        train_losses,
+        val_losses,
+        model_eigvs,
+        sensors,
+    )
+
 
 class MixedModel(nn.Module):
     """
     Main function to generate mixes of models
     """
+
     def __init__(self, args):
         super().__init__()
 
@@ -106,7 +149,7 @@ class MixedModel(nn.Module):
                 hidden_size=args.hidden_size,
                 num_layers=args.encoder_depth,
                 dropout=args.dropout,
-                device=args.device
+                device=args.device,
             )
         elif args.encoder == "sindy_loss_gru":
             self.encoder = SINDyLossGRU(
@@ -116,8 +159,8 @@ class MixedModel(nn.Module):
                 dropout=args.dropout,
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
-                dt=args.dt, # Time step for Euler integration
-                device=args.device
+                dt=args.dt,  # Time step for Euler integration
+                device=args.device,
             )
         elif args.encoder == "moe_gru":
             self.encoder = MOEGRU(
@@ -128,7 +171,18 @@ class MixedModel(nn.Module):
                 num_layers=args.encoder_depth,
                 strict_symmetry=args.strict_symmetry,
                 dropout=args.dropout,
-                device=args.device
+                device=args.device,
+            )
+        elif args.encoder == "moe_lstm":
+            self.encoder = MOELSTM(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                n_experts=args.n_experts,
+                forecast_length=args.forecast_length,
+                num_layers=args.encoder_depth,
+                strict_symmetry=args.strict_symmetry,
+                dropout=args.dropout,
+                device=args.device,
             )
         elif args.encoder == "lstm":
             self.encoder = LSTM(
@@ -136,7 +190,7 @@ class MixedModel(nn.Module):
                 hidden_size=args.hidden_size,
                 num_layers=args.encoder_depth,
                 dropout=args.dropout,
-                device=args.device
+                device=args.device,
             )
         elif args.encoder == "sindy_loss_lstm":
             self.encoder = SINDyLossLSTM(
@@ -146,13 +200,13 @@ class MixedModel(nn.Module):
                 dropout=args.dropout,
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
-                dt=args.dt,                             # Time step for Euler integration
-                device=args.device
+                dt=args.dt,  # Time step for Euler integration
+                device=args.device,
             )
         elif args.encoder == "vanilla_transformer":
             self.encoder = Transformer(
                 d_model=args.d_model,
-                nhead=args.n_heads,
+                n_heads=args.n_heads,
                 dim_feedforward=args.dim_feedforward,
                 dropout=args.dropout,
                 activation=nn.GELU(),
@@ -162,12 +216,12 @@ class MixedModel(nn.Module):
                 norm_first=False,
                 layer_norm_eps=1e-5,
                 bias=True,
-                device=args.device
+                device=args.device,
             )
         elif args.encoder == "sindy_attention_transformer":
             self.encoder = SindyAttentionTransformer(
                 d_model=args.d_model,
-                nhead=args.n_heads,
+                n_heads=args.n_heads,
                 forecast_length=args.forecast_length,
                 dim_feedforward=args.dim_feedforward,
                 dropout=args.dropout,
@@ -177,14 +231,14 @@ class MixedModel(nn.Module):
                 num_encoder_layers=args.encoder_depth,
                 layer_norm_eps=1e-5,
                 norm_first=False,
+                strict_symmetry=args.strict_symmetry,
                 bias=True,
-                poly_order=args.poly_order,
-                device=args.device
+                device=args.device,
             )
         elif args.encoder == "sindy_attention_sindy_loss_transformer":
             self.encoder = SindyAttentionSindyLossTransformer(
                 d_model=args.d_model,
-                nhead=args.n_heads,
+                n_heads=args.n_heads,
                 forecast_length=args.forecast_length,
                 dim_feedforward=args.dim_feedforward,
                 dropout=args.dropout,
@@ -195,15 +249,16 @@ class MixedModel(nn.Module):
                 layer_norm_eps=1e-5,
                 norm_first=False,
                 bias=True,
+                strict_symmetry=args.strict_symmetry,
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt,
-                device=args.device
+                device=args.device,
             )
         elif args.encoder == "sindy_loss_transformer":
             self.encoder = SINDyLossTransformer(
                 d_model=args.d_model,
-                nhead=args.n_heads,
+                n_heads=args.n_heads,
                 dim_feedforward=args.dim_feedforward,
                 dropout=args.dropout,
                 activation=nn.GELU(),
@@ -215,27 +270,27 @@ class MixedModel(nn.Module):
                 bias=True,
                 poly_order=args.poly_order,
                 device=args.device,
-                sindy_loss_threshold=args.sindy_loss_threshold,    # Use CLI argument
-                dt=args.dt                             # Time step for Euler integration
+                sindy_loss_threshold=args.sindy_loss_threshold,  # Use CLI argument
+                dt=args.dt,  # Time step for Euler integration
             )
         else:
             raise NotImplementedError(f"Encoder {args.encoder} not implemented")
-        
+
         if args.decoder == "cnn":
             self.decoder = CNN(
-                in_dim = args.hidden_size,
-                out_dim = args.output_size,
-                n_layers = args.decoder_depth,
+                in_dim=args.hidden_size,
+                out_dim=args.output_size,
+                n_layers=args.decoder_depth,
                 dropout=args.dropout,
-                device=args.device
+                device=args.device,
             )
         elif args.decoder == "mlp":
             self.decoder = MLP(
-                in_dim = args.hidden_size,
-                out_dim = args.output_size,
-                n_layers = args.decoder_depth,
+                in_dim=args.hidden_size,
+                out_dim=args.output_size,
+                n_layers=args.decoder_depth,
                 dropout=args.dropout,
-                device=args.device
+                device=args.device,
             )
         else:
             raise NotImplementedError(f"Decoder {args.decoder} not implemented")
