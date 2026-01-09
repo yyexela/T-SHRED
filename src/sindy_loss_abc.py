@@ -1,3 +1,10 @@
+"""
+SINDy Loss abstract base class.
+
+Provides a mixin for adding SINDy-based regularization loss to neural network
+models, encouraging learned dynamics to follow sparse polynomial ODEs.
+"""
+
 import torch
 import einops
 import torch.nn as nn
@@ -6,7 +13,19 @@ from pytorch_polynomial_features import PolynomialFeatures
 
 
 class SINDyLoss(nn.Module):
-    """Mixin for SINDy Loss"""
+    """
+    Mixin class providing SINDy loss regularization for neural networks.
+
+    Adds learnable SINDy coefficients and methods to compute regularization
+    loss based on how well the latent dynamics follow a sparse polynomial ODE.
+    Designed to be used with multiple inheritance alongside encoder models.
+
+    Attributes:
+        pf (PolynomialFeatures): Polynomial feature generator
+        library_dim (int): Number of features in the polynomial library
+        coefficients (nn.Parameter): Learnable SINDy coefficients
+        coefficient_mask (torch.Tensor): Binary mask for sparsification
+    """
 
     def __init__(
         self,
@@ -17,6 +36,17 @@ class SINDyLoss(nn.Module):
         *args,
         **kwargs,
     ):
+        """
+        Initialize the SINDyLoss module.
+
+        Args:
+            poly_order (int): Polynomial order for SINDy library features
+            dt (float): Time step for computing derivatives
+            hidden_size (int): Dimension of the hidden state
+            sindy_loss_threshold (float): Threshold for coefficient sparsification
+            *args: Additional positional arguments passed to parent class
+            **kwargs: Additional keyword arguments passed to parent class
+        """
         # Stupid? Maybe. Works? Yes. Forwards kwargs even though this class uses them.
         kwargs["hidden_size"] = hidden_size
         super().__init__(*args, **kwargs)
@@ -49,10 +79,11 @@ class SINDyLoss(nn.Module):
     def compute_sindy_loss(self, x: torch.Tensor) -> torch.Tensor:
         """
         Calculate SINDy loss based on derivatives with torchdiffeq.
-        Propogate forward all hidden states
+        Propogate forward all hidden states.
+        Note: batch size and forecast length are combined into the batch dimension.
 
         TODO: Ask Mars:
-        - x is [batch, sequence_length, hidden_size]
+        - x is [batch, sequence_length, hidden_size)
         - Do we want to propogate all hidden states one step, or just the first one all the way?
           1) Hidden:   [x1   x2   x3   x4   x5]
              Calculate [x1+1 x2+1 x3+1 x4+1]
@@ -60,6 +91,7 @@ class SINDyLoss(nn.Module):
           2) Hidden:   [x1   x2   x3   x4   x5]
              Calculate [x1+1 x1+2 x1+3 x1+4]
              Compare   [x2   x3   x4   x5]
+        - Currently doing (1)
 
         Args:
             x: Transformed sequence of shape (batch_size, sequence_length, hidden_size)
@@ -213,6 +245,9 @@ class SINDyLoss(nn.Module):
 
         Args:
             threshold (float, optional): Threshold value. If None, uses the default threshold.
+
+        Returns:
+            None
         """
         if threshold is None:
             threshold = self.sindy_loss_threshold

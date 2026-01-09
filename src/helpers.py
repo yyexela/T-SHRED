@@ -1,3 +1,8 @@
+"""
+Helper utilities for training, evaluation, and data processing.
+Includes argument parsing, model training loops, SVD/POD operations, and parallel execution.
+"""
+
 import os
 import copy
 import yaml
@@ -218,7 +223,16 @@ def parse_args():
 
 def verify_args(args):
     """
-    Ensure model parameters make sense
+    Validate that model parameters are within acceptable ranges.
+
+    Checks all hyperparameters and configuration values for validity,
+    raising ValueError if any parameter is invalid.
+
+    Args:
+        args (argparse.Namespace): Parsed command line arguments containing model configuration
+
+    Raises:
+        ValueError: If any parameter is outside its valid range or incompatible with other settings
     """
     if args.batch_size <= 0:
         raise ValueError(f"batch_size {args.batch_size} must be greater than 0")
@@ -339,6 +353,18 @@ def verify_args(args):
 
 
 def get_dataset_dims(dataset):
+    """
+    Get the spatial dimensions for a given dataset.
+
+    Args:
+        dataset (str): Name of the dataset ("sst" or "planetswe")
+
+    Returns:
+        tuple: Tuple of (rows, cols, channels) representing the spatial dimensions
+
+    Raises:
+        NotImplementedError: If the dataset name is not recognized
+    """
     if dataset == "sst":
         return (180, 360, 1)
     elif dataset == "planetswe":
@@ -348,6 +374,15 @@ def get_dataset_dims(dataset):
 
 
 def print_model_size(model, name):
+    """
+    Print the total memory size of a PyTorch model in megabytes.
+
+    Calculates the combined size of all parameters and buffers in the model.
+
+    Args:
+        model (nn.Module): PyTorch model to measure
+        name (str): Display name for the model in the output
+    """
     param_size = 0
     for param in model.parameters():
         param_size += param.nelement() * param.element_size()
@@ -355,13 +390,25 @@ def print_model_size(model, name):
     for buffer in model.buffers():
         buffer_size += buffer.nelement() * buffer.element_size()
 
-    size_all_mb = (param_size + buffer_size) / 1024**2
+    size_all_mb = (param_size + buffer_size) / (1024 * 1024)
     size_all_mb_before = int(size_all_mb)
     size_all_mb_after = int((size_all_mb - size_all_mb_before) * 100)
     print(f"{name} size: {size_all_mb_before}.{size_all_mb_after:02d}MB")
 
 
 def print_errors(true_l, pred_l, error_f, title):
+    """
+    Print error metrics for a list of true and predicted tensor pairs.
+
+    Args:
+        true_l (list): List of ground truth tensors
+        pred_l (list): List of predicted tensors
+        error_f (callable): Error function that takes (true, pred) and returns a scalar
+        title (str): Title to print before the error values
+
+    Returns:
+        None
+    """
     print(title)
     for i, (true, pred) in enumerate(zip(true_l, pred_l)):
         print(f"Error for i={i} is {number_to_percentage(error_f(true, pred))}")
@@ -429,6 +476,19 @@ def number_to_percentage(prob):
 def generate_sensor_positions(
     n_sensors: int, max_rows: int, max_cols: int
 ) -> list[tuple[int, int]]:
+    """
+    Generate random sensor positions within a 2D grid.
+
+    Uses a fixed random seed (0) for reproducibility.
+
+    Args:
+        n_sensors (int): Number of sensor positions to generate
+        max_rows (int): Maximum row index (exclusive)
+        max_cols (int): Maximum column index (exclusive)
+
+    Returns:
+        list[tuple[int, int]]: List of (row, col) tuples representing sensor positions
+    """
     random.seed(0)
     return [
         (random.randint(0, max_rows - 1), random.randint(0, max_cols - 1))
@@ -440,10 +500,12 @@ def print_dictionary(hp_dict: dict[str, str], text: str) -> None:
     """
     Print given dictionary
 
-    `hp_dict`: dictionary dictionary to print key and values for
-    `text`: text to print before dictionary
+    Args:
+        hp_dict (dict): Dictionary to print key and values for
+        text (str): Text to print before dictionary
 
-    Returns: `None`
+    Returns:
+        None
     """
     print(text)
     for key in sorted(hp_dict.keys()):
@@ -503,7 +565,20 @@ def evaluate_model(
     model, dl, sensors, metadata, epoch=0, rollout=False, rmse=False, args=None
 ):
     """
-    Evaluate a PyTorch model. Returns reconstruction loss only.
+    Evaluate a PyTorch model on a dataset and compute reconstruction loss.
+
+    Args:
+        model (nn.Module): PyTorch model to evaluate
+        dl (DataLoader): DataLoader containing evaluation data
+        sensors (list): List of (row, col) sensor position tuples
+        metadata (dict): Dictionary containing scalers and other dataset metadata
+        epoch (int): Current epoch number for plot naming (default: 0)
+        rollout (bool): If True, evaluate on full forecast rollout; if False, evaluate next-step only (default: False)
+        rmse (bool): If True, return RMSE instead of MSE (default: False)
+        args (argparse.Namespace): Configuration arguments
+
+    Returns:
+        tuple: (reconstruction_loss, sindy_loss) averaged over all batches
     """
     model.to(args.device)
     scalers = metadata["scalers"]
@@ -539,9 +614,8 @@ def evaluate_model(
             # Pass data through model
             output = model(input_sensors)
 
-            outputs = output[
-                "output"
-            ]  # [batch, forecast_length, sequence_length, (rows x cols x dim)]
+            # [batch, forecast_length, sequence_length, (rows x cols x dim)]
+            outputs = output["output"]
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
@@ -673,6 +747,23 @@ def evaluate_model(
 
 
 def create_far_out_plots(model, ds, sensors, metadata, args=None):
+    """
+    Generate visualization plots for long-horizon forecasting.
+
+    Creates comparison plots between model predictions and ground truth at
+    multiple timesteps into the future. For non-rollout models, performs
+    autoregressive forecasting.
+
+    Args:
+        model (nn.Module): Trained PyTorch model
+        ds (Dataset): Dataset to sample from for visualization
+        sensors (list): List of (row, col) sensor position tuples
+        metadata (dict): Dictionary containing scalers and SVD components
+        args (argparse.Namespace): Configuration arguments
+
+    Returns:
+        None
+    """
     model.eval()
 
     # Which timesteps to evaluate
@@ -886,6 +977,22 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
 
 
 def create_next_step_plots(model, ds, sensors, metadata, args=None):
+    """
+    Generate visualization plots for next-step predictions.
+
+    Creates comparison plots between model predictions and ground truth
+    for single-step forecasting at multiple dataset indices.
+
+    Args:
+        model (nn.Module): Trained PyTorch model
+        ds (Dataset): Dataset to sample from for visualization
+        sensors (list): List of (row, col) sensor position tuples
+        metadata (dict): Dictionary containing scalers and SVD components
+        args (argparse.Namespace): Configuration arguments
+
+    Returns:
+        None
+    """
     model.eval()
 
     # Which timesteps to evaluate
@@ -1001,6 +1108,26 @@ def create_next_step_plots(model, ds, sensors, metadata, args=None):
 
 
 def coord_descent_change_lr(optimizer, epoch, args):
+    """
+    Adjust learning rates for coordinate descent training.
+
+    Alternates between training the main model and SINDy layer coefficients
+    by setting one learning rate to zero while the other is active.
+
+    Alternation occurs by checking the current epoch and comparing with how many
+    epochs to train each parameter group for.
+
+    Args:
+        optimizer (torch.optim.Optimizer): Optimizer with two param groups
+            (SINDy coefficients and model parameters)
+        epoch (int): Current epoch number
+        args (argparse.Namespace): Configuration arguments containing
+            coord_descent_model_n_epochs, coord_descent_sindy_layer_n_epochs,
+            coord_descent_model_lr, and coord_descent_sindy_layer_lr
+
+    Returns:
+        None
+    """
     remainder = epoch % (
         args.coord_descent_sindy_layer_n_epochs + args.coord_descent_model_n_epochs
     )
@@ -1015,12 +1142,26 @@ def coord_descent_change_lr(optimizer, epoch, args):
 
 
 def create_inputs_and_labels_from_batch(batch, args):
-    # Batch is a list of [inputs, labels]
-    # > inputs and labels have the same shape
-    #   [batch_size, input_length + forecast_length, rows, cols, dim]
-    # Outputs should be shape
-    #   [batch_size, forecast_length, sequence_length, rows, cols, dim]
+    """
+    Create model inputs and labels from a batch based on encoder type.
 
+    Different encoder architectures require different label formats:
+    - Transformers use causal labels (shifted by 1)
+    - SINDy-Attention uses stacked multi-step forecasts
+    - MOE models use long-term forecast labels
+    - RNNs use single next-step labels
+
+    Args:
+        batch (list): List of [inputs, outputs] tensors with shape
+            (batch_size, input_length + forecast_length, rows, cols, dim)
+        args (argparse.Namespace): Configuration arguments
+
+    Returns:
+        tuple: (inputs, labels) tensors formatted for the specific encoder type
+            inputs: shaped (batch_size, input_length, rows, cols, dim)
+            outputs: shaped (batch_size, forecast_length, sequence_length, rows, cols, dim)
+                Unless the model is sindy-attention or moe, forecast length is 1.
+    """
     # Inputs are the same regardless of model
     inputs = batch[0][:, : args.input_length, :, :, :]
 
@@ -1091,6 +1232,9 @@ def train_model(
         optimizer (torch.optim.Optimizer): Optimizer to use for training.
         metadata (dict): Dictionary of metadata for the dataset
         args (argparse.Namespace): Arguments to use for training.
+
+    Returns:
+        None
     """
     # Set up model, optimizer, and loss
     loss_fn = torch.nn.MSELoss()
@@ -1129,9 +1273,8 @@ def train_model(
             # Pass data through model
             output = model(input_sensors)
 
-            outputs = output[
-                "output"
-            ]  # [batch, forecast_length, sequence_length, (rows x cols x dim)]
+            # [batch, forecast_length, sequence_length, (rows x cols x dim)]
+            outputs = output["output"]
             sindy_loss_batch = output.get("sindy_loss", None)
 
             # Reshape output
@@ -1276,8 +1419,7 @@ def train_model(
 
         # Print model coefficients
         if args.verbose and (
-            args.encoder
-            in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]
+            "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]
         ):
             model.encoder.print_sindy_layer_coefficients()
 
@@ -1365,6 +1507,23 @@ def inverse_min_max_scale(scaled_tensor, original_min_max, feature_range=(0, 1))
 
 
 def create_mats_full(train, valid, test, total_tracks, debug=False):
+    """
+    Concatenate data from train, valid, and test splits of The Well into a single matrix.
+    Used in preprocess_the_well.py to create a single dataset matrix.
+
+    Collects data from training first, then validation, then test until
+    the desired number of tracks is reached.
+
+    Args:
+        train (list): List of training data dictionaries with "input_fields" key
+        valid (list): List of validation data dictionaries with "input_fields" key
+        test (list): List of test data dictionaries with "input_fields" key
+        total_tracks (int): Maximum number of tracks to include
+        debug (bool): If True, stop after first track (default: False)
+
+    Returns:
+        torch.Tensor: Concatenated tensor of all input fields
+    """
     im_shape = train[0]["input_fields"].shape
     n_steps, im_rows, im_cols, im_dim = (
         im_shape[0],
@@ -1410,6 +1569,18 @@ def create_mats_full(train, valid, test, total_tracks, debug=False):
 
 
 def create_mats(the_well_data, combine_all=False, debug=False):
+    """
+    Extract and flatten input fields from The Well dataset.
+
+    Args:
+        the_well_data (list): List of data dictionaries with "input_fields" key
+        combine_all (bool): If True, concatenate all tracks into a single tensor (default: False)
+        debug (bool): If True, stop after first track (default: False)
+
+    Returns:
+        list: List of flattened tensors of shape (timesteps, rows*cols*dim),
+            or single-element list if combine_all is True
+    """
     im_shape = the_well_data[0]["input_fields"].shape
     n_steps, im_rows, im_cols, im_dim = (
         im_shape[0],
@@ -1437,21 +1608,63 @@ def create_mats(the_well_data, combine_all=False, debug=False):
 
 
 def generate_SVD(mat, n_rank=50, n_iters=2):
+    """
+    Compute low-rank SVD decomposition of a matrix.
+
+    Args:
+        mat (torch.Tensor): Input matrix to decompose
+        n_rank (int): Number of singular values/vectors to compute (default: 50)
+        n_iters (int): Number of iterations for the algorithm (default: 2)
+
+    Returns:
+        tuple: (U, S, V) matrices from the SVD decomposition
+    """
     U, S, V = torch.svd_lowrank(mat, n_rank, n_iters)
     return U, S, V
 
 
 def create_pod(mat, V):
+    """
+    Project a matrix onto POD (Proper Orthogonal Decomposition) basis.
+
+    Args:
+        mat (torch.Tensor): Input matrix to project
+        V (torch.Tensor): Right singular vectors (POD modes)
+
+    Returns:
+        torch.Tensor: POD coefficients (reduced representation)
+    """
     pod = mat @ V
     return pod
 
 
 def scale_pod(pod):
+    """
+    Apply min-max scaling to POD coefficients.
+
+    Args:
+        pod (torch.Tensor): POD coefficients to scale
+
+    Returns:
+        tuple: (scaled_pod, scalers) where scalers is (min, max) tuple
+    """
     pod_scaled, scalers = min_max_scale(pod)
     return pod_scaled, scalers
 
 
 def inverse_pods_torch(pods_scaled, scalers, V, device=None):
+    """
+    Reconstruct original data from scaled POD coefficients (batched, PyTorch).
+
+    Args:
+        pods_scaled (torch.Tensor): Batch of scaled POD coefficients
+        scalers (tuple): (min, max) values from original scaling
+        V (torch.Tensor): Right singular vectors (POD modes)
+        device (str, optional): Device to move tensors to
+
+    Returns:
+        torch.Tensor: Batch of reconstructed matrices
+    """
     mat_hats = []
     pods_scaled = pods_scaled.to(device)
     V = V.to(device)
@@ -1465,6 +1678,17 @@ def inverse_pods_torch(pods_scaled, scalers, V, device=None):
 
 
 def inverse_pods(pods_scaled, scalers, V):
+    """
+    Reconstruct original data from scaled POD coefficients (list version).
+
+    Args:
+        pods_scaled (list): List of scaled POD coefficient tensors
+        scalers (tuple): (min, max) values from original scaling
+        V (torch.Tensor): Right singular vectors (POD modes)
+
+    Returns:
+        list: List of reconstructed matrices
+    """
     mat_hats = []
     for pod_scaled in pods_scaled:
         mat_hat = inverse_min_max_scale(pod_scaled, scalers)
@@ -1474,6 +1698,17 @@ def inverse_pods(pods_scaled, scalers, V):
 
 
 def inverse_pod(pod_scaled, scalers, V):
+    """
+    Reconstruct original data from a single scaled POD coefficient tensor.
+
+    Args:
+        pod_scaled (torch.Tensor): Scaled POD coefficients
+        scalers (tuple): (min, max) values from original scaling
+        V (torch.Tensor): Right singular vectors (POD modes)
+
+    Returns:
+        torch.Tensor: Reconstructed matrix
+    """
     mat_hat = inverse_min_max_scale(pod_scaled, scalers)
     mat_hat = mat_hat @ V.T
     return mat_hat
@@ -1511,7 +1746,16 @@ def split_mats(data_list):
 
 def get_results_from_hyper_opt(hyper_opt_dir):
     """
-    Given the top "results" directory for hyperparameter optimization, returns a list of final tuning history dictionaries from the yaml files.
+    Load hyperparameter optimization results from YAML files.
+
+    Searches the given directory for tuning history YAML files and returns
+    their contents as a list of dictionaries.
+
+    Args:
+        hyper_opt_dir (str or Path): Path to the results directory containing tuning folders
+
+    Returns:
+        list: List of dictionaries containing tuning results with file_path added
     """
     results = []
     for tune_folder in Path(hyper_opt_dir).iterdir():
@@ -1620,7 +1864,17 @@ def print_top_N_results(
     results, dataset_name, N=5, encoders=None, result_type="hyper_opt"
 ):
     """
-    Prints the extracted best results with the lowest test loss.
+    Print the top N models with lowest test loss for a dataset.
+
+    Args:
+        results (list): List of result dictionaries
+        dataset_name (str): Dataset name to filter by
+        N (int): Number of top results to print (default: 5)
+        encoders (list, optional): List of encoder names to filter by
+        result_type (str): Either "hyper_opt" or "pickle" (default: "hyper_opt")
+
+    Returns:
+        None
     """
     results = get_top_N_models_by_loss(results, dataset_name, N, encoders, result_type)
     print(f"{dataset_name} ({N} best)")
@@ -1649,7 +1903,15 @@ def print_top_N_results(
 
 
 def get_identifier(filename):
-    """Extract identifier from filename by removing extension and _test_loss suffix."""
+    """
+    Extract identifier from filename by removing extension and _test_loss suffix.
+
+    Args:
+        filename (str or Path): Filename to extract identifier from
+
+    Returns:
+        str: Extracted identifier string
+    """
     name = Path(filename).stem  # Remove extension
     if name.endswith("_test_loss"):
         name = name[:-10]  # Remove _test_loss suffix
@@ -1693,17 +1955,32 @@ def generate_sinusoid_sum(n_sin: int, X: int, T: int, seed: int = 42) -> torch.T
 
 
 def extract_config_value(config_file, key):
+    """
+    Extract a value from a YAML configuration file.
+
+    Args:
+        config_file (str or Path): Path to the YAML config file
+        key (str): Key to extract from the "model" section
+
+    Returns:
+        str: String value of the extracted key
+    """
     with open(config_file, "r") as f:
         config = yaml.safe_load(f)
     return str(config["model"][key])
 
 
 def sort_bash_config_key(config_file):
-    """Sort by:
-    1) dataset priority (planetswe, sst, plasma)
-    2) by encoder priority (gru, lstm, sindy_loss_gru, sindy_loss_lstm, vanilla_transformer, sindy_loss_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer)
-    3) by decoder priority (mlp, cnn)
-    4) seed
+    """
+    Generate a sort key for ordering configuration files.
+
+    Orders by: seed, dataset priority, encoder priority, decoder priority.
+
+    Args:
+        config_file (str or Path): Path to the YAML config file
+
+    Returns:
+        tuple: Sort key tuple (seed, dataset_priority, encoder_priority, decoder_priority)
     """
     dataset = extract_config_value(config_file, "dataset")
     seed = extract_config_value(config_file, "seed")
@@ -1734,7 +2011,18 @@ def sort_bash_config_key(config_file):
 
 def create_results_table(results, datasets, results_type):
     """
-    Create a LaTeX table from the results.
+    Create a LaTeX table summarizing model performance across datasets.
+
+    Generates a formatted LaTeX table showing mean ± std RMSE for each
+    encoder/decoder combination across specified datasets.
+
+    Args:
+        results (list): List of result dictionaries
+        datasets (list): List of dataset names to include in the table
+        results_type (str): Either "hyper_opt" or "pickle"
+
+    Returns:
+        str: LaTeX table code as a string
     """
     import numpy as np
 
@@ -1878,7 +2166,25 @@ def create_results_table(results, datasets, results_type):
 
 
 def execute_command(config_file, sem_dict):
-    """Execute a single command, assumes semaphore is already acquired"""
+    """
+    Execute a training command on a remote machine via SSH.
+
+    Connects to a remote host and executes a training script with the given
+    configuration. Logs output to a file.
+
+    Args:
+        config_file (str or Path): Path to the YAML config file
+        sem_dict (dict): Dictionary containing remote execution settings including:
+            - remote_cmd_template: Command template string
+            - device: GPU device string (e.g., "cuda:0")
+            - log_path: Path for log files
+            - computer_name: SSH host name
+            - repo_path: Path to repository on remote
+            - venv_path: Path to virtual environment on remote
+
+    Returns:
+        None
+    """
     identifier = extract_config_value(config_file, "identifier")
 
     remote_cmd_template = sem_dict["remote_cmd_template"]
@@ -1991,7 +2297,19 @@ def execute_command(config_file, sem_dict):
 
 
 def worker_thread(config_queue, semaphores):
-    """Worker thread that processes commands from the queue"""
+    """
+    Worker thread that processes configuration files from a queue.
+
+    Acquires a semaphore from the available pool and executes commands
+    until the queue is empty.
+
+    Args:
+        config_queue (Queue): Thread-safe queue of configuration file paths
+        semaphores (list): List of semaphore dictionaries for different compute resources
+
+    Returns:
+        None
+    """
     while True:
         try:
             # Loop through all semaphores, there should be one available since there are not more workers than available semaphores
@@ -2021,7 +2339,18 @@ def worker_thread(config_queue, semaphores):
 
 
 def get_tuning_configs(top_dir):
-    # Recursively find all tuning configs in results directory only if 'optimal_params' is a part of the path
+    """
+    Find tuning configuration files that haven't been processed yet.
+
+    Searches for tuning_config YAML files and filters out those that
+    already have corresponding optimal_params results.
+
+    Args:
+        top_dir (Path): Top-level project directory
+
+    Returns:
+        list: List of Path objects for unprocessed tuning config files
+    """
     configs_dir = top_dir / "configs"
     config_files = []
     for config_file in configs_dir.glob("**/*.yaml"):
@@ -2044,7 +2373,18 @@ def get_tuning_configs(top_dir):
 
 
 def get_testing_configs(top_dir):
-    # Recursively find all tuning configs in results directory only if 'optimal_params' is a part of the path
+    """
+    Find optimal parameter configs that haven't been tested yet.
+
+    Searches for optimal_params YAML files and filters out those that
+    already have corresponding pickle result files.
+
+    Args:
+        top_dir (Path): Top-level project directory
+
+    Returns:
+        list: List of Path objects for unprocessed optimal params config files
+    """
     configs_dir = top_dir / "results"
     config_files = []
     for config_file in configs_dir.glob("**/*.yaml"):
@@ -2066,7 +2406,16 @@ def get_testing_configs(top_dir):
 
 
 def create_all_devices(computers):
-    # Build flat list of all available devices across all computers
+    """
+    Build a flat list of all available GPU devices across all computers.
+
+    Args:
+        computers (dict): Dictionary mapping computer names to their configs,
+            where each config has a "gpus" key with a list of GPU device strings
+
+    Returns:
+        list: List of (computer_name, gpu_device) tuples
+    """
     all_devices = []
     for computer_name, computer_config in computers.items():
         for gpu in computer_config["gpus"]:
@@ -2076,8 +2425,21 @@ def create_all_devices(computers):
 
 
 def create_semaphores(computers, n_parallel, remote_cmd_template, command_type):
-    # Create semaphores for each computer-GPU pair
-    # Each element is a dictionary containing the semaphore and computer dictionary
+    """
+    Create semaphore dictionaries for parallel job execution.
+
+    Each semaphore controls access to a specific computer-GPU combination,
+    limiting concurrent jobs on that resource.
+
+    Args:
+        computers (dict): Dictionary mapping computer names to their configs
+        n_parallel (int): Maximum number of parallel jobs per GPU
+        remote_cmd_template (str): Command template for remote execution
+        command_type (str): Type of command (e.g., "train", "test")
+
+    Returns:
+        list: List of semaphore dictionaries with execution settings
+    """
     semaphores = []
     for computer_name, computer_config in computers.items():
         for gpu in computer_config["gpus"]:
@@ -2098,7 +2460,20 @@ def create_semaphores(computers, n_parallel, remote_cmd_template, command_type):
 
 
 def run_in_parallel(config_files, semaphores, n_parallel):
-    # Execute commands using threading with semaphore management
+    """
+    Execute configuration files in parallel using threaded workers.
+
+    Distributes configuration files across available compute resources
+    using semaphores to limit concurrent jobs per GPU.
+
+    Args:
+        config_files (list): List of configuration file paths to process
+        semaphores (list): List of semaphore dictionaries from create_semaphores()
+        n_parallel (int): Maximum number of parallel jobs per GPU
+
+    Returns:
+        None
+    """
     print(f"\nStarting threaded execution of {len(config_files)} configurations...")
     print(
         f"Commands will be distributed across available devices with {n_parallel} jobs per GPU"
@@ -2136,7 +2511,18 @@ def run_in_parallel(config_files, semaphores, n_parallel):
     print(f"All commands completed in {end_time - start_time:.2f} seconds!")
 
 
-# We use this for exact parity with the PyTorch implementation of transformers, having the same init
-# for every layer might not be necessary.
 def _get_clones(module, N):
+    """
+    Create N deep copies of a PyTorch module.
+
+    Used for exact parity with PyTorch's transformer implementation.
+    Having the same init for every layer might not be strictly necessary.
+
+    Args:
+        module (nn.Module): PyTorch module to clone
+        N (int): Number of clones to create
+
+    Returns:
+        nn.ModuleList: List of N independent copies of the module
+    """
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])

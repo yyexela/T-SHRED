@@ -1,3 +1,8 @@
+"""
+Decoder architectures for reconstructing full fields from latent representations.
+Implements MLP and CNN decoders for the encoder-decoder framework.
+"""
+
 import einops
 import numpy as np
 import torch.nn as nn
@@ -5,12 +10,11 @@ import torch.nn as nn
 
 class MLP(nn.Module):
     """
-    Creates a simple linear MLP AutoEncoder.
+    A simple Multi-Layer Perceptron (MLP) decoder.
 
-    `in_dim`: input and output dimension
-    `bottleneck_dim`: dimension at bottleneck
-    `width`: width of model
-    `device`: which device to use
+    Creates a feedforward neural network with logarithmically spaced layer sizes
+    between the input and output dimensions. Uses ReLU activations between layers
+    and applies dropout after the final layer.
     """
 
     def __init__(
@@ -21,6 +25,16 @@ class MLP(nn.Module):
         dropout: float,
         device: str = "cpu",
     ):
+        """
+        Initialize the MLP decoder.
+
+        Args:
+            in_dim (int): Input dimension of the MLP
+            out_dim (int): Output dimension of the MLP
+            n_layers (int): Number of linear layers in the network
+            dropout (float): Dropout probability applied after the final layer
+            device (str): Device to place the model on (default: "cpu")
+        """
         super(MLP, self).__init__()
         # Class variables
         self.in_dim = in_dim
@@ -51,6 +65,19 @@ class MLP(nn.Module):
         self.model = model
 
     def forward(self, x):
+        """
+        Forward pass through the MLP decoder.
+
+        Args:
+            x (dict): Dictionary containing:
+                - "output" (torch.Tensor): Input tensor of shape (batch, forecast_length, sequence_length, hidden_dim)
+                - "sindy_loss" (torch.Tensor, optional): SINDy loss tensor to pass through
+
+        Returns:
+            dict: Dictionary containing:
+                - "output" (torch.Tensor): Output tensor of shape (batch, forecast_length, sequence_length, out_dim)
+                - "sindy_loss" (torch.Tensor or None): Passed through SINDy loss tensor
+        """
         sindy_loss = x.get("sindy_loss", None)
         x = x["output"]
         out = self.model(x)
@@ -59,6 +86,15 @@ class MLP(nn.Module):
 
 
 class CNN(nn.Module):
+    """
+    A 1D Convolutional Neural Network (CNN) decoder.
+
+    Creates a convolutional network with logarithmically spaced channel sizes
+    between the input and output dimensions. Uses 1D convolutions with kernel
+    size 3 and padding 1, ReLU activations between layers, and applies dropout
+    after the final layer.
+    """
+
     def __init__(
         self,
         in_dim: int,
@@ -67,6 +103,16 @@ class CNN(nn.Module):
         dropout: float,
         device: str = "cpu",
     ):
+        """
+        Initialize the CNN decoder.
+
+        Args:
+            in_dim (int): Input dimension of the CNN
+            out_dim (int): Output dimension of the CNN
+            n_layers (int): Number of convolutional layers in the network
+            dropout (float): Dropout probability applied after the final layer
+            device (str): Device to place the model on (default: "cpu")
+        """
         super().__init__()
         # Class variables
         self.in_dim = in_dim
@@ -99,6 +145,19 @@ class CNN(nn.Module):
         self.model = model
 
     def forward(self, x):
+        """
+        Forward pass through the CNN decoder.
+
+        Args:
+            x (dict): Dictionary containing:
+                - "output" (torch.Tensor): Input tensor of shape (batch, forecast_length, sequence_length, hidden_dim)
+                - "sindy_loss" (torch.Tensor, optional): SINDy loss tensor to pass through
+
+        Returns:
+            dict: Dictionary containing:
+                - "output" (torch.Tensor): Output tensor of shape (batch, forecast_length, sequence_length, out_dim)
+                - "sindy_loss" (torch.Tensor or None): Passed through SINDy loss tensor
+        """
         sindy_loss = x.get("sindy_loss", None)
         x = x["output"]
 

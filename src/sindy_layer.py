@@ -1,3 +1,10 @@
+"""
+SINDy Layer module.
+
+Implements a differentiable SINDy (Sparse Identification of Nonlinear Dynamics)
+layer for learning interpretable ODEs and performing arbitrary-length forecasting.
+"""
+
 import torch
 import einops
 import torch.nn as nn
@@ -7,9 +14,17 @@ from pytorch_polynomial_features import PolynomialFeatures
 
 class SindyLayer(nn.Module):
     """
-    Sindy Layer is a module that fits an ODE using SINDy to the data, and then is capable of arbitrary-length forecasting using the fitted ODE.
+    Differentiable SINDy layer for ODE-based forecasting.
 
-    Can either enforce strict symmetry, or allow for general symmetry.
+    Learns sparse polynomial dynamics from data and uses ODE integration
+    for arbitrary-length forecasting. Supports both strict symmetry
+    (parameterized via lower triangle) and general coefficient matrices.
+
+    Attributes:
+        pf (PolynomialFeatures): Polynomial feature generator
+        library_dim (int): Number of features in the polynomial library
+        triangle_coefficients (nn.Parameter): Lower triangle coefficients (if strict_symmetry)
+        sindy_coefficients (nn.Parameter): Full coefficient matrix (if not strict_symmetry)
     """
 
     def __init__(
@@ -20,6 +35,17 @@ class SindyLayer(nn.Module):
         strict_symmetry: bool = True,
         **kwargs,
     ):
+        """
+        Initialize the SindyLayer module.
+
+        Args:
+            d_model (int): Input/output dimension of the layer
+            forecast_length (int): Number of future timesteps to predict
+            device (str): Device to place the model on (default: "cpu")
+            strict_symmetry (bool): If True, enforces symmetric coefficient matrix
+                via lower triangle parameterization. Default: True
+            **kwargs: Additional keyword arguments (ignored)
+        """
         # Initialize parent class
         super().__init__()
 
@@ -55,6 +81,9 @@ class SindyLayer(nn.Module):
         """
         Convert symmetric parameters (1D list) to a dense matrix.
         Only used when `strict_symmetry` is True.
+
+        Returns:
+            torch.Tensor: Dense SINDy coefficients
         """
         if self.strict_symmetry:
             sindy_coefficients = self.dense_matrix_from_symmetric_params(
@@ -67,6 +96,9 @@ class SindyLayer(nn.Module):
     def get_raw_sindy_coefficients(self) -> torch.Tensor:
         """
         Get the raw SINDy coefficients (not converted to a dense matrix).
+
+        Returns:
+            torch.Tensor: Raw SINDy coefficients
         """
         if self.strict_symmetry:
             return self.triangle_coefficients
@@ -76,6 +108,12 @@ class SindyLayer(nn.Module):
     def set_raw_sindy_coefficients(self, coefficients: torch.Tensor):
         """
         Set the raw SINDy coefficients (not converted to a dense matrix).
+
+        Args:
+            coefficients (torch.Tensor): Raw SINDy coefficients
+
+        Returns:
+            None
         """
         if self.strict_symmetry:
             self.triangle_coefficients.data.copy_(coefficients)
@@ -86,6 +124,12 @@ class SindyLayer(nn.Module):
         """
         Convert symmetric parameters (1D list) to a dense matrix.
         Only used when `strict_symmetry` is True.
+
+        Args:
+            params (torch.Tensor): Symmetric parameters
+
+        Returns:
+            torch.Tensor: Dense SINDy coefficients
         """
         sindy_coefficients = torch.zeros(
             self.library_dim, self.library_dim, device=params.device
@@ -102,6 +146,9 @@ class SindyLayer(nn.Module):
     def get_eigenvalues(self) -> torch.Tensor:
         """
         Get the eigenvalues of the SINDy coefficients.
+
+        Returns:
+            torch.Tensor: Eigenvalues of the SINDy coefficients
         """
         sindy_coefficients = self.get_dense_sindy_coefficients()
         eigenvalues = torch.linalg.eigvals(
@@ -111,7 +158,18 @@ class SindyLayer(nn.Module):
         return eigenvalues
 
     def forward(self, x):
-        """ """
+        """
+        Forward pass: integrate learned ODE dynamics for forecasting.
+
+        Transforms input through polynomial library, then integrates the
+        learned ODE system using RK4 to produce multi-step forecasts.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, hidden_size)
+
+        Returns:
+            torch.Tensor: Rollout predictions of shape (batch_size, forecast_length, hidden_size)
+        """
         batch_size, hidden_size = x.shape
         sindy_coefficients = self.get_dense_sindy_coefficients()
         library_Theta = self.pf.fit_transform(x)

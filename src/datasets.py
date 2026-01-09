@@ -45,6 +45,7 @@ class TimeSeriesDataset(Dataset):
 
     Note that the input and output windows contain both the input window and output window concatenated, so these need to be split apart when used. The input and output tensors are separated to allow for use with proper orthogonal decomposition.
     """
+
     def __init__(
         self,
         input_tensors: list[torch.Tensor],
@@ -112,6 +113,9 @@ class TimeSeriesDataset(Dataset):
     def __len__(self):
         """
         Returns the total number of windows in the dataset.
+
+        Returns:
+            int: Total number of windows in the dataset
         """
         return self.cumulative_offsets[-1]
 

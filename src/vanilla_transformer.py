@@ -1,3 +1,10 @@
+"""
+Vanilla Transformer module.
+
+Implements standard transformer encoder components including multi-head
+attention, encoder layers, and the full transformer architecture.
+"""
+
 import copy
 import torch
 import einops
@@ -9,21 +16,15 @@ from positional_encoding import PositionalEncoding
 from helpers import _get_clones
 
 
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class MultiHeadAttention(nn.Module):
     """
-    Computes multi-head attention. Supports nested or padded tensors.
+    Standard multi-head attention mechanism.
 
-    Args:
-        E_q (int): Size of embedding dim for query
-        E_k (int): Size of embedding dim for key
-        E_v (int): Size of embedding dim for value
-        E_total (int): Total embedding dim of combined heads post input projection. Each head
-            has dim E_total // n_heads
-        n_heads (int): Number of heads
-        dropout (float, optional): Dropout probability. Default: 0.0
-        bias (bool, optional): Whether to add bias to input projection. Default: True
+    Implements scaled dot-product attention with multiple heads,
+    supporting both same and different query/key/value dimensions.
+
+    Copied from pytorch:
+    https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
     """
 
     def __init__(
@@ -38,6 +39,24 @@ class MultiHeadAttention(nn.Module):
         dtype: torch.dtype,
         device: str = "cpu",
     ):
+        """
+        Initialize the MultiHeadAttention module.
+
+        Args:
+            E_q (int): Size of embedding dimension for query
+            E_k (int): Size of embedding dimension for key
+            E_v (int): Size of embedding dimension for value
+            E_total (int): Total embedding dimension of combined heads post input projection.
+                Each head has dimension E_total // n_heads
+            n_heads (int): Number of attention heads
+            dropout (float): Dropout probability for attention weights
+            bias (bool): Whether to add bias to input/output projections
+            dtype (torch.dtype): Data type for parameters
+            device (str): Device to place the model on (default: "cpu")
+
+        Raises:
+            AssertionError: If E_total is not divisible by n_heads
+        """
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
         self.n_heads = n_heads
@@ -130,9 +149,17 @@ class MultiHeadAttention(nn.Module):
         return attn_output
 
 
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class TransformerEncoderLayer(nn.Module):
+    """
+    Single transformer encoder layer.
+
+    Consists of multi-head self-attention followed by a position-wise
+    feedforward network, with residual connections and layer normalization.
+
+    Copied from pytorch:
+    https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
+    """
+
     def __init__(
         self,
         d_model: int,
@@ -146,6 +173,21 @@ class TransformerEncoderLayer(nn.Module):
         dtype: torch.dtype,
         device: str = "cpu",
     ):
+        """
+        Initialize the TransformerEncoderLayer module.
+
+        Args:
+            d_model (int): Model dimension (input/output size)
+            n_heads (int): Number of attention heads
+            dim_feedforward (int): Dimension of feedforward network hidden layer
+            dropout (float): Dropout probability
+            activation (nn.Module): Activation function for feedforward network
+            layer_norm_eps (float): Epsilon for layer normalization
+            norm_first (bool): If True, apply layer norm before attention/feedforward
+            bias (bool): Whether to use bias in linear layers
+            dtype (torch.dtype): Data type for parameters
+            device (str): Device to place the model on (default: "cpu")
+        """
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
         self.self_attn = MultiHeadAttention(
@@ -175,19 +217,43 @@ class TransformerEncoderLayer(nn.Module):
         self.activation = activation
 
     def _sa_block(self, x, attn_mask, is_causal):
+        """
+        Self-attention block with dropout.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, d_model)
+            attn_mask (torch.Tensor, optional): Attention mask of shape (batch_size, seq_len, seq_len)
+            is_causal (bool): Whether to apply causal masking. Default: True
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         x = self.self_attn(x, x, x, is_causal=is_causal)
         return self.dropout1(x)
 
     def _ff_block(self, x):
+        """Feedforward block with dropout.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, d_model)
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         x = self.linear2(self.dropout(self.activation(self.linear1(x))))
         return self.dropout2(x)
 
     def forward(self, src, src_mask=None, is_causal=True):
         """
-        Arguments:
-            src: (batch_size, seq_len, d_model)
-            src_mask: (batch_size, seq_len, seq_len)
-            is_causal: bool
+        Forward pass through the encoder layer.
+
+        Args:
+            src (torch.Tensor): Input tensor of shape (batch_size, seq_len, d_model)
+            src_mask (torch.Tensor, optional): Attention mask of shape (batch_size, seq_len, seq_len)
+            is_causal (bool): Whether to apply causal masking. Default: True
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_len, d_model)
         """
         x = src
         if self.norm_first:
@@ -206,9 +272,16 @@ class TransformerEncoderLayer(nn.Module):
         return x
 
 
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class TransformerEncoder(nn.Module):
+    """
+    Stack of transformer encoder layers.
+
+    Applies multiple encoder layers sequentially with optional final normalization.
+
+    Copied from pytorch:
+    https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
+    """
+
     def __init__(
         self,
         encoder_layer: nn.Module,
@@ -217,6 +290,16 @@ class TransformerEncoder(nn.Module):
         dtype: torch.dtype,
         device: str = "cpu",
     ):
+        """
+        Initialize the TransformerEncoder module.
+
+        Args:
+            encoder_layer (nn.Module): Single encoder layer to clone
+            num_layers (int): Number of encoder layers
+            norm (nn.Module, optional): Final layer normalization
+            dtype (torch.dtype): Data type for parameters
+            device (str): Device to place the model on (default: "cpu")
+        """
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
         self.layers = _get_clones(encoder_layer, num_layers)
@@ -226,6 +309,17 @@ class TransformerEncoder(nn.Module):
     def forward(
         self, src: torch.Tensor, mask: Optional[torch.Tensor] = None, is_causal=True
     ):
+        """
+        Forward pass through all encoder layers.
+
+        Args:
+            src (torch.Tensor): Input tensor of shape (batch_size, seq_len, d_model)
+            mask (torch.Tensor, optional): Attention mask
+            is_causal (bool): Whether to apply causal masking. Default: True
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         output = src
         for mod in self.layers:
             output = mod(output, mask, is_causal)
@@ -234,9 +328,17 @@ class TransformerEncoder(nn.Module):
         return output
 
 
-# Copied from pytorch:
-# https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
 class Transformer(nn.Module):
+    """
+    Standard transformer encoder for sequence modeling.
+
+    Implements input embedding, positional encoding, and stacked encoder layers
+    for sequence-to-sequence transformation.
+
+    Copied from pytorch:
+    https://docs.pytorch.org/tutorials/intermediate/transformer_building_blocks.html
+    """
+
     def __init__(
         self,
         d_model: int,
@@ -253,6 +355,24 @@ class Transformer(nn.Module):
         device: str = "cpu",
         **kwargs,
     ):
+        """
+        Initialize the Transformer module.
+
+        Args:
+            d_model (int): Input dimension
+            n_heads (int): Number of attention heads
+            num_encoder_layers (int): Number of encoder layers
+            dim_feedforward (int): Dimension of feedforward network
+            dropout (float): Dropout probability
+            activation (nn.Module): Activation function for feedforward layers
+            layer_norm_eps (float): Epsilon for layer normalization
+            norm_first (bool): Whether to apply layer norm before attention
+            bias (bool): Whether to use bias in linear layers
+            input_length (int): Maximum input sequence length
+            hidden_size (int): Hidden dimension size
+            device (str): Device to place the model on (default: "cpu")
+            **kwargs: Additional keyword arguments (ignored)
+        """
         super().__init__()
 
         self.input_embedding = nn.Linear(d_model, hidden_size, bias=bias, device=device)
@@ -294,13 +414,26 @@ class Transformer(nn.Module):
         src_mask=None,
         is_causal=True,
     ):
+        """
+        Forward pass through the transformer encoder.
+
+        Args:
+            src (torch.Tensor): Input tensor of shape (batch_size, seq_len, d_model)
+            src_mask (torch.Tensor, optional): Attention mask. Default: None
+            is_causal (bool): Whether to apply causal masking. Default: True
+
+        Returns:
+            dict: Dictionary containing:
+                - sequence_output: Full output (batch_size, 1, seq_len, hidden_size)
+                - final_hidden_state: Last timestep (batch_size, 1, hidden_size)
+                - output: Same as sequence_output (batch_size, 1, seq_len, hidden_size)
+                - sindy_loss: None (no SINDy loss in vanilla transformer)
+        """
         # Embed input
         x_embedded = self.input_embedding(src)
 
         # Apply positional encoding
-        x_pos_encoded = self.pos_encoder(
-            x_embedded
-        )  # Shape: (batch_size, seq_len, d_model)
+        x_pos_encoded = self.pos_encoder(x_embedded)
 
         transformer_output = self.encoder(
             x_pos_encoded,
@@ -311,10 +444,8 @@ class Transformer(nn.Module):
         transformer_output = einops.rearrange(transformer_output, "b s d -> b 1 s d")
 
         return {
-            "sequence_output": transformer_output,  # [batch_size, forecast_length, sequence_length, d_model]
-            "final_hidden_state": transformer_output[
-                :, :, -1, :
-            ],  # Last timestep [batch_size, forecast_length, d_model]
-            "output": transformer_output,  # [batch_size, forecast_length, sequence_length, d_model]
+            "sequence_output": transformer_output,
+            "final_hidden_state": transformer_output[:, :, -1, :],
+            "output": transformer_output,
             "sindy_loss": None,
         }

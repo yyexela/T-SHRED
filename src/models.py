@@ -1,3 +1,8 @@
+"""
+Model architecture and checkpoint loading utilities.
+Provides the MixedModel wrapper for encoder-decoder combinations and checkpoint management.
+"""
+
 import sys
 import torch
 import pickle
@@ -27,6 +32,30 @@ fig_dir = top_dir / "figures"
 
 
 def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
+    """
+    Load a model from a checkpoint file or initialize a new model.
+
+    If a checkpoint exists and loading is not skipped, restores the model state,
+    optimizer state, training history, and sensor positions. Otherwise, creates
+    a fresh model with newly generated sensor positions.
+
+    Args:
+        checkpoint_path (Path): Path to the checkpoint file
+        force_load (bool): If True, load checkpoint even if skip_load_checkpoint is set (default: False)
+        args (argparse.Namespace): Configuration arguments containing model hyperparameters
+
+    Returns:
+        tuple: A tuple containing:
+            - model (MixedModel): The loaded or newly initialized model
+            - optimizer (torch.optim.Adam): Optimizer with appropriate parameter groups
+            - start_epoch (int): Epoch to resume training from
+            - best_val (float): Best validation loss achieved
+            - best_epoch (int): Epoch when best validation was achieved
+            - train_losses (list): History of training losses
+            - val_losses (list): History of validation losses
+            - model_eigvs (list): History of model eigenvalues (for SINDy models)
+            - sensors (list): List of (row, col) sensor position tuples
+    """
     model = MixedModel(args)
     print("Checking if checkpoint exists")
     if (not args.skip_load_checkpoint or force_load) and checkpoint_path.exists():
@@ -137,10 +166,30 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
 
 class MixedModel(nn.Module):
     """
-    Main function to generate mixes of models
+    A flexible encoder-decoder model supporting multiple encoder and decoder types.
+
+    Combines various encoder architectures (RNNs, Transformers, SINDy variants)
+    with decoder architectures (MLP, CNN) based on configuration arguments.
     """
 
     def __init__(self, args):
+        """
+        Initialize the MixedModel with specified encoder and decoder.
+
+        Args:
+            args (argparse.Namespace): Configuration arguments containing:
+                - encoder (str): Encoder type ("gru", "lstm", "sindy_loss_gru", "sindy_loss_lstm",
+                    "moe_gru", "moe_lstm", "vanilla_transformer", "sindy_attention_transformer",
+                    "sindy_attention_sindy_loss_transformer", "sindy_loss_transformer")
+                - decoder (str): Decoder type ("mlp" or "cnn")
+                - d_model (int): Input dimension
+                - hidden_size (int): Hidden layer size
+                - encoder_depth (int): Number of encoder layers
+                - decoder_depth (int): Number of decoder layers
+                - dropout (float): Dropout probability
+                - device (str): Device to place the model on
+                - And other encoder-specific parameters (n_heads, forecast_length, etc.)
+        """
         super().__init__()
 
         if args.encoder == "gru":
@@ -298,14 +347,18 @@ class MixedModel(nn.Module):
         self.add_module("encoder", self.encoder)
         self.add_module("decoder", self.decoder)
 
-    def forward(self, src: torch.Tensor) -> torch.Tensor:
+    def forward(self, src: torch.Tensor) -> dict:
         """
-        Args:
-            src: Input tensor of shape (batch_size, sequence_length, n_sensors)
-        Returns:
-            Output tensor of shape (batch_size, sequence_length, n_sensors, d_model)
-        """
+        Forward pass through the encoder-decoder model.
 
+        Args:
+            src (torch.Tensor): Input tensor of shape (batch_size, sequence_length, n_sensors * d_input)
+
+        Returns:
+            dict: Dictionary containing:
+                - "output" (torch.Tensor): Decoded output tensor
+                - "sindy_loss" (torch.Tensor or None): SINDy loss if applicable
+        """
         src_encoded = self.encoder(src)
         src_decoded = self.decoder(src_encoded)
 

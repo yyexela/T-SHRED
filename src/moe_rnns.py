@@ -1,13 +1,31 @@
+"""
+Mixture of Experts RNN models with SINDy layer forecasting.
+Combines GRU/LSTM encoders with multiple SINDy expert layers for interpretable dynamics.
+"""
+
 import torch
 import torch.nn as nn
 from sindy_layer import SindyLayer
 
 
 class MOE_SINDy_Layer_Helpers_Mixin:
-    """Mixin class providing helper methods for MOE models with SINDy layers."""
+    """
+    Mixin class providing helper methods for Mixture of Experts models with SINDy layers.
+
+    Provides common functionality for printing, modifying, and analyzing SINDy
+    coefficients across multiple expert networks.
+    """
 
     def print_sindy_layer_coefficients(self):
-        # coefficients: n_heads x ((library terms + 1 (for linear) terms) x library_terms equations)
+        """
+        Print the SINDy coefficients for all experts in a human-readable format.
+
+        Displays the coefficient matrix as a polynomial expression for each
+        hidden dimension of each expert.
+
+        Returns:
+            None
+        """
         for j in range(self.n_experts):
             print(f"Expert {j}:")
             coefficients = self.experts[j].get_dense_sindy_coefficients()
@@ -23,11 +41,26 @@ class MOE_SINDy_Layer_Helpers_Mixin:
             print()
 
     def set_forecast_length(self, forecast_length: int):
+        """
+        Set the forecast length for the model and all expert SINDy layers.
+
+        Args:
+            forecast_length (int): Number of timesteps to forecast
+
+        Returns:
+            None
+        """
         self.forecast_length = forecast_length
         for expert in self.experts:
             expert.forecast_length = forecast_length
 
     def get_sindy_layer_coefficients_eigenvalues(self):
+        """
+        Get the eigenvalues of SINDy coefficient matrices for all experts.
+
+        Returns:
+            list: List of eigenvalue tensors, one per expert
+        """
         with torch.no_grad():
             eigvs_l = []
             for i in range(self.n_experts):
@@ -35,6 +68,14 @@ class MOE_SINDy_Layer_Helpers_Mixin:
             return eigvs_l
 
     def get_sindy_layer_coefficients_sum(self):
+        """
+        Compute the sum of absolute SINDy coefficients across all experts.
+
+        Used as a regularization term to encourage sparsity.
+
+        Returns:
+            float: Sum of square roots of absolute coefficient sums
+        """
         with torch.no_grad():
             sindy_sum = 0.0
             for expert in self.experts:
@@ -44,6 +85,18 @@ class MOE_SINDy_Layer_Helpers_Mixin:
             return sindy_sum
 
     def threshold_sindy_layer_coefficients(self, threshold, verbose=False):
+        """
+        Apply sparsity thresholding to SINDy coefficients for all experts.
+
+        Sets coefficients with absolute value below the threshold to zero.
+
+        Args:
+            threshold (float): Threshold value; coefficients below this are zeroed
+            verbose (bool): If True, print information about thresholding (default: False)
+
+        Returns:
+            None
+        """
         with torch.no_grad():
             for i in range(self.n_experts):
                 expert = self.experts[i]
@@ -60,6 +113,13 @@ class MOE_SINDy_Layer_Helpers_Mixin:
 
 
 class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
+    """
+    Mixture of Experts GRU with SINDy layer forecasting.
+
+    Combines a GRU encoder with multiple SINDy expert layers for long-horizon
+    forecasting. Expert outputs are combined via learned weighted averaging.
+    """
+
     def __init__(
         self,
         input_size: int,
@@ -72,6 +132,20 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         device: str = "cpu",
         **kwargs,
     ):
+        """
+        Initialize the MOE-GRU model.
+
+        Args:
+            input_size (int): Input feature dimension
+            hidden_size (int): Hidden state dimension for GRU and experts
+            n_experts (int): Number of SINDy expert layers
+            forecast_length (int): Number of timesteps to forecast
+            strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
+            num_layers (int): Number of GRU layers
+            dropout (float): Dropout probability for expert weighting
+            device (str): Device to place the model on (default: "cpu")
+            **kwargs: Additional keyword arguments (ignored)
+        """
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -87,6 +161,12 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         self.initialize()
 
     def initialize(self):
+        """
+        Initialize the GRU, expert combination weights, and SINDy expert layers.
+
+        Returns:
+            None
+        """
         self.gru = nn.GRU(
             input_size=self.input_size,
             hidden_size=self.hidden_size,
@@ -113,7 +193,20 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
 
     def forward(self, x):
         """
-        Forward pass through the GRU model.
+        Forward pass through the MOE-GRU model.
+
+        Processes input through the GRU, then passes the final hidden state
+        through all SINDy experts and combines their outputs.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, sequence_length, input_size)
+
+        Returns:
+            dict: Dictionary containing:
+                - "sequence_output" (torch.Tensor): GRU output sequence of shape (batch_size, sequence_length, hidden_size)
+                - "final_hidden_state" (torch.Tensor): Final GRU hidden state of shape (num_layers, batch_size, hidden_size)
+                - "output" (torch.Tensor): Combined expert forecasts of shape
+                    (batch_size, forecast_length, 1, hidden_size)
         """
         # Normal GRU forward
         out, h_out = self.gru(x)
@@ -130,13 +223,20 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
 
         return {
-            "sequence_output": out,  # [batch_size, forecast_length, sequence_length, d_model]
-            "final_hidden_state": h_out,  # [batch_size, 1, encoder_depth, d_model]
+            "sequence_output": out,
+            "final_hidden_state": h_out,
             "output": combined,
         }
 
 
 class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
+    """
+    Mixture of Experts LSTM with SINDy layer forecasting.
+
+    Combines an LSTM encoder with multiple SINDy expert layers for long-horizon
+    forecasting. Expert outputs are combined via learned weighted averaging.
+    """
+
     def __init__(
         self,
         input_size: int,
@@ -149,6 +249,20 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         device: str = "cpu",
         **kwargs,
     ):
+        """
+        Initialize the MOE-LSTM model.
+
+        Args:
+            input_size (int): Input feature dimension
+            hidden_size (int): Hidden state dimension for LSTM and experts
+            n_experts (int): Number of SINDy expert layers
+            forecast_length (int): Number of timesteps to forecast
+            strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
+            num_layers (int): Number of LSTM layers
+            dropout (float): Dropout probability for expert weighting
+            device (str): Device to place the model on (default: "cpu")
+            **kwargs: Additional keyword arguments (ignored)
+        """
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -164,6 +278,12 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         self.initialize()
 
     def initialize(self):
+        """
+        Initialize the LSTM, expert combination weights, and SINDy expert layers.
+
+        Returns:
+            None
+        """
         self.lstm = nn.LSTM(
             input_size=self.input_size,
             hidden_size=self.hidden_size,
@@ -190,7 +310,20 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
 
     def forward(self, x):
         """
-        Forward pass through the GRU model.
+        Forward pass through the MOE-LSTM model.
+
+        Processes input through the LSTM, then passes the final hidden state
+        through all SINDy experts and combines their outputs.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, sequence_length, input_size)
+
+        Returns:
+            dict: Dictionary containing:
+                - "sequence_output" (torch.Tensor): GRU output sequence of shape (batch_size, sequence_length, hidden_size)
+                - "final_hidden_state" (torch.Tensor): Final GRU hidden state of shape (num_layers, batch_size, hidden_size)
+                - "output" (torch.Tensor): Combined expert forecasts of shape
+                    (batch_size, forecast_length, 1, hidden_size)
         """
         # Normal LSTM forward
         out, (h_out, c_out) = self.lstm(x)
@@ -207,7 +340,7 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
 
         return {
-            "sequence_output": out,  # [batch_size, forecast_length, sequence_length, d_model]
-            "final_hidden_state": h_out,  # [batch_size, 1, encoder_depth, d_model]
+            "sequence_output": out,
+            "final_hidden_state": h_out,
             "output": combined,
         }

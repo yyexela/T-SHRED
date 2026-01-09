@@ -1,3 +1,8 @@
+"""
+T-SHRED source package.
+Contains model architectures, data loading, training utilities, and SINDy-enhanced components.
+"""
+
 __all__ = [
     "datasets",
     "decoders",

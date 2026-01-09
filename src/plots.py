@@ -1,3 +1,8 @@
+"""
+Plotting utilities for visualizing model predictions and training progress.
+Includes field comparison plots, loss curves, eigenvalue visualization, and scatter plots.
+"""
+
 import torch
 import kaleido
 import palettable
@@ -40,6 +45,9 @@ def plot_field_comparison(
         title_fontsize (int, optional): Font size for plot titles. Defaults to 16.
         label_fontsize (int, optional): Font size for axis labels. Defaults to 14.
         tick_fontsize (int, optional): Font size for tick labels. Defaults to 12.
+
+    Returns:
+        None
     """
     # Move tensors to CPU and convert to numpy
     prediction = prediction.cpu().detach().numpy()
@@ -164,6 +172,9 @@ def plot_losses(
         saved_epoch (int): The epoch number where the model was saved
         save (bool, optional): Whether to save the figure to a file. Defaults to False.
         fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
+
+    Returns:
+        None
     """
     # Create x-axis values (epochs)
     epochs = list(range(1, len(training_loss) + 1))
@@ -261,6 +272,10 @@ def plot_model_results_scatter(
         legend_fontsize (int, optional): Font size for legend text. Defaults to 12.
         reverse (bool, optional): Whether to reverse the order of the models. Defaults to False.
         encoders (list[str], optional): List of encoders to include in the plot. Defaults to None, which uses all encoders.
+        results_type (str, optional): Type of results to plot. Defaults to "hyper_opt".
+
+    Returns:
+        None
     """
     # Filter results for the specified dataset
     if results_type == "hyper_opt":
@@ -537,6 +552,9 @@ def plot_eigvs(eigvs_np, save: bool = False, fname: str = None) -> None:
         eigvs_np (np.ndarray): Array of complex eigenvalues with shape [steps, terms]
         save (bool, optional): Whether to save the figure to a file. Defaults to False.
         fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
+
+    Returns:
+        None
     """
     # Convert to numpy array for easier handling
     eigvs_array = np.array(eigvs_np)

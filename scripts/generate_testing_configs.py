@@ -16,15 +16,19 @@ encoders = [
     "lstm",
     "moe_gru",
     "moe_lstm",
+    "moe_gru_5",
+    "moe_lstm_5",
     "sindy_loss_gru",
     "sindy_loss_lstm",
     "vanilla_transformer",
     "sindy_loss_transformer",
     "sindy_attention_transformer",
     "sindy_attention_sindy_loss_transformer",
-]  # , "sindy_attention_transformer_5", "sindy_attention_sindy_loss_transformer_5"]
+    "sindy_attention_transformer_5",
+    "sindy_attention_sindy_loss_transformer_5",
+]
 decoders = ["mlp", "cnn"]
-datasets = ["sst"]
+datasets = ["sst", "planetswe"]
 
 top_dir = Path(__file__).parent.parent
 
@@ -66,8 +70,8 @@ def main():
 
                     # Set forecast_length based on rollout
                     if "sindy_attention" in encoder or encoder in [
-                        "moe_lstm",
-                        "moe_gru",
+                        "moe_lstm_5",
+                        "moe_gru_5",
                     ]:
                         if "_5" in encoder:
                             config["model"]["forecast_length"] = 5
