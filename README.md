@@ -12,7 +12,7 @@
 
 ## Overview
 
-<img width="924" alt="T-SHRED Model Overview" style="background-color:white;padding:20px" src="paper_figures/fig1.png">
+<img width="924" alt="T-SHRED Model Overview" src="paper_figures/fig1_white.png">
 
 T-SHRED is a method for sparse-sensor reconstruction of physical dynamics that utilizes a novel SINDy-Attention head to enable one-shot long-term forecasting in the latent space.
 
