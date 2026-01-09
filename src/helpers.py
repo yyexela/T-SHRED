@@ -283,15 +283,15 @@ def verify_args(args):
         "sindy_loss_lstm",
         "sindy_loss_mlp",
         "sindy_loss_moe_gru",
-        "sindy_loss_moe_lstm",
         "sindy_loss_moe_mlp",
+        "sindy_loss_moe_lstm",
         "vanilla_transformer",
         "sindy_loss_transformer",
         "sindy_attention_transformer",
         "sindy_attention_sindy_loss_transformer",
     ]:
         raise ValueError(
-            f"encoder {args.encoder} not supported, choose one of: gru, lstm, mlp, moe_gru, moe_lstm, moe_mlp, sindy_loss_gru, sindy_loss_lstm, sindy_loss_mlp, sindy_loss_moe_gru, sindy_loss_moe_lstm, sindy_loss_moe_mlp, vanilla_transformer, sindy_loss_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer"
+            f"encoder {args.encoder} not supported, choose one of: gru, lstm, mlp, moe_gru, moe_lstm, moe_mlp, sindy_loss_gru, sindy_loss_lstm, sindy_loss_mlp, sindy_loss_moe_gru, sindy_loss_moe_mlp, sindy_loss_moe_lstm, vanilla_transformer, sindy_loss_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer"
         )
     if args.encoder_depth <= 0:
         raise ValueError(f"encoder_depth {args.encoder_depth} must be greater than 0")
@@ -308,8 +308,8 @@ def verify_args(args):
         "moe_lstm",
         "moe_mlp",
         "sindy_loss_moe_gru",
-        "sindy_loss_moe_lstm",
         "sindy_loss_moe_mlp",
+        "sindy_loss_moe_lstm",
     ]:
         raise ValueError(
             f"forecast_length {args.forecast_length} must be 1 for non-rollout encoders"

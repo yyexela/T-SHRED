@@ -35,12 +35,12 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
         layer_norm_eps: float,
         norm_first: bool,
         bias: bool,
+        strict_symmetry: bool,
         input_length: int,
         hidden_size: int,
         poly_order: int,
         sindy_loss_threshold: float,
         dt: float,
-        strict_symmetry: bool,
         device: str = "cpu",
     ):
         """
@@ -57,12 +57,12 @@ class SindyAttentionSindyLossTransformer(SINDyLoss, SindyAttentionTransformer):
             layer_norm_eps (float): Epsilon for layer normalization
             norm_first (bool): Whether to apply layer norm before attention
             bias (bool): Whether to use bias in linear layers
+            strict_symmetry (bool): Whether to enforce strict symmetry in SINDy coefficients in SINDy attention
             input_length (int): Length of input sequences
             hidden_size (int): Hidden dimension size
             poly_order (int): Polynomial order for SINDy library in SINDy loss
             sindy_loss_threshold (float): Threshold for SINDy coefficient sparsification in SINDy loss
             dt (float): Time step for SINDy derivatives
-            strict_symmetry (bool): Whether to enforce strict symmetry in SINDy coefficients in SINDy attention
             device (str): Device to place the model on (default: "cpu")
         """
         super().__init__(

@@ -1,6 +1,6 @@
 """
 Recurrent Neural Network encoders for sequence modeling.
-Implements GRU and LSTM encoders compatible with the encoder-decoder architecture.
+Implements GRU, LSTM, and MLP encoders compatible with the encoder-decoder architecture.
 """
 
 import einops

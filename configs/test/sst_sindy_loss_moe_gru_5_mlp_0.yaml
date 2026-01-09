@@ -1,7 +1,7 @@
 model:
   batch_size: 128
   coord_descent: false
-  dataset: planetswe
+  dataset: sst
   decoder: mlp
   decoder_depth: 1
   delete_checkpoint: true
@@ -9,15 +9,15 @@ model:
   dropout: 0.1
   dt: 1.0
   early_stop: 2
-  encoder: sindy_loss_lstm
+  encoder: sindy_loss_moe_gru
   encoder_depth: 2
   epochs: 5
-  forecast_length: 1
+  forecast_length: 5
   generate_loss_plots: true
   generate_test_plots: true
   generate_training_plots: true
   hidden_size: 6
-  identifier: planetswe_sindy_loss_lstm_mlp_0
+  identifier: sst_sindy_loss_moe_gru_5_mlp_0
   input_length: 10
   lr: 0.0001
   n_experts: 2

@@ -174,8 +174,7 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
             batch_first=True,
         )
 
-        # self.mixture_mlp = nn.Linear(self.n_experts)
-        self.softmax = nn.Softmax(dim=-1)  # TODO: check dim
+        self.softmax = nn.Softmax(dim=-1)
         self.linear_combination = nn.Parameter(
             torch.ones(self.n_experts) / self.n_experts
         )
@@ -291,8 +290,7 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
             batch_first=True,
         )
 
-        # self.mixture_mlp = nn.Linear(self.n_experts)
-        self.softmax = nn.Softmax(dim=-1)  # TODO: check dim
+        self.softmax = nn.Softmax(dim=-1)
         self.linear_combination = nn.Parameter(
             torch.ones(self.n_experts) / self.n_experts
         )
@@ -320,8 +318,8 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
 
         Returns:
             dict: Dictionary containing:
-                - "sequence_output" (torch.Tensor): GRU output sequence of shape (batch_size, sequence_length, hidden_size)
-                - "final_hidden_state" (torch.Tensor): Final GRU hidden state of shape (num_layers, batch_size, hidden_size)
+                - "sequence_output" (torch.Tensor): LSTM output sequence of shape (batch_size, sequence_length, hidden_size)
+                - "final_hidden_state" (torch.Tensor): Final LSTM hidden state of shape (num_layers, batch_size, hidden_size)
                 - "output" (torch.Tensor): Combined expert forecasts of shape
                     (batch_size, forecast_length, 1, hidden_size)
         """
@@ -330,6 +328,116 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
 
         # SINDy forward all experts
         sindy_outputs = [expert(h_out[-1]) for expert in self.experts]
+        sindy_outputs = torch.stack(sindy_outputs)
+        sindy_outputs = sindy_outputs.unsqueeze(3) # Adds sequence length dimension
+
+        # Combine experts: weighted sum across expert dimension
+        # NOTE: Dropout drops random experts
+        weights = self.dropout(self.linear_combination)
+        weights = self.softmax(weights)
+        combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
+
+        return {
+            "sequence_output": out,
+            "final_hidden_state": h_out,
+            "output": combined,
+        }
+
+class MOEMLP(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
+    """
+    A simple Multi-Layer Perceptron (MLP) with SINDy layer forecasting.
+
+    Creates a feedforward neural network with identical layer sizes.
+    Uses ReLU activations between layers and applies dropout after the final layer.
+    """
+
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        n_experts: int,
+        forecast_length: int,
+        strict_symmetry: bool,
+        num_layers: int,
+        dropout: float,
+        device: str = "cpu",
+    ):
+        """
+        Initialize the MOE-MLP model.
+
+        Args:
+            input_size (int): Input feature dimension
+            hidden_size (int): Hidden state dimension for LSTM and experts
+            n_experts (int): Number of SINDy expert layers
+            forecast_length (int): Number of timesteps to forecast
+            strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
+            num_layers (int): Number of LSTM layers
+            dropout (float): Dropout probability for expert weighting
+            device (str): Device to place the model on (default: "cpu")
+            **kwargs: Additional keyword arguments (ignored)
+        """
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.n_experts = n_experts
+        self.forecast_length = forecast_length
+        self.strict_symmetry = strict_symmetry
+        self.num_layers = num_layers
+        self.mlp = None  # lazy initialization
+        self.output_size = hidden_size
+        self.dropout = nn.Dropout(dropout)
+        self.device = device
+
+        # Model layer sizes
+        sizes = [self.input_size] + [self.hidden_size] * self.num_layers
+
+        # Define model layers
+        self.layers = []
+        for idx in range(len(sizes) - 1):
+            self.layers.append(nn.Linear(sizes[idx], sizes[idx + 1]))
+            if idx != (len(sizes) - 2):
+                self.layers.append(nn.ReLU())
+
+        mlp = nn.Sequential(*self.layers)
+        mlp = mlp.to(device)
+        self.mlp = mlp
+
+        self.softmax = nn.Softmax(dim=-1)
+        self.linear_combination = nn.Parameter(
+            torch.ones(self.n_experts) / self.n_experts
+        )
+        self.experts = nn.ModuleList(
+            [
+                SindyLayer(
+                    d_model=self.hidden_size,
+                    forecast_length=self.forecast_length,
+                    device=self.device,
+                    strict_symmetry=self.strict_symmetry,
+                )
+                for _ in range(self.n_experts)
+            ]
+        )
+
+    def forward(self, x):
+        """
+        Forward pass through the MOE-MLP model.
+
+        Processes input through the MLP, then passes the final hidden state
+        through all SINDy experts and combines their outputs.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, sequence_length, input_size)
+
+        Returns:
+            dict: Dictionary containing:
+                - "sequence_output" (torch.Tensor): MLP output sequence of shape (batch_size, sequence_length, hidden_size)
+                - "output" (torch.Tensor): Combined expert forecasts of shape
+                    (batch_size, forecast_length, 1, hidden_size)
+        """
+        out = self.mlp(x)
+
+        # SINDy forward all experts
+        sindy_outputs = [expert(out[:, -1, :]) for expert in self.experts]
         sindy_outputs = torch.stack(sindy_outputs)
         sindy_outputs = sindy_outputs.unsqueeze(3)  # Adds sequence length dimension
 
@@ -341,6 +449,5 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
 
         return {
             "sequence_output": out,
-            "final_hidden_state": h_out,
             "output": combined,
         }

@@ -17,5 +17,6 @@ __all__ = [
     "sindy_attention_transformer",
     "sindy_layer",
     "sindy_loss_rnns",
+    "sindy_loss_moe_rnns",
     "vanilla_transformer",
 ]

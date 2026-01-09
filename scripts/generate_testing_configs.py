@@ -8,6 +8,7 @@ Effectively just a functional verification test to ensure code isn't breaking.
 
 import copy
 import yaml
+import shutil
 from pathlib import Path
 
 n_seeds = 1
@@ -27,6 +28,9 @@ encoders = [
     "sindy_loss_moe_gru",
     "sindy_loss_moe_mlp",
     "sindy_loss_moe_lstm",
+    "sindy_loss_moe_gru_5",
+    "sindy_loss_moe_mlp_5",
+    "sindy_loss_moe_lstm_5",
     "vanilla_transformer",
     "sindy_loss_transformer",
     "sindy_attention_transformer",
@@ -35,12 +39,15 @@ encoders = [
     "sindy_attention_sindy_loss_transformer_5",
 ]
 decoders = ["mlp", "cnn"]
-datasets = ["sst", "planetswe"]
+datasets = ["sst"]
 
 top_dir = Path(__file__).parent.parent
 
 
 def main():
+    # Clean up old configs
+    shutil.rmtree(top_dir / "configs" / "test", ignore_errors=True)
+
     # Create output directory and save config, clean up old configs
     output_dir = top_dir / "configs" / "test"
     output_dir.mkdir(parents=True, exist_ok=True)

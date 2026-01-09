@@ -1,22 +1,22 @@
 """
-SINDy Loss RNN modules.
+SINDy Loss MOE RNN modules.
 
-Implements GRU, LSTM, and MLP encoders with SINDy loss regularization for
+Implements MOE-GRU, MOE-LSTM, and MOE-MLP encoders with SINDy loss regularization for
 learning interpretable sparse dynamics in mixed expert recurrent neural networks.
 """
 
 import torch
 import einops
 import torch.nn as nn
-from rnns import GRU, LSTM, MLPEncoder
+from moe_rnns import MOEGRU, MOELSTM, MOEMLP
 from sindy_loss_abc import SINDyLoss
 
 
-class SINDyLossGRU(SINDyLoss, GRU):
+class SINDyLossMOEGRU(SINDyLoss, MOEGRU):
     """
-    GRU encoder with SINDy loss regularization.
+    MOE-GRU encoder with SINDy loss regularization.
 
-    Combines a standard GRU encoder with SINDy-based regularization that
+    Combines a standard MOE-GRU encoder with SINDy-based regularization that
     encourages the hidden state dynamics to follow a sparse polynomial ODE.
     """
 
@@ -25,6 +25,9 @@ class SINDyLossGRU(SINDyLoss, GRU):
         input_size: int,
         hidden_size: int,
         num_layers: int,
+        n_experts: int,
+        forecast_length: int,
+        strict_symmetry: bool,
         dropout: float,
         poly_order: int,
         dt: float,
@@ -39,6 +42,9 @@ class SINDyLossGRU(SINDyLoss, GRU):
             input_size (int): Size of input features
             hidden_size (int): Size of GRU hidden state
             num_layers (int): Number of stacked GRU layers
+            n_experts (int): Number of SINDy expert layers
+            forecast_length (int): Number of timesteps to forecast
+            strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
             dropout (float): Dropout probability between GRU layers
             poly_order (int): Polynomial order for SINDy library
             dt (float): Time step for SINDy derivatives
@@ -50,6 +56,9 @@ class SINDyLossGRU(SINDyLoss, GRU):
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
+            n_experts=n_experts,
+            forecast_length=forecast_length,
+            strict_symmetry=strict_symmetry,
             dropout=dropout,
             device=device,
             poly_order=poly_order,
@@ -74,25 +83,31 @@ class SINDyLossGRU(SINDyLoss, GRU):
                 - output: Same as final_hidden_state (batch_size, 1, 1, hidden_size)
                 - sindy_loss: SINDy regularization loss value
         """
+        # Normal GRU forward
         out, h_out = self.gru(x)
-        h_out = h_out[-1:]
 
+        # SINDy loss
         sindy_loss = self.compute_sindy_loss(out)
 
-        out = self.dropout(out)
-        h_out = self.dropout(h_out)
-        out = einops.rearrange(out, "b s d -> b 1 s d")
-        h_out = einops.rearrange(h_out, "s b d -> b 1 s d")
+        # SINDy forward all experts
+        sindy_outputs = [expert(h_out[-1]) for expert in self.experts]
+        sindy_outputs = torch.stack(sindy_outputs)
+        sindy_outputs = sindy_outputs.unsqueeze(3)  # Adds sequence length dimension
+
+        # Combine experts: weighted sum across expert dimension
+        # NOTE: Dropout drops random experts
+        weights = self.dropout(self.linear_combination)
+        weights = self.softmax(weights)
+        combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
 
         return {
             "sequence_output": out,
             "final_hidden_state": h_out,
-            "output": h_out,
+            "output": combined,
             "sindy_loss": sindy_loss,
         }
 
-
-class SINDyLossLSTM(SINDyLoss, LSTM):
+class SINDyLossMOELSTM(SINDyLoss, MOELSTM):
     """
     LSTM encoder with SINDy loss regularization.
 
@@ -105,6 +120,9 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
         input_size: int,
         hidden_size: int,
         num_layers: int,
+        n_experts: int,
+        forecast_length: int,
+        strict_symmetry: bool,
         dropout: float,
         poly_order: int,
         dt: float,
@@ -119,6 +137,9 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
             input_size (int): Size of input features
             hidden_size (int): Size of LSTM hidden state
             num_layers (int): Number of stacked LSTM layers
+            n_experts (int): Number of SINDy expert layers
+            forecast_length (int): Number of timesteps to forecast
+            strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
             dropout (float): Dropout probability between LSTM layers
             poly_order (int): Polynomial order for SINDy library
             dt (float): Time step for SINDy derivatives
@@ -130,6 +151,9 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
+            n_experts=n_experts,
+            forecast_length=forecast_length,
+            strict_symmetry=strict_symmetry,
             dropout=dropout,
             device=device,
             poly_order=poly_order,
@@ -154,25 +178,31 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
                 - output: Same as final_hidden_state (batch_size, 1, 1, hidden_size)
                 - sindy_loss: SINDy regularization loss value
         """
-        # Initialize hidden and cell
+        # Normal LSTM forward
         out, (h_out, c_out) = self.lstm(x)
-        h_out = h_out[-1:]
 
+        # SINDy loss
         sindy_loss = self.compute_sindy_loss(out)
 
-        out = self.dropout(out)
-        h_out = self.dropout(h_out)
-        out = einops.rearrange(out, "b s d -> b 1 s d")
-        h_out = einops.rearrange(h_out, "s b d -> b 1 s d")
+        # SINDy forward all experts
+        sindy_outputs = [expert(h_out[-1]) for expert in self.experts]
+        sindy_outputs = torch.stack(sindy_outputs)
+        sindy_outputs = sindy_outputs.unsqueeze(3) # Adds sequence length dimension
+
+        # Combine experts: weighted sum across expert dimension
+        # NOTE: Dropout drops random experts
+        weights = self.dropout(self.linear_combination)
+        weights = self.softmax(weights)
+        combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
 
         return {
             "sequence_output": out,
             "final_hidden_state": h_out,
-            "output": h_out,
+            "output": combined,
             "sindy_loss": sindy_loss,
         }
 
-class SINDyLossMLP(SINDyLoss, MLPEncoder):
+class SINDyLossMOEMLP(SINDyLoss, MOEMLP):
     """
     MLP encoder with SINDy loss regularization.
 
@@ -185,6 +215,9 @@ class SINDyLossMLP(SINDyLoss, MLPEncoder):
         input_size: int,
         hidden_size: int,
         num_layers: int,
+        n_experts: int,
+        forecast_length: int,
+        strict_symmetry: bool,
         dropout: float,
         poly_order: int,
         dt: float,
@@ -199,6 +232,9 @@ class SINDyLossMLP(SINDyLoss, MLPEncoder):
             input_size (int): Size of input features
             hidden_size (int): Size of MLP hidden state
             num_layers (int): Number of stacked MLP layers
+            n_experts (int): Number of SINDy expert layers
+            forecast_length (int): Number of timesteps to forecast
+            strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
             dropout (float): Dropout probability between MLP layers
             poly_order (int): Polynomial order for SINDy library
             dt (float): Time step for SINDy derivatives
@@ -210,6 +246,9 @@ class SINDyLossMLP(SINDyLoss, MLPEncoder):
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
+            n_experts=n_experts,
+            forecast_length=forecast_length,
+            strict_symmetry=strict_symmetry,
             dropout=dropout,
             device=device,
             poly_order=poly_order,
@@ -234,15 +273,24 @@ class SINDyLossMLP(SINDyLoss, MLPEncoder):
                 - output: Same as final_hidden_state (batch_size, 1, 1, hidden_size)
                 - sindy_loss: SINDy regularization loss value
         """
-        out = self.model(x)
+        out = self.mlp(x)
 
+        # SINDy loss
         sindy_loss = self.compute_sindy_loss(out)
 
-        out = self.dropout(out)
-        out = einops.rearrange(out, "b s d -> b 1 s d")
+        # SINDy forward all experts
+        sindy_outputs = [expert(out[:, -1, :]) for expert in self.experts]
+        sindy_outputs = torch.stack(sindy_outputs)
+        sindy_outputs = sindy_outputs.unsqueeze(3)  # Adds sequence length dimension
+
+        # Combine experts: weighted sum across expert dimension
+        # NOTE: Dropout drops random experts
+        weights = self.dropout(self.linear_combination)
+        weights = self.softmax(weights)
+        combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
+
         return {
             "sequence_output": out,
-            "final_hidden_state": out,
-            "output": out[:, :, -1:, :],
+            "output": combined,
             "sindy_loss": sindy_loss,
         }

@@ -13,11 +13,11 @@ from vanilla_transformer import Transformer
 from sindy_attention_transformer import SindyAttentionTransformer
 from sindy_attention_sindy_loss_transformer import SindyAttentionSindyLossTransformer
 from sindy_loss_transformer import SINDyLossTransformer
-from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM
+from sindy_loss_rnns import SINDyLossGRU, SINDyLossLSTM, SINDyLossMLP
 from rnns import GRU, LSTM, MLPEncoder
 from decoders import MLPDecoder, CNN
-from moe_rnns import MOEGRU, MOELSTM#, MOEMLP
-#from sindy_loss_moe_rnns import SINDyLossMOEGRU, SINDyLossMOELSTM, SINDyLossMOEMLP
+from moe_rnns import MOEGRU, MOELSTM, MOEMLP
+from sindy_loss_moe_rnns import SINDyLossMOEGRU, SINDyLossMOEMLP, SINDyLossMOELSTM
 
 from src import helpers
 
@@ -179,8 +179,10 @@ class MixedModel(nn.Module):
 
         Args:
             args (argparse.Namespace): Configuration arguments containing:
-                - encoder (str): Encoder type ("gru", "lstm", "mlp", "moe_gru", "moe_lstm", "moe_mlp", "sindy_loss_gru", "sindy_loss_lstm", "sindy_loss_mlp", "sindy_loss_moe_gru", "sindy_loss_moe_lstm", "sindy_loss_moe_mlp",
-                    "moe_gru", "moe_lstm", "moe_mlp", "vanilla_transformer", "sindy_attention_transformer",
+                - encoder (str): Encoder type ("gru", "lstm", "mlp", "moe_gru",
+                    "moe_lstm", "moe_mlp", "sindy_loss_gru", "sindy_loss_lstm", "sindy_loss_mlp",
+                    "sindy_loss_moe_gru", "sindy_loss_moe_mlp", "sindy_loss_moe_lstm",
+                    "vanilla_transformer", "sindy_attention_transformer",
                     "sindy_attention_sindy_loss_transformer", "sindy_loss_transformer")
                 - decoder (str): Decoder type ("mlp" or "cnn")
                 - d_model (int): Input dimension
@@ -198,6 +200,31 @@ class MixedModel(nn.Module):
                 input_size=args.d_model,
                 hidden_size=args.hidden_size,
                 num_layers=args.encoder_depth,
+                dropout=args.dropout,
+                device=args.device,
+            )
+        elif args.encoder == "sindy_loss_mlp":
+            self.encoder = SINDyLossMLP(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                num_layers=args.encoder_depth,
+                dropout=args.dropout,
+                poly_order=args.poly_order,
+                sindy_loss_threshold=args.sindy_loss_threshold,
+                dt=args.dt,  # Time step for Euler integration
+                device=args.device,
+            )
+        elif args.encoder == "sindy_loss_moe_mlp":
+            self.encoder = SINDyLossMOEMLP(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                n_experts=args.n_experts,
+                num_layers=args.encoder_depth,
+                forecast_length=args.forecast_length,
+                strict_symmetry=args.strict_symmetry,
+                poly_order=args.poly_order,
+                sindy_loss_threshold=args.sindy_loss_threshold,
+                dt=args.dt,  # Time step for Euler integration
                 dropout=args.dropout,
                 device=args.device,
             )
@@ -231,6 +258,20 @@ class MixedModel(nn.Module):
                 dropout=args.dropout,
                 device=args.device,
             )
+        elif args.encoder == "sindy_loss_moe_gru":
+            self.encoder = SINDyLossMOEGRU(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                n_experts=args.n_experts,
+                num_layers=args.encoder_depth,
+                forecast_length=args.forecast_length,
+                strict_symmetry=args.strict_symmetry,
+                poly_order=args.poly_order,
+                sindy_loss_threshold=args.sindy_loss_threshold,
+                dt=args.dt,  # Time step for Euler integration
+                dropout=args.dropout,
+                device=args.device,
+            )
         elif args.encoder == "moe_lstm":
             self.encoder = MOELSTM(
                 input_size=args.d_model,
@@ -253,48 +294,6 @@ class MixedModel(nn.Module):
                 dropout=args.dropout,
                 device=args.device,
             )
-        elif args.encoder == "sindy_loss_moe_gru":
-            self.encoder = SINDyLossMOEGRU(
-                input_size=args.d_model,
-                hidden_size=args.hidden_size,
-                n_experts=args.n_experts,
-                forecast_length=args.forecast_length,
-                num_layers=args.encoder_depth,
-                strict_symmetry=args.strict_symmetry,
-                dropout=args.dropout,
-                poly_order=args.poly_order,
-                sindy_loss_threshold=args.sindy_loss_threshold,
-                dt=args.dt,  # Time step for Euler integration
-                device=args.device,
-            )
-        elif args.encoder == "sindy_loss_moe_lstm":
-            self.encoder = SINDyLossMOELSTM(
-                input_size=args.d_model,
-                hidden_size=args.hidden_size,
-                n_experts=args.n_experts,
-                forecast_length=args.forecast_length,
-                num_layers=args.encoder_depth,
-                strict_symmetry=args.strict_symmetry,
-                dropout=args.dropout,
-                poly_order=args.poly_order,
-                sindy_loss_threshold=args.sindy_loss_threshold,
-                dt=args.dt,  # Time step for Euler integration
-                device=args.device,
-            )
-        elif args.encoder == "sindy_loss_moe_mlp":
-            self.encoder = SINDyLossMOEMLP(
-                input_size=args.d_model,
-                hidden_size=args.hidden_size,
-                n_experts=args.n_experts,
-                forecast_length=args.forecast_length,
-                num_layers=args.encoder_depth,
-                strict_symmetry=args.strict_symmetry,
-                dropout=args.dropout,
-                poly_order=args.poly_order,
-                sindy_loss_threshold=args.sindy_loss_threshold,
-                dt=args.dt,  # Time step for Euler integration
-                device=args.device,
-            )
         elif args.encoder == "lstm":
             self.encoder = LSTM(
                 input_size=args.d_model,
@@ -312,6 +311,20 @@ class MixedModel(nn.Module):
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt,  # Time step for Euler integration
+                device=args.device,
+            )
+        elif args.encoder == "sindy_loss_moe_lstm":
+            self.encoder = SINDyLossMOELSTM(
+                input_size=args.d_model,
+                hidden_size=args.hidden_size,
+                n_experts=args.n_experts,
+                num_layers=args.encoder_depth,
+                forecast_length=args.forecast_length,
+                strict_symmetry=args.strict_symmetry,
+                poly_order=args.poly_order,
+                sindy_loss_threshold=args.sindy_loss_threshold,
+                dt=args.dt,  # Time step for Euler integration
+                dropout=args.dropout,
                 device=args.device,
             )
         elif args.encoder == "vanilla_transformer":
