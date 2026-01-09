@@ -1,3 +1,7 @@
+"""
+This module contains all dataset usage functionalty.
+"""
+
 ###########
 # Imports #
 ###########
@@ -16,33 +20,45 @@ from torch.utils.data import Dataset
 from the_well.data import WellDataset
 
 # Local files
-pkg_path = Path(__file__).parent.parent / 'src'
+pkg_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(pkg_path))
 
 from src.helpers import min_max_scale, get_dataset_dims
 
 # Directories
 top_dir = Path(__file__).parent.parent
-data_dir = top_dir / 'datasets'
-plasma_dir = data_dir / 'plasma'
-fig_dir = top_dir / 'figures'
+data_dir = top_dir / "datasets"
+plasma_dir = data_dir / "plasma"
+fig_dir = top_dir / "figures"
 
 #############
 # Functions #
 #############
 
+
 class TimeSeriesDataset(Dataset):
-    def __init__(self,
-                 input_tensors: list[torch.Tensor],
-                 length: int,
-                 output_tensors: list[torch.Tensor] = None,
-                 device: str = 'cpu'):
+    """
+    A dataset class for time series data.
+    Takes a list of input tensors and a list of output tensors.
+    Creates a dataset of sliding windows of the input and output tensors.
+    Assumes that the input and output tensors have the same shape.
+
+    Note that the input and output windows contain both the input window and output window concatenated, so these need to be split apart when used. The input and output tensors are separated to allow for use with proper orthogonal decomposition.
+    """
+
+    def __init__(
+        self,
+        input_tensors: list[torch.Tensor],
+        length: int,
+        output_tensors: list[torch.Tensor] = None,
+        device: str = "cpu",
+    ):
         """
         Args:
             input_tensors (list of torch.Tensor): List of input tensors where each tensor is
-                a time series of shape (time_steps, features)
+                a time series of shape (time_steps, ...)
             output_tensors (list of torch.Tensor): List of output tensors where each tensor is
-                a time series of shape (time_steps, features)
+                a time series of shape (time_steps, ...)
             length (int): Length of the sliding window
             device (str): Device to move the tensors to
         """
@@ -52,7 +68,9 @@ class TimeSeriesDataset(Dataset):
 
         # Preprocess
         self.input_tensors = self.prepare_tensors(input_tensors)
-        self.output_tensors = None if output_tensors is None else self.prepare_tensors(output_tensors)
+        self.output_tensors = (
+            None if output_tensors is None else self.prepare_tensors(output_tensors)
+        )
 
         # Calculate cumulative window counts for index mapping
         self.cumulative_offsets = [0]
@@ -64,11 +82,22 @@ class TimeSeriesDataset(Dataset):
             n_windows = max(n_windows, 0)  # Ensure non-negative
             current += n_windows
             self.cumulative_offsets.append(current)
-        
+
         if self.cumulative_offsets[-1] == 0:
-            raise ValueError("No valid windows created. Check input_length, output_length, and tensor lengths.")
+            raise ValueError(
+                "No valid windows created. Check input_length, output_length, and tensor lengths."
+            )
 
     def prepare_tensors(self, tensors):
+        """
+        Prepares a list of tensors for use in the dataset.
+
+        Args:
+            tensors (list of torch.Tensor): List of tensors to prepare
+
+        Returns:
+            list of torch.Tensor: List of prepared tensors
+        """
         # To torch
         if isinstance(tensors[0], np.ndarray):
             tensors = [torch.from_numpy(tensor) for tensor in tensors]
@@ -82,41 +111,90 @@ class TimeSeriesDataset(Dataset):
         return tensors
 
     def __len__(self):
+        """
+        Returns the total number of windows in the dataset.
+
+        Returns:
+            int: Total number of windows in the dataset
+        """
         return self.cumulative_offsets[-1]
 
     def __getitem__(self, idx):
+        """
+        Returns the input and output windows for a given index.
+
+        Args:
+            idx (int): Index of the window to return
+
+        Returns:
+            tuple: (input_window, output_window) where each is a torch.Tensor of shape (length, ...)
+        """
         # Find which tensor contains this index
         tensor_idx = bisect.bisect_right(self.cumulative_offsets, idx) - 1
-        
+
         # Calculate local index within the tensor
         start_idx = self.cumulative_offsets[tensor_idx]
         local_idx = idx - start_idx
-        
+
         # Get corresponding tensor and calculate input window
         start = local_idx
         end = start + self.length
 
+        # Get corresponding input and output tensors
         input_tensor = self.input_tensors[tensor_idx]
-        output_tensor = input_tensor if self.output_tensors is None else self.output_tensors[tensor_idx]
+        output_tensor = (
+            input_tensor
+            if self.output_tensors is None
+            else self.output_tensors[tensor_idx]
+        )
 
+        # Get corresponding input and output windows
         input_window = input_tensor[start:end]
         output_window = output_tensor[start:end]
 
         return input_window, output_window
 
+
 def load_dataset(args):
-    if args.dataset == 'sst':
+    """
+    Loads a dataset from the `datasets/` directory.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
+    if args.dataset == "sst":
         return load_sst_data(args)
-    elif args.dataset == 'sst_demo':
+    elif args.dataset == "sst_demo":
         return load_sst_demo_data(args)
-    elif args.dataset == 'plasma':
+    elif args.dataset == "plasma":
         return load_plasma_data(args)
     elif args.dataset in ["planetswe"]:
         return load_well_data(args)
     else:
-        raise ValueError(f'Unknown dataset: {args.dataset}')
+        raise ValueError(f"Unknown dataset: {args.dataset}")
+
 
 def load_the_well_pts(load_path, split_name, track_id=None, n_tracks=None):
+    """
+    Loads a dataset from the `datasets/the_well_custom/` directory.
+    To generate a dataset, see `scripts/preprocess_the_well.py`.
+
+    If track_id is provided, only loads the specified track.
+    If n_tracks is provided, loads up to the specified number of tracks.
+
+    Args:
+        load_path (Path): Path to the directory containing the dataset
+        split_name (str): Name of the split to load
+        track_id (int): ID of the track to load
+        n_tracks (int): Number of tracks to load
+
+    Returns:
+        list of torch.Tensor: List of tensors containing the dataset
+            each tensor is of shape (time_steps, ...)
+    """
     tensors = []
     if track_id is not None:
         iter_l = [Path(load_path) / f"{split_name}_{track_id}.pkl"]
@@ -125,7 +203,7 @@ def load_the_well_pts(load_path, split_name, track_id=None, n_tracks=None):
     for pt_file in iter_l:
         if split_name in pt_file.name:
             # Convert data to pytorch (treat it like a (1 x dim x 1) image)
-            with open(pt_file, 'rb') as f:
+            with open(pt_file, "rb") as f:
                 tensor = pickle.load(f)
                 tensor = torch.from_numpy(tensor)
             tensor = tensor.float()
@@ -134,31 +212,70 @@ def load_the_well_pts(load_path, split_name, track_id=None, n_tracks=None):
                 break
     return tensors
 
+
 def load_well_data(args):
+    """
+    Loads the The Well dataset from the `datasets/the_well_custom/` directory.
+    To generate a dataset, see `scripts/preprocess_the_well.py`.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
     # Data path
-    data_path = data_dir / 'the_well_custom' / args.dataset
+    data_path = data_dir / "the_well_custom" / args.dataset
 
     # Load training, validation, and testing data
-    train_fulls = load_the_well_pts(data_path / 'full', 'train', n_tracks=args.n_well_tracks)
-    val_fulls = load_the_well_pts(data_path / 'full', 'valid', n_tracks=args.n_well_tracks)
-    test_fulls = load_the_well_pts(data_path / 'full', 'test', n_tracks=args.n_well_tracks)
+    train_fulls = load_the_well_pts(
+        data_path / "full", "train", n_tracks=args.n_well_tracks
+    )
+    val_fulls = load_the_well_pts(
+        data_path / "full", "valid", n_tracks=args.n_well_tracks
+    )
+    test_fulls = load_the_well_pts(
+        data_path / "full", "test", n_tracks=args.n_well_tracks
+    )
 
     # Load Scalers
-    with open(data_path / 'metadata' / 'scalers.pkl', 'rb') as f:
+    with open(data_path / "metadata" / "scalers.pkl", "rb") as f:
         scalers = pickle.load(f)
 
     # Create torch datasets
-    train_full_ds = TimeSeriesDataset(input_tensors=train_fulls, length=args.input_length + args.forecast_length, device=args.device)
-    valid_full_ds = TimeSeriesDataset(input_tensors=val_fulls, length=args.input_length + args.forecast_length, device=args.device)
-    test_full_ds = TimeSeriesDataset(input_tensors=test_fulls, length=args.input_length + args.forecast_length, device=args.device)
+    train_full_ds = TimeSeriesDataset(
+        input_tensors=train_fulls,
+        length=args.input_length + args.forecast_length,
+        device=args.device,
+    )
+    valid_full_ds = TimeSeriesDataset(
+        input_tensors=val_fulls,
+        length=args.input_length + args.forecast_length,
+        device=args.device,
+    )
+    test_full_ds = TimeSeriesDataset(
+        input_tensors=test_fulls,
+        length=args.input_length + args.forecast_length,
+        device=args.device,
+    )
 
-    return train_full_ds, valid_full_ds, test_full_ds, {'scalers': scalers}
+    return train_full_ds, valid_full_ds, test_full_ds, {"scalers": scalers}
+
 
 def load_sst_data(args):
+    """
+    Loads the SST dataset from the `datasets/sst/` directory.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
     # Load raw file
-    sst_data_path = data_dir / 'sst' / "SST_data.mat"
-    sst_data = sio.loadmat(sst_data_path)['Z'] # (64800, 1400)
-    sst_data = einops.rearrange(sst_data, '(r c) t -> t r c', r=180, c=360, t=1400)
+    sst_data_path = data_dir / "sst" / "SST_data.mat"
+    sst_data = sio.loadmat(sst_data_path)["Z"]  # (64800, 1400)
+    sst_data = einops.rearrange(sst_data, "(r c) t -> t r c", r=180, c=360, t=1400)
 
     # Create training, testing, and validation split
     train_size = int(sst_data.shape[0] * 0.8)
@@ -179,20 +296,34 @@ def load_sst_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(input_tensors=[split], length=args.input_length + args.forecast_length, device=args.device)
+        sst_ds = TimeSeriesDataset(
+            input_tensors=[split],
+            length=args.input_length + args.forecast_length,
+            device=args.device,
+        )
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
     valid_ds = datasets[1]
     test_ds = datasets[2]
 
-    return train_ds, valid_ds, test_ds, {'scalers': [scaler]}
+    return train_ds, valid_ds, test_ds, {"scalers": [scaler]}
+
 
 def load_sst_demo_data(args):
+    """
+    Loads the SST demo dataset from the `datasets/sst/` directory.
+
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
     # Load raw file
-    sst_data_path = data_dir / 'sst' / "demo_sst.npy.gz"
-    with gzip.open(sst_data_path, 'rb') as f:
-        sst_data = np.load(f) # (1000, 180, 360)
+    sst_data_path = data_dir / "sst" / "demo_sst.npy.gz"
+    with gzip.open(sst_data_path, "rb") as f:
+        sst_data = np.load(f)  # (1000, 180, 360)
 
     # Create training, testing, and validation split
     train_size = int(sst_data.shape[0] * 0.8)
@@ -213,41 +344,63 @@ def load_sst_demo_data(args):
     # Create torch datasets
     datasets = []
     for i, split in enumerate([train, val, test]):
-        sst_ds = TimeSeriesDataset(input_tensors=[split], length=args.input_length + args.forecast_length, device=args.device)
+        sst_ds = TimeSeriesDataset(
+            input_tensors=[split],
+            length=args.input_length + args.forecast_length,
+            device=args.device,
+        )
         datasets.append(sst_ds)
 
     train_ds = datasets[0]
     valid_ds = datasets[1]
     test_ds = datasets[2]
 
-    return train_ds, valid_ds, test_ds, {'scalers': [scaler]}
+    return train_ds, valid_ds, test_ds, {"scalers": [scaler]}
+
 
 def load_plasma_data(args):
-    # Load data (14 fields)
-    ne_data = sio.loadmat(plasma_dir / 'ne.mat') # (65792, 2000) = (257 * 256, 2000)
-    ne_data = ne_data['Data']
+    """
+    Loads the plasma dataset from the `datasets/plasma/` directory.
 
-    u_total = np.load(plasma_dir / 'u_total.npy') # (65792, 280)
-    s_total = np.load(plasma_dir / 's_total.npy') # (14, 20)
-    v_total = np.load(plasma_dir / 'v_total.npy') # (280, 2000)
+    Args:
+        args (argparse.Namespace): Arguments from the command line or configuration file
+
+    Returns:
+        tuple: (train_ds, valid_ds, test_ds, metadata) where each is a TimeSeriesDataset and metadata is a dictionary containing the scalers
+    """
+    # Load data (14 fields)
+    ne_data = sio.loadmat(plasma_dir / "ne.mat")  # (65792, 2000) = (257 * 256, 2000)
+    ne_data = ne_data["Data"]
+
+    u_total = np.load(plasma_dir / "u_total.npy")  # (65792, 280)
+    s_total = np.load(plasma_dir / "s_total.npy")  # (14, 20)
+    v_total = np.load(plasma_dir / "v_total.npy")  # (280, 2000)
 
     # Switch from ne = U S V to ne * = V* S* U*
-    ne_data = ne_data.T # (2000, 257 * 256) = (2000, 65792)
-    u_total = u_total.T # (280, 2000)
-    s_total = s_total.T # (20, 14) # 14 fields, 20 modes each
-    v_total = v_total.T # (2000, 280)
+    ne_data = ne_data.T  # (2000, 257 * 256) = (2000, 65792)
+    u_total = u_total.T  # (280, 2000)
+    s_total = s_total.T  # (20, 14) # 14 fields, 20 modes each
+    v_total = v_total.T  # (2000, 280)
 
     # Convert ne_data to image (2000, 257, 256, 1)
-    ne_data = einops.rearrange(ne_data, "t (r w d) -> t r w d", t=ne_data.shape[0], r=257, w=256, d=1)
+    ne_data = einops.rearrange(
+        ne_data, "t (r w d) -> t r w d", t=ne_data.shape[0], r=257, w=256, d=1
+    )
 
     # Convert v_total output to image (2000, 1, 280, 1)
-    v_total_output = einops.rearrange(v_total, "t (r w d) -> t r w d", t=v_total.shape[0], r=1, w=280, d=1)
+    v_total_output = einops.rearrange(
+        v_total, "t (r w d) -> t r w d", t=v_total.shape[0], r=1, w=280, d=1
+    )
 
     # Create training, testing, and validation split
     train_size = int(ne_data.shape[0] * 0.8)
     val_size = int(ne_data.shape[0] * 0.1)
-    input_train, input_val, input_test = np.split(ne_data, [train_size, train_size + val_size])
-    output_train, output_val, output_test = np.split(v_total_output, [train_size, train_size + val_size])
+    input_train, input_val, input_test = np.split(
+        ne_data, [train_size, train_size + val_size]
+    )
+    output_train, output_val, output_test = np.split(
+        v_total_output, [train_size, train_size + val_size]
+    )
 
     # Convert data to pytorch
     input_train = torch.from_numpy(input_train).float()
@@ -267,15 +420,33 @@ def load_plasma_data(args):
 
     # Create torch datasets
     datasets = []
-    for i, (input_split, output_split) in enumerate([(input_train, output_train),
-                                                     (input_val, output_val),
-                                                     (input_test, output_test)]):
-        plasma_ds = TimeSeriesDataset(input_tensors=[input_split], output_tensors=[output_split], length=args.input_length + args.forecast_length, device=args.device)
+    for i, (input_split, output_split) in enumerate(
+        [
+            (input_train, output_train),
+            (input_val, output_val),
+            (input_test, output_test),
+        ]
+    ):
+        plasma_ds = TimeSeriesDataset(
+            input_tensors=[input_split],
+            output_tensors=[output_split],
+            length=args.input_length + args.forecast_length,
+            device=args.device,
+        )
         datasets.append(plasma_ds)
 
     train_ds = datasets[0]
     valid_ds = datasets[1]
     test_ds = datasets[2]
 
-    return train_ds, valid_ds, test_ds, {'scalers': [scaler], 'u_total': u_total, 's_total': s_total, 'v_total': v_total}
-
+    return (
+        train_ds,
+        valid_ds,
+        test_ds,
+        {
+            "scalers": [scaler],
+            "u_total": u_total,
+            "s_total": s_total,
+            "v_total": v_total,
+        },
+    )

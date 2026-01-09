@@ -1,3 +1,8 @@
+"""
+This script runs the testing configurations from the `results/**/*optimal_params*.yaml` directories in parallel.
+Note that this code is experimental is just a side project to try to parallelize running test configurations on multiple machines using semaphores.
+"""
+
 import sys
 from pathlib import Path
 
@@ -15,14 +20,14 @@ computers = {
         "repo_path": "/home/alexey/Git/T-SHRED",
         "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
         "log_path": "/home/alexey/Git/T-SHRED/logs",
-        "gpus": ["cuda:1"]
+        "gpus": ["cuda:1"],
     },
-    #"matrix": {
-        #"repo_path": "/home/alexey/Git/T-SHRED",
-        #"venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        #"log_path": "/home/alexey/Git/T-SHRED/logs",
-        #"gpus": ["cuda:1", "cuda:2", "cuda:3"]
-    #},
+    # "matrix": {
+    # "repo_path": "/home/alexey/Git/T-SHRED",
+    # "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
+    # "log_path": "/home/alexey/Git/T-SHRED/logs",
+    # "gpus": ["cuda:1", "cuda:2", "cuda:3"]
+    # },
 }
 
 remote_cmd_template = (
@@ -40,7 +45,9 @@ if len(config_files) == 0:
     exit(0)
 
 semaphores = create_semaphores(computers, n_parallel, remote_cmd_template, "testing")
-num_devices = sum(len(computer_config["gpus"]) for computer_config in computers.values())
+num_devices = sum(
+    len(computer_config["gpus"]) for computer_config in computers.values()
+)
 
 run_in_parallel(config_files, semaphores, n_parallel)
 

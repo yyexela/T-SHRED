@@ -1,1 +1,21 @@
-__all__ = ['datasets', 'models', 'helpers', 'vanilla_transformer', 'sindy_attention_transformer', 'sindy_loss_rnns', 'rnns', 'decoders', 'positional_encoding', 'plots', 'pytorch_polynomial_features', 'sindy_attention_sindy_loss_transformer']
+"""
+T-SHRED source package.
+Contains model architectures, data loading, training utilities, and SINDy-enhanced components.
+"""
+
+__all__ = [
+    "datasets",
+    "decoders",
+    "helpers",
+    "models",
+    "moe_rnns",
+    "plots",
+    "positional_encoding",
+    "pytorch_polynomial_features",
+    "rnns",
+    "sindy_attention_sindy_loss_transformer",
+    "sindy_attention_transformer",
+    "sindy_layer",
+    "sindy_loss_rnns",
+    "vanilla_transformer",
+]

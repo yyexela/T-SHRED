@@ -1,9 +1,14 @@
+"""
+This script generates slurm files for hyperparameter optimization.
+Looks through all configuration files in the `configs/**/tuning_config/` directories.
+Writes the slurms into the `slurms/` directory.
+"""
+
 from pathlib import Path
 
 top_dir = Path(__file__).parent.parent
 
-cmd_template = \
-"""\
+cmd_template = """\
 #!/bin/bash
 
 #SBATCH --account={account}
@@ -35,29 +40,30 @@ echo "Finished running Python"\
 """
 
 # Slurm parameters
-account='amath'
-partition='gpu-rtx6k'
-memory=32
-cpus_per_task=12
-slurm_time='6:00:00'
-hyper_opt_time=5.9
+account = "amath"
+partition = "gpu-rtx6k"
+memory = 32
+cpus_per_task = 12
+slurm_time = "6:00:00"
+hyper_opt_time = 5.9
 
-# Clean up slurm repo
-slurm_dir = top_dir / 'slurms'
-for file in slurm_dir.glob('*.slurm'):
+# Clean up slurm directory
+slurm_dir = top_dir / "slurms"
+for file in slurm_dir.glob("*.slurm"):
     file.unlink()
 
 # Recursively find all tuning configs in configs directory only if 'tuning_config' is a part of the path
-configs_dir = top_dir / 'configs'
+configs_dir = top_dir / "configs"
 config_files = []
-for config_file in configs_dir.glob('**/*.yaml'):
-    if 'tuning_config' in str(config_file):
+for config_file in configs_dir.glob("**/*.yaml"):
+    if "tuning_config" in str(config_file):
         config_files.append(config_file)
 
+# Generate slurm files for each configuration
 for config_file in config_files:
     config_file_name = config_file.name
     model_name = config_file.parent.parent.name
-    identifier = config_file_name.split('.')[0]
+    identifier = config_file_name.split(".")[0]
 
     cmd = cmd_template.format(
         account=account,
@@ -70,7 +76,8 @@ for config_file in config_files:
         identifier=identifier,
     )
 
-    with open(top_dir / 'slurms' / f'{model_name}_{identifier}.slurm', "w") as f:
+    with open(top_dir / "slurms" / f"{model_name}_{identifier}.slurm", "w") as f:
         f.write(cmd)
 
+# Print summary
 print(f"Total jobs: {len(config_files)}")

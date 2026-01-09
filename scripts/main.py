@@ -1,3 +1,9 @@
+"""
+This is the main script for training the models.
+Uses user-provided configuration file to train the model.
+Alternatively, command line arguments can be provided directly.
+"""
+
 ###########
 # Imports #
 ###########
@@ -28,11 +34,11 @@ from src import *
 ###############
 
 top_dir = Path(__file__).parent.parent
-data_dir = top_dir / 'datasets'
-plasma_dir = data_dir / 'plasma'
-fig_dir = top_dir / 'figures'
-checkpoint_dir = top_dir / 'checkpoints'
-pickle_dir = top_dir / 'pickles'
+data_dir = top_dir / "datasets"
+plasma_dir = data_dir / "plasma"
+fig_dir = top_dir / "figures"
+checkpoint_dir = top_dir / "checkpoints"
+pickle_dir = top_dir / "pickles"
 
 fig_dir.mkdir(parents=True, exist_ok=True)
 checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -42,6 +48,7 @@ pickle_dir.mkdir(parents=True, exist_ok=True)
 # Main #
 ########
 
+
 def main(args=None):
     # Verify args
     helpers.verify_args(args)
@@ -50,12 +57,12 @@ def main(args=None):
     torch.manual_seed(args.seed)
     random.seed(args.seed)
     np.random.seed(args.seed)
-    
+
     # Set CUDA seeds if using GPU
     if torch.cuda.is_available():
         torch.cuda.manual_seed(args.seed)
         torch.cuda.manual_seed_all(args.seed)
-    
+
     # Make CuDNN deterministic for reproducibility
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -63,14 +70,18 @@ def main(args=None):
     # Load dataset
     train_ds, val_ds, test_ds, metadata = datasets.load_dataset(args)
     args.d_data_in = train_ds[0][0].shape[-1]
-    args.data_rows_in, args.data_cols_in = (train_ds[0][0].shape[-3],
-                                      train_ds[0][0].shape[-2])
+    args.data_rows_in, args.data_cols_in = (
+        train_ds[0][0].shape[-3],
+        train_ds[0][0].shape[-2],
+    )
     args.d_data_out = train_ds[0][1].shape[-1]
-    args.data_rows_out, args.data_cols_out = (train_ds[0][1].shape[-3],
-                                      train_ds[0][1].shape[-2])
+    args.data_rows_out, args.data_cols_out = (
+        train_ds[0][1].shape[-3],
+        train_ds[0][1].shape[-2],
+    )
     args.d_model = args.n_sensors * args.d_data_in
     args.dim_feedforward = args.hidden_size * 2
-    args.output_size = args.data_rows_out*args.data_cols_out*args.d_data_out
+    args.output_size = args.data_rows_out * args.data_cols_out * args.d_data_out
 
     # Create dataloader
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=False)
@@ -78,16 +89,26 @@ def main(args=None):
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
     # Save model location
-    latest_model_name = f'{args.identifier}_latest.pt'
-    best_model_name = f'{args.identifier}_best.pt'
+    latest_model_name = f"{args.identifier}_latest.pt"
+    best_model_name = f"{args.identifier}_best.pt"
     args.latest_checkpoint_path = checkpoint_dir / latest_model_name
     args.best_checkpoint_path = checkpoint_dir / best_model_name
 
     # Load model if checkpoint exists
-    model, optimizer, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors = models.load_model_from_checkpoint(args.latest_checkpoint_path, args=args)
+    (
+        model,
+        optimizer,
+        start_epoch,
+        best_val,
+        best_epoch,
+        train_losses,
+        val_losses,
+        model_eigvs,
+        sensors,
+    ) = models.load_model_from_checkpoint(args.latest_checkpoint_path, args=args)
 
     # Print hyperparameters
-    helpers.print_dictionary(vars(args), 'Hyperparameters:')
+    helpers.print_dictionary(vars(args), "Hyperparameters:")
 
     # Print model size
     helpers.print_model_size(model, "Full")
@@ -109,7 +130,7 @@ def main(args=None):
         model_eigvs=model_eigvs,
         optimizer=optimizer,
         metadata=metadata,
-        args=args
+        args=args,
     )
 
     # Clean up variables after training
@@ -118,40 +139,74 @@ def main(args=None):
     time.sleep(1.0)
 
     # Evaluate best validation model
-    best_model, _, start_epoch, best_val, best_epoch, train_losses, val_losses, model_eigvs, sensors = models.load_model_from_checkpoint(args.best_checkpoint_path, force_load=True, args=args)
+    (
+        best_model,
+        _,
+        start_epoch,
+        best_val,
+        best_epoch,
+        train_losses,
+        val_losses,
+        model_eigvs,
+        sensors,
+    ) = models.load_model_from_checkpoint(
+        args.best_checkpoint_path, force_load=True, args=args
+    )
 
-    # Threshold
-    if args.encoder in ["sindy_attention_transformer", "sindy_attention_sindy_loss_transformer"]:
+    # Threshold SINDy coefficients in SINDy layer
+    if "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]:
         if args.verbose:
             print(f"Thresholding SINDy coefficients")
-        helpers.threshold_all_layers(best_model.encoder, args.sindy_attention_threshold, verbose=args.verbose)
+        best_model.encoder.threshold_sindy_layer_coefficients(
+            args.sindy_layer_threshold, verbose=args.verbose
+        )
 
     # Print model coefficients
-    if args.verbose and (args.encoder in ["sindy_attention_transformer"]):
-        helpers.print_model_coefficients(best_model, args)
+    if args.verbose and (
+        "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]
+    ):
+        best_model.encoder.print_sindy_layer_coefficients()
 
     # Calculate loss
-    test_loss_next, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, rollout=False, rmse=True, args=args)
-    print(f'Test loss (next rmse): {test_loss_next:0.4e}')
+    test_loss_next, _ = helpers.evaluate_model(
+        best_model, test_dl, sensors, metadata, rollout=False, rmse=True, args=args
+    )
+    print(f"Test loss (next rmse): {test_loss_next:0.4e}")
 
-    test_loss_rollout, _ = helpers.evaluate_model(best_model, test_dl, sensors, metadata, rollout=True, rmse=False, args=args)
-    print(f'Test loss (rollout rmse): {test_loss_rollout:0.4e}')
+    test_loss_rollout, _ = helpers.evaluate_model(
+        best_model, test_dl, sensors, metadata, rollout=True, rmse=False, args=args
+    )
+    print(f"Test loss (rollout rmse): {test_loss_rollout:0.4e}")
 
-    save_dict = {'test_loss_next': test_loss_next, 'test_loss_rollout': test_loss_rollout, 'start_epoch': start_epoch, 'best_val': best_val, 'best_epoch': best_epoch, 'train_losses': train_losses, 'val_losses': val_losses, 'model_eigvs': model_eigvs, 'sensors': sensors}
+    save_dict = {
+        "test_loss_next": test_loss_next,
+        "test_loss_rollout": test_loss_rollout,
+        "start_epoch": start_epoch,
+        "best_val": best_val,
+        "best_epoch": best_epoch,
+        "train_losses": train_losses,
+        "val_losses": val_losses,
+        "model_eigvs": model_eigvs,
+        "sensors": sensors,
+    }
 
     # Create plots
     if args.generate_test_plots:
-        #helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
-        if "sindy_attention" in args.encoder:
+        # helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
+        if "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]:
             model_eigvs = np.asarray(model_eigvs)
-            model_eigvs = einops.rearrange(model_eigvs, 'epochs heads coeffs -> heads epochs coeffs')
+            model_eigvs = einops.rearrange(
+                model_eigvs, "epochs heads coeffs -> heads epochs coeffs"
+            )
             for i in range(args.n_heads):
-                plots.plot_eigvs(model_eigvs[i], save=True, fname=f"{args.identifier}_eigvs_head{i}")
+                plots.plot_eigvs(
+                    model_eigvs[i], save=True, fname=f"{args.identifier}_eigvs_head{i}"
+                )
         helpers.create_far_out_plots(best_model, test_ds, sensors, metadata, args=args)
 
     # Save pickle
-    with open(pickle_dir / f'{args.identifier}.pkl', 'wb') as f:
-        save_dict['hyperparameters'] = vars(args)
+    with open(pickle_dir / f"{args.identifier}.pkl", "wb") as f:
+        save_dict["hyperparameters"] = vars(args)
         pickle.dump(save_dict, f)
 
     # Delete checkpoint after training
@@ -159,18 +214,19 @@ def main(args=None):
         args.latest_checkpoint_path.unlink(missing_ok=True)
         args.best_checkpoint_path.unlink(missing_ok=True)
 
+
 def config_main(config_str: str):
     """
     Helper for hyperparameter tuning, just takes in path to config file
     """
-    with open(config_str, 'r') as f:
+    with open(config_str, "r") as f:
         config = yaml.safe_load(f)
-    model_config = config['model']
+    model_config = config["model"]
     args = argparse.Namespace(**model_config)
     args.config = config_str
     main(args)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     args = helpers.parse_args()
     main(args)
-        
