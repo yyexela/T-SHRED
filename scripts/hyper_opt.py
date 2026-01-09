@@ -519,6 +519,9 @@ class TuningRunner:
         - n_trials from config file if present
         - time_budget_hours (always used with a default value of 24 hours)
         If both are specified, tuning stops when either limit is reached.
+
+        Returns:
+            None
         """
         # Create a copy of the configuration to avoid modifying the original
         self.blank_config = self.hp_config.copy()
@@ -677,6 +680,9 @@ class ModelTuner:
             config_path: Path to the configuration file
             log_dir: Directory to save logs. If None and log_to_file is True, logs will be saved to "logs"
             log_to_file: Whether to log to a file in addition to console output
+
+        Returns:
+            None
         """
         # Convert configs_dir to absolute path if it's relative
         self.config_path = Path(config_path)
@@ -710,6 +716,9 @@ class ModelTuner:
         Args:
             log_to_file: Whether to log to a file in addition to console output.
                         If False, only logs to console.
+
+        Returns:
+            None
         """
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -753,6 +762,9 @@ class ModelTuner:
             metric: Metric to optimize, score by default
             output_dir: Optional custom output directory
             gpus_per_trial: Number of GPUs to use per trial (default: 0). Set to 0 to use all available GPUs.
+
+        Returns:
+            None
         """
         self.logger.info(f"Starting tuning for model: {self.identifier}")
 
@@ -791,6 +803,9 @@ class ModelTuner:
 
         Args:
             description: Description for the argument parser
+
+        Returns:
+            None
         """
         # Get the directory of the calling script
         caller_frame = sys._getframe(1)
