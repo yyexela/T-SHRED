@@ -275,17 +275,23 @@ def verify_args(args):
     if args.encoder not in [
         "gru",
         "lstm",
-        "sindy_loss_gru",
-        "sindy_loss_lstm",
+        "mlp",
         "moe_gru",
         "moe_lstm",
+        "moe_mlp",
+        "sindy_loss_gru",
+        "sindy_loss_lstm",
+        "sindy_loss_mlp",
+        "sindy_loss_moe_gru",
+        "sindy_loss_moe_lstm",
+        "sindy_loss_moe_mlp",
         "vanilla_transformer",
         "sindy_loss_transformer",
         "sindy_attention_transformer",
         "sindy_attention_sindy_loss_transformer",
     ]:
         raise ValueError(
-            f"encoder {args.encoder} not supported, choose one of: gru, lstm, sindy_loss_gru, sindy_loss_lstm, moe_gru, moe_lstm, vanilla_transformer, sindy_loss_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer"
+            f"encoder {args.encoder} not supported, choose one of: gru, lstm, mlp, moe_gru, moe_lstm, moe_mlp, sindy_loss_gru, sindy_loss_lstm, sindy_loss_mlp, sindy_loss_moe_gru, sindy_loss_moe_lstm, sindy_loss_moe_mlp, vanilla_transformer, sindy_loss_transformer, sindy_attention_transformer, sindy_attention_sindy_loss_transformer"
         )
     if args.encoder_depth <= 0:
         raise ValueError(f"encoder_depth {args.encoder_depth} must be greater than 0")
@@ -300,6 +306,10 @@ def verify_args(args):
         "sindy_attention_sindy_loss_transformer",
         "moe_gru",
         "moe_lstm",
+        "moe_mlp",
+        "sindy_loss_moe_gru",
+        "sindy_loss_moe_lstm",
+        "sindy_loss_moe_mlp",
     ]:
         raise ValueError(
             f"forecast_length {args.forecast_length} must be 1 for non-rollout encoders"
@@ -642,10 +652,7 @@ def evaluate_model(
 
             if sindy_loss_batch is not None:
                 sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
-            if "sindy_attention" in args.encoder or args.encoder in [
-                "moe_lstm",
-                "moe_gru",
-            ]:
+            if "sindy_attention" in args.encoder or "moe" in args.encoder:
                 if args.sindy_layer_weight > 0.0:
                     sindy_sum = (
                         args.sindy_layer_weight
@@ -799,10 +806,7 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
 
             # Pass data through model
             expected_seq_len = args.input_length if "transformer" in args.encoder else 1
-            if "sindy_attention" in args.encoder or args.encoder in [
-                "moe_lstm",
-                "moe_gru",
-            ]:
+            if "sindy_attention" in args.encoder or "moe" in args.encoder:
                 model.encoder.set_forecast_length(forecast_length_plot)
                 output = model(input_sensors)
                 model.encoder.set_forecast_length(args.forecast_length)
@@ -1178,7 +1182,7 @@ def create_inputs_and_labels_from_batch(batch, args):
             ],
             dim=2,
         )
-    elif "moe_gru" in args.encoder or "moe_lstm" in args.encoder:
+    elif "moe" in args.encoder:
         # MOE-GRUs create one long-term forecast
         labels = batch[1][:, args.input_length :, :, :, :]
     else:
@@ -1188,13 +1192,12 @@ def create_inputs_and_labels_from_batch(batch, args):
 
     if (
         "sindy_attention" not in args.encoder
-        and "moe_gru" not in args.encoder
-        and "moe_lstm" not in args.encoder
+        and "moe" not in args.encoder
     ):
-        # Set forecast length to 1 for non-SINDy-Attention Transformers
+        # Set forecast length to 1 for non-SINDy-Layer models
         labels = labels.unsqueeze(1)
-    elif "moe_gru" in args.encoder or "moe_lstm" in args.encoder:
-        # Set sequence length to 1 for moe_gru and moe_lstm
+    elif "moe" in args.encoder:
+        # Set sequence length to 1 for moe models
         labels = labels.unsqueeze(2)
 
     return inputs, labels
@@ -1298,10 +1301,7 @@ def train_model(
             if sindy_loss_batch is not None:
                 sindy_loss_batch = args.sindy_loss_weight * sindy_loss_batch
                 loss += sindy_loss_batch
-            if "sindy_attention" in args.encoder or args.encoder in [
-                "moe_lstm",
-                "moe_gru",
-            ]:
+            if "sindy_attention" in args.encoder or "moe" in args.encoder:
                 if args.sindy_layer_weight > 0.0:
                     sindy_sum = (
                         args.sindy_layer_weight
@@ -1318,7 +1318,7 @@ def train_model(
                 sindy_loss += sindy_loss_batch.item()
 
         # Threshold if necessary
-        if "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]:
+        if "sindy_attention" in args.encoder or "moe" in args.encoder:
             if epoch > 0 and (epoch + 1) % args.sindy_layer_threshold_n_epochs == 0:
                 if args.verbose:
                     print(f"Thresholding SINDy coefficients (epoch {epoch+1})")
@@ -1419,12 +1419,12 @@ def train_model(
 
         # Print model coefficients
         if args.verbose and (
-            "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]
+            "sindy_attention" in args.encoder or "moe" in args.encoder
         ):
             model.encoder.print_sindy_layer_coefficients()
 
         # Collect model eigenvalues
-        if "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]:
+        if "sindy_attention" in args.encoder or "moe" in args.encoder:
             model_eigvs_epoch = model.encoder.get_sindy_layer_coefficients_eigenvalues()
             model_eigvs.append(model_eigvs_epoch)
 

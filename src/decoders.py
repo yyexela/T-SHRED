@@ -8,7 +8,7 @@ import numpy as np
 import torch.nn as nn
 
 
-class MLP(nn.Module):
+class MLPDecoder(nn.Module):
     """
     A simple Multi-Layer Perceptron (MLP) decoder.
 
@@ -35,7 +35,7 @@ class MLP(nn.Module):
             dropout (float): Dropout probability applied after the final layer
             device (str): Device to place the model on (default: "cpu")
         """
-        super(MLP, self).__init__()
+        super(MLPDecoder, self).__init__()
         # Class variables
         self.in_dim = in_dim
         self.out_dim = out_dim

@@ -13,13 +13,20 @@ from pathlib import Path
 n_seeds = 1
 encoders = [
     "gru",
+    "mlp",
     "lstm",
     "moe_gru",
+    "moe_mlp",
     "moe_lstm",
     "moe_gru_5",
+    "moe_mlp_5",
     "moe_lstm_5",
     "sindy_loss_gru",
+    "sindy_loss_mlp",
     "sindy_loss_lstm",
+    "sindy_loss_moe_gru",
+    "sindy_loss_moe_mlp",
+    "sindy_loss_moe_lstm",
     "vanilla_transformer",
     "sindy_loss_transformer",
     "sindy_attention_transformer",
@@ -69,10 +76,7 @@ def main():
                     config["model"]["coord_descent"] = False
 
                     # Set forecast_length based on rollout
-                    if "sindy_attention" in encoder or encoder in [
-                        "moe_lstm_5",
-                        "moe_gru_5",
-                    ]:
+                    if "sindy_attention" in encoder or "moe" in encoder:
                         if "_5" in encoder:
                             config["model"]["forecast_length"] = 5
                             config["model"]["encoder"] = encoder[:-2]

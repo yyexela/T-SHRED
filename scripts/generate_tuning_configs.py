@@ -12,12 +12,18 @@ import shutil
 from pathlib import Path
 
 encoder_dict = {
+    "mlp": "MLP",
     "gru": "GRU",
     "lstm": "LSTM",
+    "moe_mlp": "MOE-MLP",
     "moe_gru": "MOE-GRU",
     "moe_lstm": "MOE-LSTM",
     "sindy_loss_gru": "SL-GRU",
     "sindy_loss_lstm": "SL-LSTM",
+    "sindy_loss_mlp": "SL-MLP",
+    "sindy_loss_moe_gru": "SL-MOE-GRU",
+    "sindy_loss_moe_lstm": "SL-MOE-LSTM",
+    "sindy_loss_moe_mlp": "SL-MOE-MLP",
     "vanilla_transformer": "T",
     "sindy_loss_transformer": "SLT",
     "sindy_attention_transformer": "SA-T",
@@ -35,15 +41,26 @@ n_seeds = 10
 encoders = [
     "gru",
     "lstm",
+    "mlp",
     "moe_gru",
     "moe_lstm",
+    "moe_mlp",
+    "moe_mlp_5",
+    "moe_gru_5",
+    "moe_lstm_5",
     "sindy_loss_gru",
     "sindy_loss_lstm",
+    "sindy_loss_mlp",
+    "sindy_loss_moe_gru",
+    "sindy_loss_moe_lstm",
+    "sindy_loss_moe_mlp",
     "vanilla_transformer",
     "sindy_loss_transformer",
     "sindy_attention_transformer",
     "sindy_attention_sindy_loss_transformer",
-]  # , "sindy_attention_transformer_5", "sindy_attention_sindy_loss_transformer_5"]
+    "sindy_attention_transformer_5",
+    "sindy_attention_sindy_loss_transformer_5",
+]
 decoders = ["mlp", "cnn"]
 datasets = ["sst", "plasma", "planetswe"]
 

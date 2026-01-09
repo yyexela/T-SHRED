@@ -154,7 +154,7 @@ def main(args=None):
     )
 
     # Threshold SINDy coefficients in SINDy layer
-    if "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]:
+    if "sindy_attention" in args.encoder or "moe" in args.encoder:
         if args.verbose:
             print(f"Thresholding SINDy coefficients")
         best_model.encoder.threshold_sindy_layer_coefficients(
@@ -163,7 +163,7 @@ def main(args=None):
 
     # Print model coefficients
     if args.verbose and (
-        "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]
+        "sindy_attention" in args.encoder or "moe" in args.encoder
     ):
         best_model.encoder.print_sindy_layer_coefficients()
 
@@ -193,7 +193,7 @@ def main(args=None):
     # Create plots
     if args.generate_test_plots:
         # helpers.create_next_step_plots(best_model, test_ds, sensors, metadata, args=args)
-        if "sindy_attention" in args.encoder or args.encoder in ["moe_lstm", "moe_gru"]:
+        if "sindy_attention" in args.encoder or "moe" in args.encoder:
             model_eigvs = np.asarray(model_eigvs)
             model_eigvs = einops.rearrange(
                 model_eigvs, "epochs heads coeffs -> heads epochs coeffs"
