@@ -527,9 +527,9 @@ def train(
         val_loss = evaluate(inference_model, val_inputs[::20], val_targets[::20])
         train_loss = evaluate(inference_model, train_inputs[::100], train_targets[::100])
         t_end = time()
-        print(f"Epoch \{epoch + 1\}, Loss: \{train_loss:.6f\}")
-        print(f"Average Val. Loss: \{val_loss\}")
-        print(f"Epoch time: \{t_end - t_start\}")
+        print(f"Epoch {epoch + 1}, Loss: {train_loss:.6f}")
+        print(f"Average Val. Loss: {val_loss}")
+        print(f"Epoch time: {t_end - t_start}")
         val_loss_list.append(val_loss)
 
     return model

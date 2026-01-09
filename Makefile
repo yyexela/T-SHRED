@@ -11,9 +11,9 @@ PYTHONS = $(wildcard $(SRC_DIR)/*.py) $(wildcard $(SCRIPTS_DIR)/*.py)
 
 all: format
 
-# Run format - format Python files with black
-format:
-	source $(VENV) && black $(PYTHONS)
+clean:
+	rm -rf bash logs pickles results slurms checkpoints
+	rm -rf transformer_sindy_shred.egg-info
 
 # Format Python files with black
 format:
