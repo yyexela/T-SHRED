@@ -71,7 +71,7 @@ encoders = [
     "sindy_attention_sindy_loss_transformer_5",
 ]
 decoders = ["mlp", "cnn"]
-datasets = ["sst", "plasma", "planetswe"]
+datasets = ["sst"]
 
 top_dir = Path(__file__).parent.parent
 
@@ -87,7 +87,7 @@ def main():
         shutil.rmtree(output_dir, ignore_errors=True)
 
     # Load template config
-    template_path = top_dir / "configs/template/template.yaml"
+    template_path = top_dir / "configs/template/tuning_template.yaml"
     with open(template_path, "r") as f:
         template_config = yaml.safe_load(f)
 
@@ -119,7 +119,7 @@ def main():
 
                     # Check if config has been optimized
                     results_path = (
-                        Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
+                        top_dir / "results"
                     )
                     results_path = (
                         results_path / identifier / f"optimal_params_{dataset}.yaml"
@@ -141,11 +141,11 @@ def main():
                     # SINDy Loss options
                     if "sindy_loss" not in encoder:
                         hyperparams_to_remove.append("sindy_loss_weight")
-                    if "sindy_attention" not in encoder:
+                    if "sindy_attention" not in encoder and "moe" not in encoder:
                         hyperparams_to_remove.append("sindy_layer_weight")
 
                     # Set forecast_length based on rollout
-                    if "sindy_attention" in encoder:
+                    if "sindy_attention" in encoder or "moe" in encoder:
                         if "_5" in encoder:
                             config["model"]["forecast_length"] = 5
                             config["model"]["encoder"] = encoder[:-2]

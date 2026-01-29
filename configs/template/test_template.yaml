@@ -26,7 +26,7 @@ model:
   poly_order: 1
   save_every_n_epochs: 3
   seed: 0
-  sindy_layer_weight: 0.
+  sindy_layer_weight: 0.1
   sindy_layer_threshold: 0.1
   sindy_layer_threshold_n_epochs: 10
   sindy_loss_threshold: 0.1

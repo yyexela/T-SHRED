@@ -1,0 +1,72 @@
+model:
+  batch_size: 128
+  coord_descent: none
+  dataset: none
+  decoder: none
+  decoder_depth: 2
+  device: cuda:0
+  delete_checkpoint: true
+  dt: 1.0
+  early_stop: 10
+  encoder: none
+  epochs: 100
+  forecast_length: none
+  generate_loss_plots: false
+  generate_test_plots: false
+  generate_training_plots: false
+  hidden_size: 40
+  identifier: none
+  input_length: 20
+  n_heads: 4
+  n_sensors: 10
+  n_well_tracks: 10
+  n_trials: 25
+  poly_order: 1
+  save_every_n_epochs: 10
+  seed: none # set in generate_configs.py
+  sindy_layer_threshold_n_epochs: 10
+  sindy_layer_threshold: 0.01
+  sindy_loss_threshold: 0.01
+  skip_load_checkpoint: true
+  strict_symmetry: true
+  verbose: true
+
+hyperparameters:
+  n_experts:
+    type: choice
+    choices: [2, 5, 10, 20]
+  encoder_depth:
+    type: choice
+    choices: [2, 5, 10, 20]
+  dropout:
+    type: uniform
+    lower_bound: 0.0
+    upper_bound: 0.1
+  lr:
+    lower_bound: 1.0e-04
+    type: loguniform
+    upper_bound: 1.0e-01
+  sindy_layer_weight:
+    lower_bound: 1.0e-2
+    type: loguniform
+    upper_bound: 1.0
+  sindy_loss_weight:
+    lower_bound: 1.0e-2
+    type: loguniform
+    upper_bound: 1.0
+  coord_descent_model_n_epochs:
+    lower_bound: 1
+    type: randint
+    upper_bound: 10
+  coord_descent_sindy_layer_n_epochs:
+    lower_bound: 1
+    type: randint
+    upper_bound: 10
+  coord_descent_model_lr:
+    lower_bound: 1.0e-04
+    type: loguniform
+    upper_bound: 1.0e-01
+  coord_descent_sindy_layer_lr:
+    lower_bound: 1.0e-04
+    type: loguniform
+    upper_bound: 1.0e-01

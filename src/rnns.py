@@ -149,6 +149,7 @@ class LSTM(nn.Module):
             "output": h_out[:, :, -1:, :],
         }
 
+
 class MLPEncoder(nn.Module):
     """
     A simple Multi-Layer Perceptron (MLP) encoder.

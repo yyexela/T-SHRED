@@ -1,0 +1,42 @@
+best_config:
+  dropout: 0.01061600419855014
+  encoder_depth: 5
+  lr: 0.001731127600570621
+  n_experts: 10
+best_value: 0.00033629784593358636
+final_config:
+  model:
+    batch_size: 128
+    coord_descent: false
+    dataset: sst
+    decoder: mlp
+    decoder_depth: 2
+    delete_checkpoint: true
+    device: cuda:0
+    dropout: 0.01061600419855014
+    dt: 1.0
+    early_stop: 10
+    encoder: mlp
+    encoder_depth: 5
+    epochs: 100
+    forecast_length: 1
+    generate_loss_plots: false
+    generate_test_plots: false
+    generate_training_plots: false
+    hidden_size: 40
+    identifier: sst_mlp_mlp_8
+    input_length: 20
+    lr: 0.001731127600570621
+    n_experts: 10
+    n_heads: 4
+    n_sensors: 10
+    n_well_tracks: 10
+    poly_order: 1
+    save_every_n_epochs: 10
+    seed: 8
+    sindy_layer_threshold: 0.01
+    sindy_layer_threshold_n_epochs: 10
+    sindy_loss_threshold: 0.01
+    skip_load_checkpoint: true
+    strict_symmetry: true
+    verbose: false

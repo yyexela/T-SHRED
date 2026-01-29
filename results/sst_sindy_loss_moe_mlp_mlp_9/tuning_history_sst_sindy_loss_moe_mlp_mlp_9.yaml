@@ -1,0 +1,46 @@
+best_config:
+  dropout: 0.019434945036083312
+  encoder_depth: 5
+  lr: 0.01184487279769261
+  n_experts: 2
+  sindy_layer_weight: 0.17763575057700365
+  sindy_loss_weight: 0.02294994211300454
+best_value: 0.00043121216003783047
+final_config:
+  model:
+    batch_size: 128
+    coord_descent: false
+    dataset: sst
+    decoder: mlp
+    decoder_depth: 2
+    delete_checkpoint: true
+    device: cuda:0
+    dropout: 0.019434945036083312
+    dt: 1.0
+    early_stop: 10
+    encoder: sindy_loss_moe_mlp
+    encoder_depth: 5
+    epochs: 100
+    forecast_length: 1
+    generate_loss_plots: false
+    generate_test_plots: false
+    generate_training_plots: false
+    hidden_size: 40
+    identifier: sst_sindy_loss_moe_mlp_mlp_9
+    input_length: 20
+    lr: 0.01184487279769261
+    n_experts: 2
+    n_heads: 4
+    n_sensors: 10
+    n_well_tracks: 10
+    poly_order: 1
+    save_every_n_epochs: 10
+    seed: 9
+    sindy_layer_threshold: 0.01
+    sindy_layer_threshold_n_epochs: 10
+    sindy_layer_weight: 0.17763575057700365
+    sindy_loss_threshold: 0.01
+    sindy_loss_weight: 0.02294994211300454
+    skip_load_checkpoint: true
+    strict_symmetry: true
+    verbose: true
