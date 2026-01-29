@@ -28,7 +28,7 @@ model:
   seed: 0
   sindy_layer_threshold: 0.1
   sindy_layer_threshold_n_epochs: 10
-  sindy_layer_weight: 0.0
+  sindy_layer_weight: 0.1
   sindy_loss_threshold: 0.1
   sindy_loss_weight: 0.1
   skip_load_checkpoint: true

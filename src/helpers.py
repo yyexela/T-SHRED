@@ -236,9 +236,11 @@ def verify_args(args):
     """
     if args.batch_size <= 0:
         raise ValueError(f"batch_size {args.batch_size} must be greater than 0")
-    if args.coord_descent and not ("sindy_attention" in args.encoder):
+    if args.coord_descent and not (
+        "sindy_attention" in args.encoder or "moe" in args.encoder
+    ):
         raise ValueError(
-            f"coord_descent is only supported for SINDy-Attention encoders, not for {args.encoder}"
+            f"coord_descent is only supported for SINDy-Attention or MOE encoders, not for {args.encoder}"
         )
     if args.coord_descent and args.coord_descent_model_n_epochs <= 0:
         raise ValueError(
@@ -338,15 +340,21 @@ def verify_args(args):
         )
     if args.seed < 0:
         raise ValueError(f"seed {args.seed} must be non-negative")
-    if "sindy_attention" in args.encoder and args.sindy_layer_threshold < 0:
+    if (
+        "sindy_attention" in args.encoder or "moe" in args.encoder
+    ) and args.sindy_layer_threshold < 0:
         raise ValueError(
             f"sindy_layer_threshold {args.sindy_layer_threshold} must be non-negative"
         )
-    if "sindy_attention" in args.encoder and args.sindy_layer_threshold_n_epochs <= 0:
+    if (
+        "sindy_attention" in args.encoder or "moe" in args.encoder
+    ) and args.sindy_layer_threshold_n_epochs <= 0:
         raise ValueError(
             f"sindy_layer_threshold_n_epochs {args.sindy_layer_threshold_n_epochs} must be greater than 0"
         )
-    if "sindy_attention" in args.encoder and args.sindy_layer_weight < 0:
+    if (
+        "sindy_attention" in args.encoder or "moe" in args.encoder
+    ) and args.sindy_layer_weight < 0:
         raise ValueError(
             f"sindy_layer_weight {args.sindy_layer_weight} must be non-negative"
         )
@@ -656,7 +664,7 @@ def evaluate_model(
                 if args.sindy_layer_weight > 0.0:
                     sindy_sum = (
                         args.sindy_layer_weight
-                        * model.get_sindy_layer_coefficients_sum()
+                        * model.encoder.get_sindy_layer_coefficients_sum()
                     )
 
             if rmse:
@@ -1190,10 +1198,7 @@ def create_inputs_and_labels_from_batch(batch, args):
         # > forecast length is 1
         labels = batch[1][:, -1:, :, :, :]
 
-    if (
-        "sindy_attention" not in args.encoder
-        and "moe" not in args.encoder
-    ):
+    if "sindy_attention" not in args.encoder and "moe" not in args.encoder:
         # Set forecast length to 1 for non-SINDy-Layer models
         labels = labels.unsqueeze(1)
     elif "moe" in args.encoder:
@@ -1305,7 +1310,7 @@ def train_model(
                 if args.sindy_layer_weight > 0.0:
                     sindy_sum = (
                         args.sindy_layer_weight
-                        * model.get_sindy_layer_coefficients_sum()
+                        * model.encoder.get_sindy_layer_coefficients_sum()
                     )
                     loss += sindy_sum
 
@@ -1774,6 +1779,7 @@ def get_results_from_hyper_opt(hyper_opt_dir):
                         if (
                             "sindy_attention"
                             in data["final_config"]["model"]["encoder"]
+                            or "moe" in data["final_config"]["model"]["encoder"]
                         ):
                             if data["final_config"]["model"]["forecast_length"] != 1:
                                 data["final_config"]["model"]["encoder"] = (

@@ -6,7 +6,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2506.15881-%23B31A1B?logo=arxiv&link=https%3A%2F%2Farxiv.org%2Fpdf%2F2506.15881)](https://arxiv.org/abs/2506.15881)
 [![PyTorch](https://img.shields.io/badge/PyTorch-≥2.7.0-ee4c2c.svg?logo=pytorch)](https://pytorch.org/)
 
-[Overview](#overview) • [Project Structure](#project-structure) • [Getting Started](#getting-started)  • [Citation](#citation)
+[Overview](#overview) • [Project Structure](#project-structure) • [Getting Started](#getting-started)  • [Hyperparameter Tuning](#hyperparameter-tuning) • [Citation](#citation)
 
 </div>
 
@@ -104,6 +104,19 @@ Alternatively, you can run from a configuration file:
 ```
 $(venv) time python -u scripts/main.py --config configs/test/planetswe_sindy_attention_transformer_5_mlp_0.yaml
 ```
+
+## Hyperparameter Tuning
+
+There are several helper scripts to set up hyperparameter tuning quickly and efficiently on your hardware.
+
+- `scripts/generate_tuning_configs.py`:
+  - This script reads the set of default hyperparameters from `configs/template/tuning_template.yaml` and creates the files `configs/<encoder>/tuning_config/<config>.yaml` files. These files vary by dataset, encoder, decoder, seed, and forecast length combinations provided in the script.
+- `scripts/generate_tuning_bash.py`:
+  - This script creates `n` parallel bash scripts for each gpu across _multiple machines_. This parallelizes hyperparameter tuning. The script works by reading in all generated `configs/template/tuning_template.yaml` files and distributes them across the specified GPUs evenly. It skips the configurations that have already been tuned to completion.
+- `sync_machines.sh`:
+  - This helper script is used to sync the directories of the repository across multiple machines.
+
+The preferred pipeline is to use the above three scripts in the presented order.
 
 ## Citation
 

@@ -315,7 +315,12 @@ def plot_model_results_scatter(
             hyperparams = r["hyperparameters"].copy()
 
         # Convert to a frozenset of items to make it hashable
-        key = f"{hyperparams['encoder']}_{hyperparams['decoder']}_{hyperparams['dataset']}"
+        key = f"{hyperparams['encoder']}_{hyperparams['decoder']}_{hyperparams['dataset']}_{hyperparams['forecast_length']}"
+
+        if hyperparams['seed'] >= 10:
+            raise Exception("Seed >= 10:", hyperparams['seed'])
+        if len(model_groups[key]) > 10:
+            print("Key:", key, "length:", len(model_groups[key]), "seed:", hyperparams['seed'])
 
         if results_type == "hyper_opt":
             test_loss = r["best_value"]
@@ -371,6 +376,8 @@ def plot_model_results_scatter(
         set([r["hyperparameters"]["decoder"] for r in aggregated_results])
     )
 
+    print("Unique encoders:", unique_encoders)
+
     # Sort encoders and decoders
     unique_encoders.sort()
     unique_decoders.sort()
@@ -414,10 +421,14 @@ def plot_model_results_scatter(
     # First add dummy traces for encoders to create legend entries
     for encoder in unique_encoders:
         encoder_name = None
-        if encoder == "lstm":
+        if encoder == "mlp":
+            encoder_name = "MLP"
+        elif encoder == "lstm":
             encoder_name = "LSTM"
         elif encoder == "gru":
             encoder_name = "GRU"
+        elif encoder == "sindy_loss_mlp":
+            encoder_name = "SL-MLP"
         elif encoder == "sindy_loss_lstm":
             encoder_name = "SL-LSTM"
         elif encoder == "sindy_loss_gru":
@@ -434,6 +445,32 @@ def plot_model_results_scatter(
             encoder_name = "SA-T-5"
         elif encoder == "sindy_attention_sindy_loss_transformer_5":
             encoder_name = "SAR-T-5"
+        elif encoder == "moe_gru":
+            encoder_name = "MOE-GRU"
+        elif encoder == "moe_lstm":
+            encoder_name = "MOE-LSTM"
+        elif encoder == "moe_mlp":
+            encoder_name = "MOE-MLP"
+        elif encoder == "sindy_loss_moe_gru":
+            encoder_name = "SL-MOE-GRU"
+        elif encoder == "sindy_loss_moe_lstm":
+            encoder_name = "SL-MOE-LSTM"
+        elif encoder == "sindy_loss_moe_mlp":
+            encoder_name = "SL-MOE-MLP"
+        elif encoder == "moe_gru_5":
+            encoder_name = "MOE-GRU-5"
+        elif encoder == "moe_lstm_5":
+            encoder_name = "MOE-LSTM-5"
+        elif encoder == "moe_mlp_5":
+            encoder_name = "MOE-MLP-5"
+        elif encoder == "sindy_loss_moe_gru_5":
+            encoder_name = "SL-MOE-GRU-5"
+        elif encoder == "sindy_loss_moe_lstm_5":
+            encoder_name = "SL-MOE-LSTM-5"
+        elif encoder == "sindy_loss_moe_mlp_5":
+            encoder_name = "SL-MOE-MLP-5"
+        else:
+            raise Exception("Invalid encoder:", encoder)
 
         fig.add_trace(
             go.Scatter(

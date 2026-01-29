@@ -10,6 +10,7 @@ Uses parallelization to run the scripts on multiple GPUs and/or computers.
 import sys
 from pathlib import Path
 
+home_dir = Path.home()
 top_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(top_dir))
 
@@ -27,7 +28,7 @@ echo "Running Python on {computer_name}"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES={device}
 
-source {venv_path}
+source {venv_path}/bin/activate
 """
 
 bash_template_1 = """\
@@ -42,20 +43,20 @@ echo "Finished running Python"\
 
 # Parameters
 hyper_opt_time = 9999999.0
-n_parallel = 1
+n_parallel = 2
 
 # Computer configuration - each computer has its own repo path, venv path, and available GPUs
 computers = {
     "computer0": {
-        "repo_path": "/home/alexey/Git/T-SHRED",
-        "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
+        "repo_path": top_dir,
+        "venv_path": home_dir / ".virtualenvs" / "tshred",
         "gpus": ["cuda:1", "cuda:2", "cuda:3"],
     },
-    "computer1": {
-        "repo_path": "/home/alexey/Git/T-SHRED",
-        "venv_path": "/home/alexey/.virtualenvs/tshred/bin/activate",
-        "gpus": ["cuda:1", "cuda:2", "cuda:3"],
-    },
+    #"computer1": {
+        #"repo_path": top_dir,
+        #"venv_path": home_dir / ".virtualenvs" / "tshred",
+        #"gpus": ["cuda:1", "cuda:2", "cuda:3"],
+    #},
 }
 
 # Create and clean up bash repo
@@ -104,7 +105,7 @@ skipped_count = 0
 for config_file in config_files:
     identifier = extract_config_value(config_file, "identifier")
     dataset = extract_config_value(config_file, "dataset")
-    results_path = Path("/") / "home" / "alexey" / "Git" / "T-SHRED" / "results"
+    results_path = top_dir / "results"
     results_path = results_path / identifier / f"optimal_params_{dataset}.yaml"
 
     if not results_path.exists():

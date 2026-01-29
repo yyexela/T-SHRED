@@ -172,6 +172,7 @@ class SINDyLossLSTM(SINDyLoss, LSTM):
             "sindy_loss": sindy_loss,
         }
 
+
 class SINDyLossMLP(SINDyLoss, MLPEncoder):
     """
     MLP encoder with SINDy loss regularization.

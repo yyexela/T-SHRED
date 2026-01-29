@@ -329,7 +329,7 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         # SINDy forward all experts
         sindy_outputs = [expert(h_out[-1]) for expert in self.experts]
         sindy_outputs = torch.stack(sindy_outputs)
-        sindy_outputs = sindy_outputs.unsqueeze(3) # Adds sequence length dimension
+        sindy_outputs = sindy_outputs.unsqueeze(3)  # Adds sequence length dimension
 
         # Combine experts: weighted sum across expert dimension
         # NOTE: Dropout drops random experts
@@ -342,6 +342,7 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
             "final_hidden_state": h_out,
             "output": combined,
         }
+
 
 class MOEMLP(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
     """

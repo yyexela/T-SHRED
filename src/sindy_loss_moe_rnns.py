@@ -107,6 +107,7 @@ class SINDyLossMOEGRU(SINDyLoss, MOEGRU):
             "sindy_loss": sindy_loss,
         }
 
+
 class SINDyLossMOELSTM(SINDyLoss, MOELSTM):
     """
     LSTM encoder with SINDy loss regularization.
@@ -187,7 +188,7 @@ class SINDyLossMOELSTM(SINDyLoss, MOELSTM):
         # SINDy forward all experts
         sindy_outputs = [expert(h_out[-1]) for expert in self.experts]
         sindy_outputs = torch.stack(sindy_outputs)
-        sindy_outputs = sindy_outputs.unsqueeze(3) # Adds sequence length dimension
+        sindy_outputs = sindy_outputs.unsqueeze(3)  # Adds sequence length dimension
 
         # Combine experts: weighted sum across expert dimension
         # NOTE: Dropout drops random experts
@@ -201,6 +202,7 @@ class SINDyLossMOELSTM(SINDyLoss, MOELSTM):
             "output": combined,
             "sindy_loss": sindy_loss,
         }
+
 
 class SINDyLossMOEMLP(SINDyLoss, MOEMLP):
     """

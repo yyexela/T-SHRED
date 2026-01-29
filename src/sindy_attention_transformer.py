@@ -341,7 +341,7 @@ class SindyAttentionTransformer(Transformer):
             layer = self.encoder.layers[-1]
             for i in range(layer.self_attn.n_heads):
                 sindy_sum += torch.sqrt(
-                    (torch.abs(layer.self_attn.coefficients[i].data) ** 2).sum()
+                    (layer.self_attn.sindy_layers[i].get_dense_sindy_coefficients() ** 2).sum()
                 )
         return sindy_sum
 
