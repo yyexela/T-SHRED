@@ -7,7 +7,7 @@ from pathlib import Path
 
 def main():
     # Get the directory where this script is located
-    script_dir = Path(__file__).parent.resolve()
+    script_dir = Path(__file__).parent.parent.resolve()
     results_dir = script_dir / "results"
 
     if not results_dir.exists():
