@@ -196,7 +196,8 @@ def main(args=None):
             model_eigvs = einops.rearrange(
                 model_eigvs, "epochs heads coeffs -> heads epochs coeffs"
             )
-            for i in range(args.n_heads):
+            n_plots = args.n_heads if "sindy_attention" in args.encoder else args.n_experts
+            for i in range(n_plots):
                 plots.plot_eigvs(
                     model_eigvs[i], save=True, fname=f"{args.identifier}_eigvs_head{i}"
                 )

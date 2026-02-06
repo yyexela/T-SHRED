@@ -790,7 +790,7 @@ def create_far_out_plots(model, ds, sensors, metadata, args=None):
         forecast_length_plot = 101
     elif args.dataset == "sst":
         ds_iter = [0]
-        forecast_length_plot = 101
+        forecast_length_plot = 81
     plot_steps = list(np.linspace(0, forecast_length_plot - 1, 3).astype(int))
 
     with torch.no_grad():
