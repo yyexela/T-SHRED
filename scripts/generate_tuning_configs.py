@@ -143,6 +143,8 @@ def main():
                         hyperparams_to_remove.append("sindy_loss_weight")
                     if "sindy_attention" not in encoder and "moe" not in encoder:
                         hyperparams_to_remove.append("sindy_layer_weight")
+                    if "moe" not in encoder:
+                        hyperparams_to_remove.append("n_experts")
 
                     # Set forecast_length based on rollout
                     if "sindy_attention" in encoder or "moe" in encoder:
