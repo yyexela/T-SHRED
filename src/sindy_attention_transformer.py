@@ -392,6 +392,20 @@ class SindyAttentionTransformer(Transformer):
         if verbose:
             print()
 
+    def get_dense_sindy_coefficients(self):
+        """
+        Get the dense SINDy coefficients for the model.
+        Returns a list of dense SINDy coefficient matrices, one for each expert.
+
+        Returns:
+            list: List of dense SINDy coefficient matrices
+        """
+        odes = []
+        layer = self.encoder.layers[-1].self_attn
+        for i in range(self.n_heads):
+            odes.append(layer.sindy_layers[i].get_dense_sindy_coefficients())
+        return odes
+
     def forward(
         self,
         src,

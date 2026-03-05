@@ -9,7 +9,7 @@ import torch
 import einops
 import torch.nn as nn
 from torchdiffeq import odeint
-from pytorch_polynomial_features import PolynomialFeatures
+from src.pytorch_polynomial_features import PolynomialFeatures
 
 
 class SINDyLoss(nn.Module):

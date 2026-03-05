@@ -60,7 +60,7 @@ def load_model_from_checkpoint(checkpoint_path, force_load=False, args=None):
     model = MixedModel(args)
     print("Checking if checkpoint exists")
     if (not args.skip_load_checkpoint or force_load) and checkpoint_path.exists():
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
 
         coefficient_params = [
             p
@@ -225,6 +225,8 @@ class MixedModel(nn.Module):
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt,  # Time step for Euler integration
+                std_init_min=args.std_init_min,
+                std_init_max=args.std_init_max,
                 dropout=args.dropout,
                 device=args.device,
             )
@@ -255,6 +257,8 @@ class MixedModel(nn.Module):
                 forecast_length=args.forecast_length,
                 num_layers=args.encoder_depth,
                 strict_symmetry=args.strict_symmetry,
+                std_init_min=args.std_init_min,
+                std_init_max=args.std_init_max,
                 dropout=args.dropout,
                 device=args.device,
             )
@@ -269,6 +273,8 @@ class MixedModel(nn.Module):
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt,  # Time step for Euler integration
+                std_init_min=args.std_init_min,
+                std_init_max=args.std_init_max,
                 dropout=args.dropout,
                 device=args.device,
             )
@@ -280,6 +286,8 @@ class MixedModel(nn.Module):
                 forecast_length=args.forecast_length,
                 num_layers=args.encoder_depth,
                 strict_symmetry=args.strict_symmetry,
+                std_init_min=args.std_init_min,
+                std_init_max=args.std_init_max,
                 dropout=args.dropout,
                 device=args.device,
             )
@@ -291,6 +299,8 @@ class MixedModel(nn.Module):
                 forecast_length=args.forecast_length,
                 num_layers=args.encoder_depth,
                 strict_symmetry=args.strict_symmetry,
+                std_init_min=args.std_init_min,
+                std_init_max=args.std_init_max,
                 dropout=args.dropout,
                 device=args.device,
             )
@@ -324,6 +334,8 @@ class MixedModel(nn.Module):
                 poly_order=args.poly_order,
                 sindy_loss_threshold=args.sindy_loss_threshold,
                 dt=args.dt,  # Time step for Euler integration
+                std_init_min=args.std_init_min,
+                std_init_max=args.std_init_max,
                 dropout=args.dropout,
                 device=args.device,
             )

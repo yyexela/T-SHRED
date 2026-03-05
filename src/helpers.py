@@ -11,16 +11,17 @@ import torch
 import einops
 import random
 import pickle
+import paramiko
 import argparse
 import threading
 import subprocess
 import numpy as np
-import paramiko
 from torch import nn
-from queue import Queue, Empty
 from pathlib import Path
+from torchdiffeq import odeint
+from queue import Queue, Empty
 from src.plots import plot_losses, plot_field_comparison
-
+from src.pytorch_polynomial_features import PolynomialFeatures
 
 def parse_args():
     """
@@ -1370,6 +1371,7 @@ def train_model(
                     "val_losses": val_losses,
                     "model_eigvs": model_eigvs,
                     "sensors": sensors,
+                    "args": vars(args),
                 },
                 args.best_checkpoint_path,
             )
@@ -1384,6 +1386,7 @@ def train_model(
                     "val_losses": val_losses,
                     "model_eigvs": model_eigvs,
                     "sensors": sensors,
+                    "args": vars(args),
                 },
                 args.latest_checkpoint_path,
             )
@@ -1406,6 +1409,7 @@ def train_model(
                     "val_losses": val_losses,
                     "model_eigvs": model_eigvs,
                     "sensors": sensors,
+                    "args": vars(args),
                 },
                 args.latest_checkpoint_path,
             )
@@ -1426,7 +1430,8 @@ def train_model(
         if args.verbose and (
             "sindy_attention" in args.encoder or "moe" in args.encoder
         ):
-            model.encoder.print_sindy_layer_coefficients()
+            #model.encoder.print_sindy_layer_coefficients()
+            pass
 
         # Collect model eigenvalues
         if "sindy_attention" in args.encoder or "moe" in args.encoder:

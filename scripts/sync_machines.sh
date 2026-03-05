@@ -9,7 +9,8 @@ else
     target_machine="matrix"
 fi
 
-for f in "results" "scripts" "src" "notebooks" "configs" "bash" "pickles" "logs" ".vscode" ".git" "Makefile"; do
+#for f in "results" "scripts" "src" "notebooks" "configs" "bash" ".vscode" ".git" "Makefile"; do
+for f in "results" "scripts" "src" "notebooks" "configs" "bash" "pickles" ".vscode" ".git" "Makefile"; do
     # Sync to target machine
     #echo "Running: rsync -az \"/home/alexey/Git/T-SHRED/$f\" $target_machine:\"/home/alexey/Git/T-SHRED/\""
     rsync -az "/home/alexey/Git/T-SHRED/$f" $target_machine:"/home/alexey/Git/T-SHRED/"

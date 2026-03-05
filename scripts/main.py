@@ -163,7 +163,8 @@ def main(args=None):
 
     # Print model coefficients
     if args.verbose and ("sindy_attention" in args.encoder or "moe" in args.encoder):
-        best_model.encoder.print_sindy_layer_coefficients()
+        #best_model.encoder.print_sindy_layer_coefficients()
+        pass
 
     # Calculate loss
     test_loss_next, _ = helpers.evaluate_model(

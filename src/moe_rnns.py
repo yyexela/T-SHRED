@@ -111,6 +111,19 @@ class MOE_SINDy_Layer_Helpers_Mixin:
         if verbose:
             print()
 
+    def get_dense_sindy_coefficients(self):
+        """
+        Get the dense SINDy coefficients for the model.
+        Returns a list of dense SINDy coefficient matrices, one for each expert.
+
+        Returns:
+            list: List of dense SINDy coefficient matrices
+        """
+        odes = []
+        for expert in self.experts:
+            odes.append(expert.get_dense_sindy_coefficients())
+        return odes
+
 
 class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
     """
@@ -129,6 +142,8 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         strict_symmetry: bool,
         num_layers: int,
         dropout: float,
+        std_init_min: float = 0.1,
+        std_init_max: float = 1.0,
         device: str = "cpu",
         **kwargs,
     ):
@@ -143,6 +158,8 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
             strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
             num_layers (int): Number of GRU layers
             dropout (float): Dropout probability for expert weighting
+            std_init_min (float): Minimum standard deviation for initial SINDy coefficients
+            std_init_max (float): Maximum standard deviation for initial SINDy coefficients
             device (str): Device to place the model on (default: "cpu")
             **kwargs: Additional keyword arguments (ignored)
         """
@@ -156,8 +173,10 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         self.gru = None  # lazy initialization
         self.output_size = hidden_size
         self.dropout = nn.Dropout(dropout)
+        self.std_init_min = std_init_min
+        self.std_init_max = std_init_max
         self.device = device
-
+        self.std_inits = torch.linspace(self.std_init_min, self.std_init_max, self.n_experts)
         self.initialize()
 
     def initialize(self):
@@ -185,9 +204,17 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
                     forecast_length=self.forecast_length,
                     device=self.device,
                     strict_symmetry=self.strict_symmetry,
+                    std_init=self.std_inits[i],
                 )
-                for _ in range(self.n_experts)
+                for i in range(self.n_experts)
             ]
+        )
+        self.rms = nn.RMSNorm(self.hidden_size)
+        self.ff = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
         )
 
     def forward(self, x):
@@ -221,6 +248,12 @@ class MOEGRU(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         weights = self.softmax(weights)
         combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
 
+        # Pass through RMSNorm
+        combined = self.rms(combined)
+
+        # Pass through feedforward network
+        combined = self.ff(combined)
+
         return {
             "sequence_output": out,
             "final_hidden_state": h_out,
@@ -245,6 +278,8 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         strict_symmetry: bool,
         num_layers: int,
         dropout: float,
+        std_init_min: float = 0.1,
+        std_init_max: float = 1.0,
         device: str = "cpu",
         **kwargs,
     ):
@@ -259,6 +294,8 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
             strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
             num_layers (int): Number of LSTM layers
             dropout (float): Dropout probability for expert weighting
+            std_init_min (float): Minimum standard deviation for initial SINDy coefficients
+            std_init_max (float): Maximum standard deviation for initial SINDy coefficients
             device (str): Device to place the model on (default: "cpu")
             **kwargs: Additional keyword arguments (ignored)
         """
@@ -273,7 +310,9 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         self.output_size = hidden_size
         self.dropout = nn.Dropout(dropout)
         self.device = device
-
+        self.std_init_min = std_init_min
+        self.std_init_max = std_init_max
+        self.std_inits = torch.linspace(self.std_init_min, self.std_init_max, self.n_experts)
         self.initialize()
 
     def initialize(self):
@@ -294,6 +333,7 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         self.linear_combination = nn.Parameter(
             torch.ones(self.n_experts) / self.n_experts
         )
+        self.rms = nn.RMSNorm(self.hidden_size)
         self.experts = nn.ModuleList(
             [
                 SindyLayer(
@@ -301,9 +341,16 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
                     forecast_length=self.forecast_length,
                     device=self.device,
                     strict_symmetry=self.strict_symmetry,
+                    std_init=self.std_inits[i],
                 )
-                for _ in range(self.n_experts)
+                for i in range(self.n_experts)
             ]
+        )
+        self.ff = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
         )
 
     def forward(self, x):
@@ -337,6 +384,12 @@ class MOELSTM(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         weights = self.softmax(weights)
         combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
 
+        # Pass through RMSNorm
+        combined = self.rms(combined)
+
+        # Pass through feedforward network
+        combined = self.ff(combined)
+
         return {
             "sequence_output": out,
             "final_hidden_state": h_out,
@@ -361,6 +414,8 @@ class MOEMLP(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         strict_symmetry: bool,
         num_layers: int,
         dropout: float,
+        std_init_min: float = 0.1,
+        std_init_max: float = 1.0,
         device: str = "cpu",
     ):
         """
@@ -374,6 +429,8 @@ class MOEMLP(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
             strict_symmetry (bool): If True, enforce symmetric SINDy coefficients
             num_layers (int): Number of LSTM layers
             dropout (float): Dropout probability for expert weighting
+            std_init_min (float): Minimum standard deviation for initial SINDy coefficients
+            std_init_max (float): Maximum standard deviation for initial SINDy coefficients
             device (str): Device to place the model on (default: "cpu")
             **kwargs: Additional keyword arguments (ignored)
         """
@@ -387,7 +444,11 @@ class MOEMLP(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         self.mlp = None  # lazy initialization
         self.output_size = hidden_size
         self.dropout = nn.Dropout(dropout)
+        self.std_init_min = std_init_min
+        self.std_init_max = std_init_max
         self.device = device
+
+        self.std_inits = torch.linspace(self.std_init_min, self.std_init_max, self.n_experts)
 
         # Model layer sizes
         sizes = [self.input_size] + [self.hidden_size] * self.num_layers
@@ -407,6 +468,7 @@ class MOEMLP(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         self.linear_combination = nn.Parameter(
             torch.ones(self.n_experts) / self.n_experts
         )
+        self.rms = nn.RMSNorm(self.hidden_size)
         self.experts = nn.ModuleList(
             [
                 SindyLayer(
@@ -414,9 +476,16 @@ class MOEMLP(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
                     forecast_length=self.forecast_length,
                     device=self.device,
                     strict_symmetry=self.strict_symmetry,
+                    std_init=self.std_inits[i],
                 )
-                for _ in range(self.n_experts)
+                for i in range(self.n_experts)
             ]
+        )
+        self.ff = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
         )
 
     def forward(self, x):
@@ -447,6 +516,12 @@ class MOEMLP(nn.Module, MOE_SINDy_Layer_Helpers_Mixin):
         weights = self.dropout(self.linear_combination)
         weights = self.softmax(weights)
         combined = torch.einsum("ebfsd,e->bfsd", sindy_outputs, weights)
+
+        # Pass through RMSNorm
+        combined = self.rms(combined)
+
+        # Pass through feedforward network
+        combined = self.ff(combined)
 
         return {
             "sequence_output": out,

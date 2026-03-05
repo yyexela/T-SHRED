@@ -9,7 +9,7 @@ import torch
 import einops
 import torch.nn as nn
 from torchdiffeq import odeint
-from pytorch_polynomial_features import PolynomialFeatures
+from src.pytorch_polynomial_features import PolynomialFeatures
 
 
 class SindyLayer(nn.Module):
@@ -33,6 +33,7 @@ class SindyLayer(nn.Module):
         forecast_length: int,
         device: str = "cpu",
         strict_symmetry: bool = True,
+        std_init: float = 0.1,
         **kwargs,
     ):
         """
@@ -44,6 +45,7 @@ class SindyLayer(nn.Module):
             device (str): Device to place the model on (default: "cpu")
             strict_symmetry (bool): If True, enforces symmetric coefficient matrix
                 via lower triangle parameterization. Default: True
+            std_init (float): Standard deviation for initial coefficients. Default: 0.1
             **kwargs: Additional keyword arguments (ignored)
         """
         # Initialize parent class
@@ -67,11 +69,11 @@ class SindyLayer(nn.Module):
             self.tril_indices = torch.tril_indices(self.library_dim, self.library_dim)
             num_params = (self.library_dim * (self.library_dim + 1)) // 2
             self.triangle_coefficients = nn.Parameter(torch.Tensor(num_params))
-            nn.init.normal_(self.triangle_coefficients, mean=0.0, std=0.1)
+            nn.init.normal_(self.triangle_coefficients, mean=0.0, std=std_init)
         else:
             # General dense 1D matrix, initialized as a symmetric matrix
             num_params = self.library_dim * self.library_dim
-            triangle_coefficients = torch.randn(num_params) * 0.1 + 0.0
+            triangle_coefficients = torch.randn(num_params) * std_init + 0.0
             sindy_coefficients = self.dense_matrix_from_symmetric_params(
                 triangle_coefficients
             )
@@ -188,7 +190,7 @@ class SindyLayer(nn.Module):
         ).float()
         library_Theta_flat = library_Theta.flatten()
         library_Theta_flat = library_Theta_flat.to(torch.cfloat)
-        rollout = odeint(f, library_Theta_flat, t_eval, method="rk4")
+        rollout = odeint(f, library_Theta_flat, t_eval, method="dopri5", rtol=1e-3, atol=1e-3)
         rollout = rollout.real
         rollout = rollout.reshape(
             self.forecast_length, library_Theta.shape[0], library_Theta.shape[1]

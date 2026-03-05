@@ -13,11 +13,75 @@ import matplotlib
 matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from matplotlib.gridspec import GridSpec
 
 top_dir = str(Path(__file__).parent.parent)
 figure_dir = Path(top_dir) / "figures"
 
+def plot_ode_forward(
+    rollout: torch.Tensor,
+    title: str,
+    save: bool = False,
+    fname: str = None,
+    figsize: tuple[int, int] | None = None,
+) -> None:
+    """
+    Plot the rollout of the ODE forward pass as subplots (one per variable).
+
+    Args:
+        rollout (torch.Tensor): Rollout of the ODE forward pass of shape (forecast_length, hidden_size)
+        title (str): Master title for the figure.
+        save (bool, optional): Whether to save the figure to a file. Defaults to False.
+        fname (str, optional): If saving, the filename to save to. Required if save=True. Defaults to None.
+        figsize (tuple[int, int] | None, optional): (width, height) in pixels. If None, Plotly defaults are used.
+
+    Returns:
+        None
+    """
+
+    if hasattr(rollout, "detach"):
+        data = rollout.detach().cpu().numpy()
+    else:
+        data = rollout
+    timesteps = list(range(data.shape[0]))
+    n_vars = data.shape[1]
+
+    subplot_titles = [f"Variable {var_idx}" for var_idx in range(n_vars)]
+    fig = make_subplots(
+        rows=n_vars,
+        cols=1,
+        subplot_titles=subplot_titles,
+        vertical_spacing=0.08,
+    )
+    layout_kw = {"title_text": title}
+    if figsize is not None:
+        layout_kw["width"] = figsize[0]
+        layout_kw["height"] = figsize[1]
+    fig.update_layout(**layout_kw)
+
+    for var_idx in range(n_vars):
+        fig.add_trace(
+            go.Scatter(
+                x=timesteps,
+                y=data[:, var_idx],
+                mode="lines+markers",
+                name=f"var_{var_idx}",
+            ),
+            row=var_idx + 1,
+            col=1,
+        )
+        fig.update_xaxes(title_text="Timestep", row=var_idx + 1, col=1)
+        fig.update_yaxes(title_text="Value", row=var_idx + 1, col=1)
+
+    if save:
+        if fname is None:
+            raise ValueError("Filename must be provided when save=True")
+        fig.write_image(figure_dir / f"{fname}.pdf", format="pdf")
+    else:
+        fig.show()
+
+    plt.close()
 
 def plot_field_comparison(
     prediction: torch.Tensor,
@@ -469,6 +533,18 @@ def plot_model_results_scatter(
             encoder_name = "SL-MOE-LSTM-5"
         elif encoder == "sindy_loss_moe_mlp_5":
             encoder_name = "SL-MOE-MLP-5"
+        elif encoder == "moe_gru_20":
+            encoder_name = "MOE-GRU-20"
+        elif encoder == "moe_lstm_20":
+            encoder_name = "MOE-LSTM-20"
+        elif encoder == "moe_mlp_20":
+            encoder_name = "MOE-MLP-20"
+        elif encoder == "sindy_loss_moe_gru_20":
+            encoder_name = "SL-MOE-GRU-20"
+        elif encoder == "sindy_loss_moe_lstm_20":
+            encoder_name = "SL-MOE-LSTM-20"
+        elif encoder == "sindy_loss_moe_mlp_20":
+            encoder_name = "SL-MOE-MLP-20"
         else:
             raise Exception("Invalid encoder:", encoder)
 

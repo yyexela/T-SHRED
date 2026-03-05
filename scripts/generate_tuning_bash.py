@@ -52,11 +52,11 @@ computers = {
         "venv_path": home_dir / ".virtualenvs" / "tshred",
         "gpus": ["cuda:1", "cuda:2", "cuda:3"],
     },
-    #"computer1": {
-        #"repo_path": top_dir,
-        #"venv_path": home_dir / ".virtualenvs" / "tshred",
-        #"gpus": ["cuda:1", "cuda:2", "cuda:3"],
-    #},
+    "computer1": {
+        "repo_path": top_dir,
+        "venv_path": home_dir / ".virtualenvs" / "tshred",
+        "gpus": ["cuda:1", "cuda:2", "cuda:3"],
+    },
 }
 
 # Create and clean up bash repo

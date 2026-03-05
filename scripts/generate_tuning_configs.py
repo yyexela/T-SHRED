@@ -36,6 +36,12 @@ encoder_dict = {
     "sindy_loss_moe_lstm_5": "SL-MOE-LSTM-5",
     "sindy_attention_transformer_5": "SA-T-5",
     "sindy_attention_sindy_loss_transformer_5": "SASL-T-5",
+    "moe_mlp_20": "MOE-MLP-20",
+    "moe_gru_20": "MOE-GRU-20",
+    "moe_lstm_20": "MOE-LSTM-20",
+    "sindy_loss_moe_gru_20": "SL-MOE-GRU-20",
+    "sindy_loss_moe_mlp_20": "SL-MOE-MLP-20",
+    "sindy_loss_moe_lstm_20": "SL-MOE-LSTM-20",
 }
 
 decoder_dict = {
@@ -69,6 +75,12 @@ encoders = [
     "sindy_loss_moe_lstm_5",
     "sindy_attention_transformer_5",
     "sindy_attention_sindy_loss_transformer_5",
+    #"moe_mlp_20",
+    "moe_gru_20",
+    #"moe_lstm_20",
+    #"sindy_loss_moe_mlp_20",
+    "sindy_loss_moe_gru_20",
+    #"sindy_loss_moe_lstm_20",
 ]
 decoders = ["mlp", "cnn"]
 datasets = ["sst"]
@@ -151,6 +163,9 @@ def main():
                         if "_5" in encoder:
                             config["model"]["forecast_length"] = 5
                             config["model"]["encoder"] = encoder[:-2]
+                        elif "_20" in encoder:
+                            config["model"]["forecast_length"] = 20
+                            config["model"]["encoder"] = encoder[:-3]
                         else:
                             config["model"]["forecast_length"] = 1
                     else:

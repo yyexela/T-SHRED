@@ -3,13 +3,12 @@ model:
   coord_descent: none
   dataset: none
   decoder: none
-  decoder_depth: 2
   device: cuda:0
   delete_checkpoint: true
   dt: 1.0
   early_stop: 10
   encoder: none
-  epochs: 100
+  epochs: 50
   forecast_length: none
   generate_loss_plots: false
   generate_test_plots: false
@@ -29,15 +28,20 @@ model:
   sindy_loss_threshold: 0.01
   skip_load_checkpoint: true
   strict_symmetry: true
+  std_init_min: 0.1
+  std_init_max: 2.0
   verbose: true
 
 hyperparameters:
   n_experts:
     type: choice
-    choices: [2, 5, 10, 20]
+    choices: [5, 20, 50, 100]
   encoder_depth:
     type: choice
     choices: [2, 5, 10, 20]
+  decoder_depth:
+    type: choice
+    choices: [1, 2]
   dropout:
     type: uniform
     lower_bound: 0.0
