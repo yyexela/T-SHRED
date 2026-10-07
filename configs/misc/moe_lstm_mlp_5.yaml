@@ -4,7 +4,7 @@ model:
   dataset: sst
   decoder: mlp
   decoder_depth: 2
-  delete_checkpoint: true
+  delete_checkpoint: false
   device: cuda:0
   dropout: 0.0010899653645483412
   dt: 1.0
